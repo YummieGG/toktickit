@@ -9,7 +9,7 @@
 | [#5](https://github.com/YummieGG/toktickit/pull/5) | feature/1-project-foundation | Approved |
 | [#6](https://github.com/YummieGG/toktickit/pull/6) | feature/2-health-check | Approved |
 | [#7](https://github.com/YummieGG/toktickit/pull/7) | feature/3-category-seed | Approved |
-| [#8](https://github.com/YummieGG/toktickit/pull/8) | feature/4-category-list |  |
+| [#8](https://github.com/YummieGG/toktickit/pull/8) | feature/4-category-list | Approved |
 
 Reviewer comment I received: 
 - PR #7: "I have reviewed the changes in this Pull Request against the TokTickIT Lab 1 (Issue 3) specifications and acceptance criteria. Great job! Ready to merge into lab1-staging."
