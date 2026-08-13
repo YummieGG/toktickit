@@ -1,27 +1,41 @@
-# Test Evidence
+# Lab 1 — Test Plan and Evidence
 
-| Test File | Tool | Test Description |
-|-----------|------|------------------|
-| API-01 (health.test.ts)  | Supertest | Health endpoint returns 200 and expected JSON |
-| API-02    | Supertest | Categories endpoint returns the four seeded categories |
-| UI-01     | Vitest | TokTickIT heading renders |
-| UI-02     | Vitest | Loading state changes to category list |
-| UI-03     | Vitest | API failure displays a useful error message |
+All test files live under server/tests/lab-01/ and client/tests/lab-01/.
 
-## Screenshots / Terminal Output
+| # | Tool | Test | Result |
+|---|------|------|--------|
+| 1 | Supertest | GET /api/health returns 200, status=ok | Pass |
+| 2 | Supertest | GET /api/categories returns 4 seeded categories in id order | Pass |
+| 3 | Vitest | Heading renders | Pass |
+| 4 | Vitest | Success state shows Online + category list | Pass |
+| 5 | Vitest | Error state shows Offline + message | Pass |
 
-### API-01: Health Check Endpoint Test (`server/tests/lab-01/health.test.ts`)
+Paste your passing terminal output / screenshot below.
 
-<pre>
-stdout | tests/lab-01/health.test.ts
-Server is running on port 3000
+### Backend API Tests (`server/tests/lab-01/`)
 
-<span style="color: #2da44e;">✓ tests/lab-01/health.test.ts</span> (1 test) <span style="color: #2da44e;">10ms</span>
-  <span style="color: #2da44e;">✓ GET /api/health</span> (1)
-    <span style="color: #2da44e;">✓ should return 200 and health status</span> <span style="color: #2da44e;">9ms</span>
+```text
+ RUN  v4.1.10 /Users/yummiegg/Workspaces/Code/Y3/SWE_CPE334/lab1-4/toktickit/server
 
-Test Files  <span style="color: #2da44e; font-weight: bold;">1 passed</span> (1)
-     Tests  <span style="color: #2da44e; font-weight: bold;">1 passed</span> (1)
-Start at  15:45:40
-Duration  226ms (transform 33ms, setup 0ms, import 133ms, tests 10ms, environment 0ms)
-</pre>
+ ✓ tests/lab-01/API-02.test.ts (1 test) 14ms
+ ✓ tests/lab-01/health.test.ts (1 test) 13ms
+
+ Test Files  2 passed (2)
+      Tests  2 passed (2)
+   Start at  22:20:24
+   Duration  331ms (transform 77ms, setup 0ms, import 330ms, tests 27ms, environment 0ms)
+```
+
+### Frontend UI Tests (`client/tests/lab-01/`)
+
+```text
+ RUN  v4.1.10 /Users/yummiegg/Workspaces/Code/Y3/SWE_CPE334/lab1-4/toktickit/client
+
+ ✓ tests/lab-01/UI-03.test.tsx (1 test) 28ms
+ ✓ tests/lab-01/UI-02.test.tsx (1 test) 30ms
+
+ Test Files  2 passed (2)
+      Tests  2 passed (2)
+   Start at  22:38:36
+   Duration  843ms (transform 92ms, setup 199ms, import 142ms, tests 58ms, environment 1.08s)
+```
