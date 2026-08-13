@@ -1,15 +1,19 @@
-# AI Use and Reflection
+# Lab 1 — AI Use and Reflection
 
-I used the Antigravity coding agent through my Google Cloud Platform account. I mainly used Gemini 3.5 Flash as the LLM with a thinking level of High.
+**LLM/agent used:** Antigravity coding agent (Gemini 3.5 Flash) via Google Cloud Platform
 
-| Timeline | Prompt Name | Actual Prompt Text | My Reflection |
-| :--- | :--- | :--- | :--- |
-| Planning | **1. Plan Lab 1** | Read Lab1_Labsheet.pdf thoroughly, summarize technology constraints and required tech stack, and break down the workflow into 4 GitHub Issues with acceptance criteria. | Worked in one shot. AI accurately parsed the PDF, summarized technology constraints, and created an implementation guide. |
-| Issue 1 | **2. Setup Foundation** | Setup React+Vite+Bootstrap client and Express+Prisma+TypeScript server for Issue 1. | AI setup the project to a certain level, but during review we found missing parts: `server/tests/lab-01/` folder was not created, `schema.prisma` lacked `DATABASE_URL`, and `App.tsx` still used default Vite code instead of Bootstrap UI. |
-| Issue 1 | **3. Fix Prisma Configuration** | Fix `schema.prisma` datasource URL and generator provider. | AI updated `schema.prisma` to include `url = env("DATABASE_URL")` and set `prisma-client-js` generator correctly. |
-| Issue 1 | **4. Complete Missing Requirements** | Fix all missing Issue 1 items based on the review feedback (App.tsx UI and tests/lab-01 directory). | Worked as requested. AI updated `App.tsx` with a clean Bootstrap layout and created `server/tests/lab-01/.gitkeep`. |
-| Issue 1 | **5. Verify PostgreSQL & Prisma Setup** | Configure Prisma schema and verify PostgreSQL database connectivity. | Worked as expected. AI initialized Prisma schema with correct DATABASE_URL environment variable. |
-| Issue 2 | **6. Plan Issue 2** | Create a detailed implementation plan for Issue 2 based on the lab criteria. | The AI correctly parsed the lab sheet, identified the backend endpoint `GET /api/health` requirements, the Supertest testing needs, and the frontend React UI requirements. The plan was very accurate and well structured. |
-| Issue 2 | **7. Check AI Understanding** | How do I know what the real API call is, and is there a specific error message required by the lab sheet? | The AI accurately pointed out that the endpoint is specified in Section 10.1, and the exact error message 'Unable to connect to TokTickIT API' is shown in the UI mockup on page 15. This clarified the requirements perfectly. |
-| Issue 2 | **8. Execute the Plan** | Proceed with the detailed implementation exactly as planned and according to the criteria. | The AI performed excellent code modifications. It updated `index.ts` with the new endpoint, created `health.test.ts` for Supertest, and updated `App.tsx` with the fetch logic and state management without needing any manual corrections. |
-| Issue 2 | **9. Automated Code Review** | Run the `/code-review` command to recheck all the newly implemented code against the criteria and coding standards. | The AI thoroughly reviewed the code against the lab specifications. All acceptance criteria for Issue 2 were 100% met. |
+## Selected key prompts (6–10)
+| # | Prompt (summarised) | What I did with the result |
+|---|---------------------|----------------------------|
+| 1 | Plan Lab 1 from PDF | Used the plan to guide the workflow and break down issues. |
+| 2 | Setup Foundation (Issue 1) | Found missing items (tests/lab-01/, DATABASE_URL, Bootstrap) which needed correction. |
+| 3 | Fix Prisma Configuration | Applied the fix to schema.prisma for correct datasource URL. |
+| 4 | Complete Missing Requirements | Re-prompted AI to fix App.tsx and create tests/lab-01/.gitkeep. |
+| 5 | Verify PostgreSQL & Prisma Setup | Verified database connectivity was working as expected. |
+| 6 | Plan Issue 2 | Used the structured implementation plan for the health check API. |
+| 7 | Check AI Understanding of API | Clarified endpoint requirements and error messages from the lab sheet. |
+| 8 | Execute the Plan for Issue 2 | Kept the generated code which correctly updated index.ts and App.tsx. |
+| 9 | Automated Code Review | Verified that all acceptance criteria for Issue 2 were 100% met. |
+
+## Reflection
+Being specific about the lab criteria and verifying the AI's understanding made the prompts much better. However, I had to correct the agent during the initial project setup when it missed creating the `tests/lab-01/` folder, setting the `DATABASE_URL`, and applying the required Bootstrap UI.
