@@ -31,11 +31,12 @@ Paste your passing terminal output / screenshot below.
 ```text
  RUN  v4.1.10 /Users/yummiegg/Workspaces/Code/Y3/SWE_CPE334/lab1-4/toktickit/client
 
- ✓ tests/lab-01/UI-03.test.tsx (1 test) 28ms
- ✓ tests/lab-01/UI-02.test.tsx (1 test) 30ms
+ ✓ tests/lab-01/UI-02.test.tsx (1 test) 27ms
+ ✓ tests/lab-01/UI-03.test.tsx (1 test) 29ms
+ ✓ tests/lab-01/UI-01.test.tsx (1 test) 71ms
 
- Test Files  2 passed (2)
-      Tests  2 passed (2)
-   Start at  22:38:36
-   Duration  843ms (transform 92ms, setup 199ms, import 142ms, tests 58ms, environment 1.08s)
+ Test Files  3 passed (3)
+      Tests  3 passed (3)
+   Start at  12:18:20
+   Duration  954ms (transform 149ms, setup 271ms, import 229ms, tests 126ms, environment 1.80s)
 ```
