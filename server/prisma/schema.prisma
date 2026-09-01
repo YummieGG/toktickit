@@ -7,8 +7,86 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TicketStatus {
+  NEW
+}
+
+enum RequestedPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model RequesterUser {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets   Ticket[]
+}
+
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  tickets   Ticket[]
+}
+
+model RelatedSystem {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tickets   Ticket[]
+}
+
+model Ticket {
+  id                Int               @id @default(autoincrement())
+  ticketNumber      String            @unique
+  summary           String
+  description       String
+  requestedPriority RequestedPriority
+  currentStatus     TicketStatus      @default(NEW)
+  ticketDate        DateTime          @default(now())
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  requesterId       Int
+  requester         RequesterUser     @relation(fields: [requesterId], references: [id])
+
+  categoryId        Int
+  category          Category          @relation(fields: [categoryId], references: [id])
+
+  relatedSystemId   Int?
+  relatedSystem     RelatedSystem?    @relation(fields: [relatedSystemId], references: [id])
+
+  attachments       Attachment[]
+
+  @@index([requesterId])
+  @@index([currentStatus])
+  @@index([categoryId])
+}
+
+model Attachment {
+  id            Int       @id @default(autoincrement())
+  originalName  String
+  storedName    String
+  mimeType      String
+  sizeBytes     Int
+  isRemoved     Boolean   @default(false)
+  removalReason String?
+  removedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  ticketId      Int
+  ticket        Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
 }

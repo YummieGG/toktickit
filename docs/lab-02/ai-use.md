@@ -13,6 +13,7 @@
 | 4 | Write api-spec.md with all endpoint contracts | Define REST API contract before implementation | Detailed API spec with request/response shapes and validation rules |
 | 5 | Write ui-spec.md with Zen Green design tokens and screen layouts | Define UI specification before implementation | Complete UI spec with color tokens, component states, and restructured directly into 19 checklist items per course requirement as requested |
 | 6 | Write tests.md with planned test matrix and AC traceability | Test-Driven Development — plan tests before code | Test plan with 44+ API tests, 29 UI tests, 9 E2E tests |
+| 7 | Provide a step-by-step guide to verify Section 5 (Required Database Increment) | Guide testing database implementation and seed data | Step-by-step instructions on verifying the Prisma schema, migrations, seed idempotency, and Prisma Studio checks |
 
 ## My Reflection
 
