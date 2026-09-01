@@ -11,9 +11,9 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('Start seeding database...');
+  console.log('Start seeding database for Lab 2...');
 
-  // 1. Seed Categories
+  // 1. Seed Categories (4 categories)
   const categories = [
     'Account and Access',
     'Hardware',
@@ -28,17 +28,17 @@ async function main() {
       update: { isActive: true },
       create: { name: categoryName, isActive: true },
     });
-    console.log(`Upserted Category: ${category.name}`);
+    console.log(`Upserted Category: ${category.name} (id: ${category.id})`);
   }
 
-  // 2. Seed Related Systems
+  // 2. Seed Related Systems (6 systems from specification.md)
   const relatedSystems = [
-    'ERP System',
-    'HRMS',
-    'Email Server',
+    'Email',
+    'Campus Wi-Fi',
     'VPN',
-    'Intranet Portal',
-    'CRM System'
+    'LEB2 App',
+    'Grade Submission App',
+    'Printer'
   ];
 
   console.log('Seeding related systems...');
@@ -48,16 +48,16 @@ async function main() {
       update: { isActive: true },
       create: { name: systemName, isActive: true },
     });
-    console.log(`Upserted Related System: ${system.name}`);
+    console.log(`Upserted Related System: ${system.name} (id: ${system.id})`);
   }
 
   // 3. Seed Requester Users (4 active, 1 inactive)
   const requesters = [
-    { name: 'Alice Smith', email: 'alice.s@company.com', isActive: true },
-    { name: 'Bob Jones', email: 'bob.j@company.com', isActive: true },
-    { name: 'Charlie Brown', email: 'charlie.b@company.com', isActive: true },
-    { name: 'Diana Prince', email: 'diana.p@company.com', isActive: true },
-    { name: 'Eve Inactive', email: 'eve.i@company.com', isActive: false },
+    { name: 'Somchai Prasert', email: 'somchai.p@toktickit.local', isActive: true },
+    { name: 'Suda Srisawat', email: 'suda.s@toktickit.local', isActive: true },
+    { name: 'Anan Sukjai', email: 'anan.s@toktickit.local', isActive: true },
+    { name: 'Kanda Meechai', email: 'kanda.m@toktickit.local', isActive: true },
+    { name: 'Wichai Retired', email: 'wichai.r@toktickit.local', isActive: false },
   ];
 
   console.log('Seeding requesters...');
@@ -67,15 +67,15 @@ async function main() {
       update: { name: req.name, isActive: req.isActive },
       create: { name: req.name, email: req.email, isActive: req.isActive },
     });
-    console.log(`Upserted Requester: ${requester.name} (${requester.isActive ? 'Active' : 'Inactive'})`);
+    console.log(`Upserted Requester: ${requester.name} (${requester.isActive ? 'Active' : 'Inactive'}, id: ${requester.id})`);
   }
 
-  console.log('Seeding finished.');
+  console.log('Seeding finished successfully.');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Seeding error:', e);
     process.exit(1);
   })
   .finally(async () => {
