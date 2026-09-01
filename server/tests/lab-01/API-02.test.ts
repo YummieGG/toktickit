@@ -6,10 +6,10 @@ vi.mock('../../generated/prisma', () => {
     PrismaClient: class {
       category = {
         findMany: vi.fn().mockResolvedValue([
-          { id: 1, name: 'Account and Access' },
-          { id: 2, name: 'Hardware' },
-          { id: 3, name: 'Software' },
-          { id: 4, name: 'Network' }
+          { id: 1, name: 'Account and Access', isActive: true },
+          { id: 2, name: 'Hardware', isActive: true },
+          { id: 3, name: 'Software', isActive: true },
+          { id: 4, name: 'Network', isActive: true }
         ])
       };
     }
@@ -23,10 +23,10 @@ describe('API-02: GET /api/categories', () => {
     const response = await request(app).get('/api/categories');
     
     expect(response.status).toBe(200);
-    expect(Array.isArray(response.body)).toBe(true);
+    expect(Array.isArray(response.body.data)).toBe(true); // Adjusted for Lab 2 spec
     
     // Check if the body contains the required categories
-    const categoryNames = response.body.map((cat: any) => cat.name);
+    const categoryNames = response.body.data.map((cat: any) => cat.name);
     expect(categoryNames).toContain('Account and Access');
     expect(categoryNames).toContain('Hardware');
     expect(categoryNames).toContain('Software');

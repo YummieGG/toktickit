@@ -15,6 +15,7 @@
 | PR # | Title | Branch | Status | Reviewer |
 |------|-------|--------|--------|----------|
 | [#19](https://github.com/YummieGG/toktickit/pull/19) | docs: Lab 2 Engineering Specification and Test Plan | `docs/lab2-specification` | Merged | @Snnn3 |
+| [#20](https://github.com/YummieGG/toktickit/pull/20) | feat: implement database schema, migration, and seed data for Lab 2 | `feature/lab2-database` | Merged | @Snnn3 |
 
 ## Pull Requests Reviewed
 
@@ -55,3 +56,12 @@
 
 - **How I responded (@YummieGG):**
   > Thanks.  
+
+### PR #20: feat: implement database schema, migration, and seed data for Lab 2
+- **Reviewer comment received (@Snnn3):**
+  > The Prisma schema, migrations, and seed script perfectly fulfill:
+  > - All models, relationships, indexes, and enums match `specification.md` and Section 5 of the labsheet.
+  > - Seed data includes 4 categories, 6 systems, 4 active + 1 inactive requesters.
+
+- **How I responded (@YummieGG):**
+  > Thank you very much  
