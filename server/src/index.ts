@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { requestersRouter } from './routes/requesters';
 import { categoriesRouter } from './routes/categories';
+import { relatedSystemsRouter } from './routes/related-systems';
+import { ticketsRouter } from './routes/tickets';
 
 dotenv.config();
 
@@ -26,6 +28,8 @@ app.get('/api/health', (req, res) => {
 // API Routes
 app.use('/api/categories', categoriesRouter);
 app.use('/api/requesters', requestersRouter);
+app.use('/api/related-systems', relatedSystemsRouter);
+app.use('/api/tickets', ticketsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

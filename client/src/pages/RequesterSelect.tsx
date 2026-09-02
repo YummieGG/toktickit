@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useRequester, Requester } from '../contexts/RequesterContext';
+import { useRequester, type Requester } from '../contexts/RequesterContext';
 
 export const RequesterSelect: React.FC = () => {
   const [requesters, setRequesters] = useState<Requester[]>([]);

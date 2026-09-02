@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Outlet, useNavigate, Link, useLocation, NavLink } from 'react-router-dom';
+import { Outlet, useNavigate, Link, NavLink } from 'react-router-dom';
 import { useRequester } from '../../contexts/RequesterContext';
 
 export const AppShell: React.FC = () => {
   const { requester, setRequester } = useRequester();
   const navigate = useNavigate();
-  const location = useLocation();
+  
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   const handleChangeRequester = () => {
