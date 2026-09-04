@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, Link, NavLink } from 'react-router-dom';
 import { useRequester } from '../../contexts/RequesterContext';
+import { Button } from '../ui/Button';
 
 export const AppShell: React.FC = () => {
   const { requester, setRequester } = useRequester();
@@ -60,12 +61,14 @@ export const AppShell: React.FC = () => {
                   <span className="text-white me-3">
                     Logged in as: {requester.name}
                   </span>
-                  <button 
+                  <Button 
+                    variant="tertiary"
                     onClick={handleChangeRequester}
-                    className="btn btn-outline-light btn-sm"
+                    className="btn-sm"
+                    style={{ color: 'rgba(255,255,255,0.9)', outlineColor: 'rgba(255,255,255,0.5)' }} // Override for dark background
                   >
                     Change Requester
-                  </button>
+                  </Button>
                 </div>
               </div>
             </>

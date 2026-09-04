@@ -131,3 +131,39 @@ textarea:focus {
   outline: 2px solid #0B7A46 !important;
   outline-offset: 2px !important;
 }
+
+/* UI Spec: Form Validation styling */
+.required-asterisk {
+  color: #C62828 !important;
+}
+
+.invalid-feedback-custom {
+  font-size: 12px !important;
+  color: #C62828 !important;
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+}
+
+/* UI Spec: Secondary Button */
+.btn-zen-secondary {
+  background-color: transparent !important;
+  color: #006B3C !important;
+  border: 1px solid #006B3C !important;
+}
+
+.btn-zen-secondary:hover {
+  background-color: #EAF6EF !important;
+}
+
+/* UI Spec: Tertiary Button */
+.btn-zen-tertiary {
+  background-color: transparent !important;
+  color: #0B7A46 !important;
+  border: none !important;
+}
+
+.btn-zen-tertiary:hover {
+  text-decoration: underline !important;
+  background-color: transparent !important;
+}

@@ -3,6 +3,7 @@ import request from 'supertest';
 import app from '../../src/index';
 import { prisma } from '../../src/lib/prisma';
 import * as ticketNumberLib from '../../src/lib/ticket-number';
+import { Prisma } from '../../generated/prisma';
 
 // Mock Prisma
 vi.mock('../../src/lib/prisma', () => {
@@ -153,5 +154,52 @@ describe('Tickets API - POST /api/tickets', () => {
         requester: expect.any(Object)
       })
     }));
+  });
+
+  it('retries on P2002 unique constraint violation and succeeds on retry', async () => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    vi.spyOn(ticketNumberLib, 'generateTicketNumber')
+      .mockResolvedValueOnce('TK-0001')
+      .mockResolvedValueOnce('TK-0002');
+
+    const p2002Error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: '5.x',
+    });
+
+    const mockCreatedTicket = {
+      id: 2,
+      ticketNumber: 'TK-0002',
+      summary: 'Valid summary here',
+      description: 'Valid description here',
+      requestedPriority: 'LOW',
+      currentStatus: 'NEW',
+      ticketDate: new Date(),
+      requesterId: 1,
+      categoryId: 1,
+      relatedSystemId: null,
+      category: { id: 1, name: 'Hardware' },
+      relatedSystem: null,
+      requester: { id: 1, name: 'Somchai' },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    (prisma.ticket.create as any)
+      .mockRejectedValueOnce(p2002Error)
+      .mockResolvedValueOnce(mockCreatedTicket);
+
+    const response = await request(app).post('/api/tickets').send({
+      requesterId: 1,
+      categoryId: 1,
+      summary: 'Valid summary here',
+      description: 'Valid description here',
+      requestedPriority: 'LOW'
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.ticketNumber).toBe('TK-0002');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 });

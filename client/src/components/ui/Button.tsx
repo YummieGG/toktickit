@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'tertiary';
   isLoading?: boolean;
 }
 
@@ -17,9 +17,10 @@ export const Button: React.FC<ButtonProps> = ({
   
   const variantClasses = {
     primary: 'text-white', // Primary color is set via inline style to match #006B3C if needed, or we can use custom CSS class. Let's use custom style.
-    secondary: 'btn-secondary',
+    secondary: 'btn-zen-secondary',
     outline: 'btn-outline-secondary',
-    danger: 'btn-danger'
+    danger: 'btn-danger',
+    tertiary: 'btn-zen-tertiary'
   };
 
   const primaryStyle = variant === 'primary' ? { backgroundColor: '#006B3C', borderColor: '#006B3C' } : {};
