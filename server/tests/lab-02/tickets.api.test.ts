@@ -21,6 +21,7 @@ vi.mock('../../src/lib/prisma', () => {
       findUnique: vi.fn(),
     },
     $transaction: vi.fn(),
+    $executeRaw: vi.fn().mockResolvedValue(1),
   };
   return {
     prisma: mockPrisma,

@@ -17,6 +17,28 @@ describe('Create Ticket Feature', () => {
     sessionStorage.clear();
   });
 
+  it('displays loading state while fetching master data (ui-spec.md §7.2)', async () => {
+    let resolveCategories: any;
+    const catPromise = new Promise((resolve) => {
+      resolveCategories = resolve;
+    });
+
+    (global.fetch as any)
+      .mockImplementationOnce(() => catPromise)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    expect(screen.getByRole('heading', { name: 'Loading...' })).toBeInTheDocument();
+
+    resolveCategories({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Software' }] }) });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Loading...' })).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+    });
+  });
+
   it('renders form and loads master data', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) }) // categories

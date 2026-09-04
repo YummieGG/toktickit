@@ -1,16 +1,14 @@
 import { prisma } from './prisma';
 
+export const TICKET_NUMBER_ADVISORY_LOCK_ID = 888334;
+
 /**
  * Generates the next ticket number in the format TK-XXXX
  * Uses an advisory transaction lock to serialize generation and prevent race conditions (BR-01).
  */
 export async function generateTicketNumber(dbClient: any = prisma): Promise<string> {
-  try {
-    // Acquire PostgreSQL advisory transaction lock to prevent concurrent duplicate generation
-    await dbClient.$executeRaw`SELECT pg_advisory_xact_lock(888334);`;
-  } catch {
-    // Fallback for mocked unit test environments where $executeRaw might not be mocked
-  }
+  // Acquire PostgreSQL advisory transaction lock to prevent concurrent duplicate generation
+  await dbClient.$executeRaw`SELECT pg_advisory_xact_lock(${TICKET_NUMBER_ADVISORY_LOCK_ID});`;
 
   const lastTicket = await dbClient.ticket.findFirst({
     orderBy: {

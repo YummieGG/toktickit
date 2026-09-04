@@ -30,6 +30,7 @@ export const CreateTicket: React.FC = () => {
   const [description, setDescription] = useState('');
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   
@@ -54,21 +55,28 @@ export const CreateTicket: React.FC = () => {
 
     const fetchData = async () => {
       try {
+        setIsLoadingData(true);
         const [catRes, sysRes] = await Promise.all([
           fetch('/api/categories'),
           fetch('/api/related-systems')
         ]);
         
-        if (catRes.ok) {
-          const catJson = await catRes.json();
-          setCategories(catJson.data || []);
+        if (!catRes.ok) {
+          throw new Error('Failed to load categories');
         }
-        if (sysRes.ok) {
-          const sysJson = await sysRes.json();
-          setSystems(sysJson.data || []);
+        if (!sysRes.ok) {
+          throw new Error('Failed to load related systems');
         }
-      } catch (err) {
+
+        const catJson = await catRes.json();
+        const sysJson = await sysRes.json();
+        setCategories(catJson.data || []);
+        setSystems(sysJson.data || []);
+      } catch (err: any) {
         console.error('Failed to load master data', err);
+        setApiError(err.message || 'Failed to load master data. Please refresh.');
+      } finally {
+        setIsLoadingData(false);
       }
     };
     fetchData();
@@ -138,6 +146,19 @@ export const CreateTicket: React.FC = () => {
     }
   };
 
+  if (isLoadingData) {
+    return (
+      <div className="card shadow-sm border-0 mt-4 text-center p-5">
+        <div className="card-body">
+          <div className="spinner-border text-success mb-3" role="status" style={{ width: '3rem', height: '3rem' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <h4 className="text-muted fw-semibold">Loading...</h4>
+        </div>
+      </div>
+    );
+  }
+
   if (successTicketNumber) {
     return (
       <div className="card shadow-sm border-0 mt-4 text-center p-5">
@@ -177,7 +198,7 @@ export const CreateTicket: React.FC = () => {
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="row">
-            <div className="col-12 col-lg-6">
+            <div className="col-12 col-md-6">
               <SelectField
                 id="categoryId"
                 label="Category"
@@ -189,7 +210,7 @@ export const CreateTicket: React.FC = () => {
                 error={errors.categoryId}
               />
             </div>
-            <div className="col-12 col-lg-6">
+            <div className="col-12 col-md-6">
               <SelectField
                 id="relatedSystemId"
                 label="Related System"
@@ -204,7 +225,7 @@ export const CreateTicket: React.FC = () => {
           </div>
 
           <div className="row">
-            <div className="col-12 col-lg-6">
+            <div className="col-12 col-md-6">
               <SelectField
                 id="requestedPriority"
                 label="Requested Priority"
