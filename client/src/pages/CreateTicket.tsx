@@ -35,6 +35,17 @@ export const CreateTicket: React.FC = () => {
   
   const [successTicketNumber, setSuccessTicketNumber] = useState<string | null>(null);
 
+  const handleCreateAnother = () => {
+    setSuccessTicketNumber(null);
+    setCategoryId('');
+    setRelatedSystemId('');
+    setRequestedPriority('LOW');
+    setSummary('');
+    setDescription('');
+    setErrors({});
+    setApiError(null);
+  };
+
   useEffect(() => {
     if (!requester) {
       navigate('/');
@@ -44,8 +55,8 @@ export const CreateTicket: React.FC = () => {
     const fetchData = async () => {
       try {
         const [catRes, sysRes] = await Promise.all([
-          fetch('http://localhost:3000/api/categories'),
-          fetch('http://localhost:3000/api/related-systems')
+          fetch('/api/categories'),
+          fetch('/api/related-systems')
         ]);
         
         if (catRes.ok) {
@@ -100,7 +111,7 @@ export const CreateTicket: React.FC = () => {
         description
       };
 
-      const response = await fetch('http://localhost:3000/api/tickets', {
+      const response = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -109,6 +120,13 @@ export const CreateTicket: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.details && Array.isArray(data.details)) {
+          const backendErrors: Record<string, string> = {};
+          data.details.forEach((d: { field: string; message: string }) => {
+            backendErrors[d.field] = d.message;
+          });
+          setErrors(backendErrors);
+        }
         throw new Error(data.error || 'Failed to create ticket');
       }
 
@@ -129,9 +147,18 @@ export const CreateTicket: React.FC = () => {
           <p className="lead mb-4">
             Your ticket number is <strong className="text-primary">{successTicketNumber}</strong>
           </p>
-          <Link to="/tickets" className="btn btn-lg text-white px-4" style={{ backgroundColor: '#006B3C' }}>
-            Go to My Tickets
-          </Link>
+          <div className="d-flex justify-content-center gap-3">
+            <Link to="/tickets" className="btn btn-lg text-white px-4" style={{ backgroundColor: '#006B3C' }}>
+              View My Tickets
+            </Link>
+            <button 
+              type="button" 
+              onClick={handleCreateAnother}
+              className="btn btn-lg btn-outline-secondary px-4"
+            >
+              Create Another Ticket
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -150,22 +177,24 @@ export const CreateTicket: React.FC = () => {
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="row">
-            <div className="col-12 col-md-6">
+            <div className="col-12 col-lg-6">
               <SelectField
                 id="categoryId"
                 label="Category"
                 required
+                disabled={isSubmitting}
                 options={categories.map(c => ({ value: c.id, label: c.name }))}
                 value={categoryId}
                 onChange={e => setCategoryId(e.target.value ? Number(e.target.value) : '')}
                 error={errors.categoryId}
               />
             </div>
-            <div className="col-12 col-md-6">
+            <div className="col-12 col-lg-6">
               <SelectField
                 id="relatedSystemId"
                 label="Related System"
                 placeholder="-- None --"
+                disabled={isSubmitting}
                 options={systems.map(s => ({ value: s.id, label: s.name }))}
                 value={relatedSystemId}
                 onChange={e => setRelatedSystemId(e.target.value ? Number(e.target.value) : '')}
@@ -175,11 +204,12 @@ export const CreateTicket: React.FC = () => {
           </div>
 
           <div className="row">
-            <div className="col-12 col-md-6">
+            <div className="col-12 col-lg-6">
               <SelectField
                 id="requestedPriority"
                 label="Requested Priority"
                 required
+                disabled={isSubmitting}
                 options={[
                   { value: 'LOW', label: 'Low' },
                   { value: 'MEDIUM', label: 'Medium' },
@@ -199,6 +229,7 @@ export const CreateTicket: React.FC = () => {
                 id="summary"
                 label="Summary"
                 required
+                disabled={isSubmitting}
                 placeholder="Brief description of the issue"
                 value={summary}
                 onChange={e => setSummary(e.target.value)}
@@ -214,6 +245,7 @@ export const CreateTicket: React.FC = () => {
                 label="Description"
                 required
                 rows={5}
+                disabled={isSubmitting}
                 placeholder="Provide detailed information..."
                 value={description}
                 onChange={e => setDescription(e.target.value)}
@@ -223,11 +255,16 @@ export const CreateTicket: React.FC = () => {
           </div>
 
           <div className="d-flex justify-content-end mt-4 pt-3 border-top">
-            <Link to="/tickets" className="btn btn-outline-secondary me-3 px-4">
+            <Link 
+              to="/tickets" 
+              className={`btn btn-outline-secondary me-3 px-4 ${isSubmitting ? 'disabled' : ''}`}
+              tabIndex={isSubmitting ? -1 : undefined}
+              onClick={e => { if (isSubmitting) e.preventDefault(); }}
+            >
               Cancel
             </Link>
             <Button type="submit" isLoading={isSubmitting} className="px-4">
-              Submit Ticket
+              {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
             </Button>
           </div>
         </form>

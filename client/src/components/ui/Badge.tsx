@@ -13,7 +13,7 @@ export const Badge: React.FC<BadgeProps> = ({ type, value, className = '' }) => 
   const getStyle = () => {
     if (type === 'status' && value === 'NEW') {
       return {
-        backgroundColor: '#E8F5E9',
+        backgroundColor: '#EAF6EF',
         color: '#1B5E20',
         border: '1px solid #A5D6A7'
       };
@@ -21,15 +21,17 @@ export const Badge: React.FC<BadgeProps> = ({ type, value, className = '' }) => 
 
     switch (value) {
       case 'LOW':
-        return { backgroundColor: '#E3F2FD', color: '#0D47A1' };
+        return { backgroundColor: '#F0F2F1', color: '#2A5C43' };
       case 'MEDIUM':
-        return { backgroundColor: '#FFF9C4', color: '#F57F17' };
+        return { backgroundColor: '#CFE8DA', color: '#0A4D2E' };
       case 'HIGH':
-        return { backgroundColor: '#FFE0B2', color: '#E65100' };
+        return { backgroundColor: '#006B3C', color: '#FFFFFF' };
       case 'CRITICAL':
         return { backgroundColor: '#FFCDD2', color: '#B71C1C' };
+      case 'NEW':
+        return { backgroundColor: '#EAF6EF', color: '#1B5E20', border: '1px solid #A5D6A7' };
       default:
-        return { backgroundColor: '#E8F5E9', color: '#1B5E20' };
+        return { backgroundColor: '#F0F2F1', color: '#2A5C43' };
     }
   };
 

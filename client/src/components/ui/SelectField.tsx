@@ -35,7 +35,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
         aria-invalid={error ? "true" : "false"}
         {...props}
       >
-        <option value="" disabled>{placeholder}</option>
+        <option value="" disabled={required}>{placeholder}</option>
         {options.map(opt => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

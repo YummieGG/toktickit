@@ -54,7 +54,7 @@ describe('Create Ticket Feature', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2); // Only the 2 initial loads
   });
 
-  it('submits successfully and shows ticket number', async () => {
+  it('submits successfully and shows ticket number, and allows creating another ticket', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 2, name: 'Email' }] }) })
@@ -75,6 +75,16 @@ describe('Create Ticket Feature', () => {
     await waitFor(() => {
       expect(screen.getByText('Ticket Created Successfully')).toBeInTheDocument();
       expect(screen.getByText('TK-0005')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'View My Tickets' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create Another Ticket' })).toBeInTheDocument();
+    });
+
+    // Click Create Another Ticket to verify form reset
+    fireEvent.click(screen.getByRole('button', { name: 'Create Another Ticket' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      expect((screen.getByLabelText(/Summary/) as HTMLInputElement).value).toBe('');
     });
   });
 });
