@@ -8,6 +8,10 @@ relatedSystemsRouter.get('/', async (req: Request, res: Response) => {
   try {
     const systems = await prisma.relatedSystem.findMany({
       where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+      },
       orderBy: { name: 'asc' }
     });
     res.status(200).json({ data: systems });

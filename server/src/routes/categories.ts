@@ -8,6 +8,10 @@ categoriesRouter.get('/', async (req: Request, res: Response) => {
   try {
     const categories = await prisma.category.findMany({
       where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+      },
       orderBy: { name: 'asc' }
     });
     res.status(200).json({ data: categories });

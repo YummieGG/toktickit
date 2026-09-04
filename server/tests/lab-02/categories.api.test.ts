@@ -6,31 +6,32 @@ import { prisma } from '../../src/lib/prisma';
 vi.mock('../../src/lib/prisma', () => {
   return {
     prisma: {
-      relatedSystem: {
+      category: {
         findMany: vi.fn(),
       },
     },
   };
 });
 
-describe('Related Systems API - GET /api/related-systems', () => {
+describe('Categories API - GET /api/categories', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
-  it('should return active systems with id and name only', async () => {
-    const mockSystems = [
-      { id: 1, name: 'Email' },
+  it('should return active categories with id and name only', async () => {
+    const mockCategories = [
+      { id: 1, name: 'Hardware' },
+      { id: 2, name: 'Software' },
     ];
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.relatedSystem.findMany as any).mockResolvedValue(mockSystems);
+    (prisma.category.findMany as any).mockResolvedValue(mockCategories);
 
-    const response = await request(app).get('/api/related-systems');
+    const response = await request(app).get('/api/categories');
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ data: mockSystems });
-    expect(prisma.relatedSystem.findMany).toHaveBeenCalledWith({
+    expect(response.body).toEqual({ data: mockCategories });
+    expect(prisma.category.findMany).toHaveBeenCalledWith({
       where: { isActive: true },
       select: {
         id: true,
@@ -42,9 +43,9 @@ describe('Related Systems API - GET /api/related-systems', () => {
 
   it('should return 500 if database query fails', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (prisma.relatedSystem.findMany as any).mockRejectedValue(new Error('Database error'));
+    (prisma.category.findMany as any).mockRejectedValue(new Error('Database error'));
 
-    const response = await request(app).get('/api/related-systems');
+    const response = await request(app).get('/api/categories');
 
     expect(response.status).toBe(500);
     expect(response.body).toHaveProperty('error');
