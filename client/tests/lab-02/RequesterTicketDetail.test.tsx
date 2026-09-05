@@ -69,10 +69,10 @@ describe('Requester Ticket Detail screen', () => {
     expect(screen.getByText('HIGH')).toBeInTheDocument();
     expect(screen.getByText('NEW')).toBeInTheDocument();
     expect(screen.getByText('2026-09-05 08:30')).toBeInTheDocument();
-    expect(screen.getAllByText('2026-09-05 09:00')).toHaveLength(2);
+    expect(screen.queryByText('Last Updated')).not.toBeInTheDocument();
     expect(screen.getByText('Network')).toBeInTheDocument();
     expect(screen.getByText('VPN Gateway')).toBeInTheDocument();
-    expect(screen.getByText('VPN access unavailable')).toBeInTheDocument();
+    expect(screen.getByText('VPN access unavailable')).toHaveClass('ticket-detail-summary');
     expect(screen.getByText('Somchai Prasert')).toBeInTheDocument();
     expect(screen.getByText('somchai@example.com')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
@@ -97,6 +97,9 @@ describe('Requester Ticket Detail screen', () => {
     expect(screen.getByText('Removed')).toBeInTheDocument();
     expect(screen.getByText('Removal reason:').closest('div')).toHaveTextContent('Contains outdated information');
     expect(screen.getByText('Removed at:').closest('div')).toHaveTextContent('2026-09-05 09:00');
+    expect(screen.getByText('Removal reason:').closest('.ticket-attachment-removal-details')).toHaveClass(
+      'ticket-attachment-removal-details'
+    );
     expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
   });

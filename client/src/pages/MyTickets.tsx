@@ -5,9 +5,9 @@ import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useRequester } from '../contexts/RequesterContext';
+import type { TicketPriority, TicketStatus } from '../types/ticket';
+import { formatTicketDateTime } from '../utils/date';
 
-type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-type TicketStatus = 'NEW';
 type SortField = 'ticketDate' | 'ticketNumber' | 'summary' | 'requestedPriority' | 'currentStatus';
 type SortOrder = 'asc' | 'desc';
 
@@ -20,7 +20,7 @@ interface TicketListItem {
   id: number;
   ticketNumber: string;
   summary: string;
-  requestedPriority: Priority;
+  requestedPriority: TicketPriority;
   currentStatus: TicketStatus;
   ticketDate: string;
   category: Category;
@@ -49,17 +49,11 @@ const SORT_LABELS: Record<SortField, string> = {
   currentStatus: 'Status',
 };
 
-function formatTicketDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().slice(0, 16).replace('T', ' ');
-}
-
 interface TicketFilterState {
   search: string;
   category: string;
   status: TicketStatus | '';
-  priority: Priority | '';
+  priority: TicketPriority | '';
   sortBy: SortField;
   sortOrder: SortOrder;
   page: number;
@@ -326,7 +320,7 @@ export function MyTickets() {
                 id="priority-filter"
                 className="form-select"
                 value={filters.priority}
-                onChange={event => setFilters(prev => ({ ...prev, priority: event.target.value as Priority | '', page: 1 }))}
+                onChange={event => setFilters(prev => ({ ...prev, priority: event.target.value as TicketPriority | '', page: 1 }))}
                 disabled={isLoading}
               >
                 <option value="">All Priorities</option>
@@ -419,7 +413,7 @@ export function MyTickets() {
                       <td>{ticket.category.name}</td>
                       <td><Badge type="priority" value={ticket.requestedPriority} /></td>
                       <td><Badge type="status" value={ticket.currentStatus} /></td>
-                      <td className="text-nowrap">{formatTicketDate(ticket.ticketDate)}</td>
+                      <td className="text-nowrap">{formatTicketDateTime(ticket.ticketDate)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -465,7 +459,7 @@ export function MyTickets() {
                     <span style={{ color: 'var(--text-secondary)' }}>{ticket.category.name}</span>
                     <Badge type="priority" value={ticket.requestedPriority} />
                   </div>
-                  <div className="small" style={{ color: 'var(--text-secondary)' }}>{formatTicketDate(ticket.ticketDate)}</div>
+                  <div className="small" style={{ color: 'var(--text-secondary)' }}>{formatTicketDateTime(ticket.ticketDate)}</div>
                 </div>
               </Link>
             ))}

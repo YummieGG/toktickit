@@ -360,6 +360,13 @@ textarea.form-control[readonly] {
   white-space: pre-wrap;
 }
 
+.ticket-detail-summary {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .ticket-attachment {
   border: 1px solid var(--surface-border);
   border-radius: 0.5rem;
@@ -372,6 +379,16 @@ textarea.form-control[readonly] {
 }
 
 .ticket-attachment-name {
+  overflow-wrap: anywhere;
+}
+
+.ticket-attachment-content,
+.ticket-attachment-metadata,
+.ticket-attachment-removal-details {
+  min-width: 0;
+}
+
+.ticket-attachment-removal-details {
   overflow-wrap: anywhere;
 }
 
@@ -401,10 +418,6 @@ textarea.form-control[readonly] {
 }
 
 @media (max-width: 767.98px) {
-  .ticket-detail {
-    overflow-x: hidden;
-  }
-
   .ticket-detail .btn {
     min-height: 44px;
   }

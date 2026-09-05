@@ -4,9 +4,8 @@ import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useRequester } from '../contexts/RequesterContext';
-
-type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-type TicketStatus = 'NEW';
+import type { TicketPriority, TicketStatus } from '../types/ticket';
+import { formatTicketDateTime } from '../utils/date';
 
 interface NamedReference {
   id: number;
@@ -35,7 +34,7 @@ interface TicketDetail {
   ticketNumber: string;
   summary: string;
   description: string;
-  requestedPriority: Priority;
+  requestedPriority: TicketPriority;
   currentStatus: TicketStatus;
   ticketDate: string;
   category: NamedReference;
@@ -60,12 +59,6 @@ class TicketDetailRequestError extends Error {
     super(message);
     this.status = status;
   }
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
 function formatFileSize(sizeBytes: number): string {
@@ -213,11 +206,8 @@ export function RequesterTicketDetail() {
                 </div>
               </div>
               <dl className="row g-3 mt-2 mb-0">
-                <ReadOnlyField label="Date Created" className="col-12 col-sm-6">
-                  {formatDateTime(ticket.ticketDate)}
-                </ReadOnlyField>
-                <ReadOnlyField label="Last Updated" className="col-12 col-sm-6">
-                  {formatDateTime(ticket.updatedAt)}
+                <ReadOnlyField label="Date Created" className="col-12">
+                  {formatTicketDateTime(ticket.ticketDate)}
                 </ReadOnlyField>
               </dl>
             </div>
@@ -241,7 +231,9 @@ export function RequesterTicketDetail() {
             <div className="card-body p-3 p-md-4">
               <h2 className="h3 mb-3">Request Details</h2>
               <dl className="mb-0 d-grid gap-3">
-                <ReadOnlyField label="Summary">{ticket.summary}</ReadOnlyField>
+                <ReadOnlyField label="Summary">
+                  <span className="ticket-detail-summary">{ticket.summary}</span>
+                </ReadOnlyField>
                 <ReadOnlyField label="Description">
                   <span className="ticket-detail-description">{ticket.description}</span>
                 </ReadOnlyField>
@@ -275,13 +267,13 @@ export function RequesterTicketDetail() {
                       key={attachment.id}
                       className={`ticket-attachment ${attachment.isRemoved ? 'ticket-attachment-removed' : ''}`}
                     >
-                      <div className="d-flex flex-column flex-sm-row justify-content-between gap-2">
-                        <div className="min-w-0">
+                      <div className="ticket-attachment-content d-flex flex-column flex-sm-row justify-content-between gap-2">
+                        <div className="ticket-attachment-metadata">
                           <div className={`ticket-attachment-name fw-semibold ${attachment.isRemoved ? 'text-decoration-line-through' : ''}`}>
                             📎 {attachment.originalName}
                           </div>
                           <div className="small mt-1" style={{ color: 'var(--text-secondary)' }}>
-                            {attachment.mimeType} · {formatFileSize(attachment.sizeBytes)} · Uploaded {formatDateTime(attachment.createdAt)}
+                            {attachment.mimeType} · {formatFileSize(attachment.sizeBytes)} · Uploaded {formatTicketDateTime(attachment.createdAt)}
                           </div>
                         </div>
                         <span className={`attachment-state-badge ${attachment.isRemoved ? 'is-removed' : 'is-active'}`}>
@@ -289,9 +281,9 @@ export function RequesterTicketDetail() {
                         </span>
                       </div>
                       {attachment.isRemoved && (
-                        <div className="small mt-2">
+                        <div className="ticket-attachment-removal-details small mt-2">
                           <div><strong>Removal reason:</strong> {attachment.removalReason || 'Reason not provided'}</div>
-                          <div><strong>Removed at:</strong> {attachment.removedAt ? formatDateTime(attachment.removedAt) : 'Removal time unavailable'}</div>
+                          <div><strong>Removed at:</strong> {attachment.removedAt ? formatTicketDateTime(attachment.removedAt) : 'Removal time unavailable'}</div>
                         </div>
                       )}
                     </li>
