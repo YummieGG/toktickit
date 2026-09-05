@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useRequester } from '../contexts/RequesterContext';
 import { Button } from '../components/ui/Button';
@@ -25,9 +25,17 @@ export const CreateTicket: React.FC = () => {
   
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [relatedSystemId, setRelatedSystemId] = useState<number | ''>('');
-  const [requestedPriority, setRequestedPriority] = useState<string>('LOW');
+  const [requestedPriority, setRequestedPriority] = useState<string>('');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+
+  const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  const MAX_FILE_COUNT = 5;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -40,9 +48,12 @@ export const CreateTicket: React.FC = () => {
     setSuccessTicketNumber(null);
     setCategoryId('');
     setRelatedSystemId('');
-    setRequestedPriority('LOW');
+    setRequestedPriority('');
     setSummary('');
     setDescription('');
+    setSelectedFiles([]);
+    setAttachmentError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setErrors({});
     setApiError(null);
   };
@@ -82,6 +93,57 @@ export const CreateTicket: React.FC = () => {
     fetchData();
   }, [requester, navigate]);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAttachmentError(null);
+    setErrors(prev => {
+      if (!prev.attachments) return prev;
+      const copy = { ...prev };
+      delete copy.attachments;
+      return copy;
+    });
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files);
+    const allFiles = [...selectedFiles, ...newFiles];
+
+    // Validate count
+    if (allFiles.length > MAX_FILE_COUNT) {
+      setAttachmentError(`Maximum ${MAX_FILE_COUNT} attachments allowed per ticket`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    // Validate each new file
+    for (const file of newFiles) {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        setAttachmentError(`File type ${ext} is not permitted. Supported formats: JPG, PNG, WEBP, PDF`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setAttachmentError(`File "${file.name}" exceeds the 5 MB limit`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+    }
+
+    setSelectedFiles(allFiles);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setAttachmentError(null);
+    setErrors(prev => {
+      if (!prev.attachments) return prev;
+      const copy = { ...prev };
+      delete copy.attachments;
+      return copy;
+    });
+  };
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!categoryId) newErrors.categoryId = 'Category is required';
@@ -110,19 +172,20 @@ export const CreateTicket: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      const payload = {
-        requesterId: requester?.id,
-        categoryId,
-        relatedSystemId: relatedSystemId || undefined,
-        requestedPriority,
-        summary,
-        description
-      };
+      const formData = new FormData();
+      formData.append('requesterId', String(requester?.id));
+      formData.append('categoryId', String(categoryId));
+      if (relatedSystemId) formData.append('relatedSystemId', String(relatedSystemId));
+      formData.append('requestedPriority', requestedPriority);
+      formData.append('summary', summary);
+      formData.append('description', description);
+      for (const file of selectedFiles) {
+        formData.append('attachments', file);
+      }
 
       const response = await fetch('/api/tickets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: formData
       });
 
       const data = await response.json();
@@ -272,6 +335,59 @@ export const CreateTicket: React.FC = () => {
                 onChange={e => setDescription(e.target.value)}
                 error={errors.description}
               />
+            </div>
+          </div>
+
+          {/* Attachment Selection (ui-spec §6) */}
+          <div className="row mt-2">
+            <div className="col-12">
+              <div className="mb-3">
+                <label htmlFor="attachments" className="form-label fw-semibold">
+                  Attachments
+                </label>
+                <input
+                  ref={fileInputRef}
+                  id="attachments"
+                  type="file"
+                  className="form-control"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  multiple
+                  disabled={isSubmitting || selectedFiles.length >= MAX_FILE_COUNT}
+                  onChange={handleFileChange}
+                  aria-label="Choose File"
+                />
+                <div className="form-text">
+                  Supported formats: JPG, PNG, WEBP, PDF. Max size: 5 MB per file.
+                </div>
+
+                {(attachmentError || errors.attachments) && (
+                  <div className="alert alert-danger py-1 px-2 mt-2 mb-0" role="alert">
+                    ⚠ {attachmentError || errors.attachments}
+                  </div>
+                )}
+
+                {selectedFiles.length > 0 && (
+                  <ul className="list-group mt-2">
+                    {selectedFiles.map((file, index) => (
+                      <li key={`${file.name}-${index}`} className="list-group-item d-flex justify-content-between align-items-center py-1 px-2">
+                        <span className="text-truncate me-2" style={{ fontSize: '0.875rem' }}>
+                          {file.name} ({(file.size / 1024).toFixed(0)} KB)
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-sm text-white border-0 px-2 py-0"
+                          style={{ backgroundColor: '#C62828', fontSize: '0.75rem' }}
+                          onClick={() => handleRemoveFile(index)}
+                          disabled={isSubmitting}
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
 

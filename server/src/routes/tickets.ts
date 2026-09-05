@@ -1,12 +1,62 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { Prisma } from '../../generated/prisma';
 import { generateTicketNumber } from '../lib/ticket-number';
 
 export const ticketsRouter = Router();
 
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+];
+
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per file (BR-09)
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: 10, // catch > 5 to return friendly validation error
+  },
+});
+
+const handleMultipartUpload = (req: Request, res: Response, next: NextFunction) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    upload.any()(req, res, (err: any) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: 'Validation failed',
+            details: [{ field: 'attachments', message: 'File exceeds the 5 MB limit' }],
+          });
+        }
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: [{ field: 'attachments', message: err.message }],
+        });
+      } else if (err) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: [{ field: 'attachments', message: 'Failed to process file upload' }],
+        });
+      }
+      next();
+    });
+  } else {
+    next();
+  }
+};
+
 // POST /api/tickets
-ticketsRouter.post('/', async (req: Request, res: Response) => {
+ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Response) => {
   try {
     const { 
       requesterId, 
@@ -51,6 +101,29 @@ ticketsRouter.post('/', async (req: Request, res: Response) => {
       details.push({ field: 'requestedPriority', message: 'Invalid requested priority. Must be one of LOW, MEDIUM, HIGH, CRITICAL' });
     }
 
+    // Attachment validation (BR-08, BR-09, BR-10)
+    const rawFiles = (req.files as Express.Multer.File[]) || [];
+    if (rawFiles.length > 5) {
+      details.push({ field: 'attachments', message: 'Maximum 5 attachments allowed per ticket' });
+    }
+
+    for (const file of rawFiles) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext) || !ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+        details.push({ 
+          field: 'attachments', 
+          message: `File type for "${file.originalname}" is not permitted. Supported formats: JPG, PNG, WEBP, PDF` 
+        });
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        details.push({ 
+          field: 'attachments', 
+          message: `File "${file.originalname}" exceeds the 5 MB limit` 
+        });
+      }
+    }
+
     // If basic validation failed, return 400 immediately
     if (details.length > 0) {
       return res.status(400).json({ error: 'Validation failed', details });
@@ -79,7 +152,21 @@ ticketsRouter.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Validation failed', details });
     }
 
-    // Atomic transaction for ticket number generation and creation (BR-01 concurrency safety)
+    // Prepare files with UUID stored names
+    const uploadsDir = path.resolve(process.cwd(), 'uploads');
+    const preparedAttachments = rawFiles.map(f => {
+      const ext = path.extname(f.originalname);
+      const storedName = `${crypto.randomUUID()}${ext}`;
+      return {
+        originalName: f.originalname,
+        storedName,
+        mimeType: f.mimetype,
+        sizeBytes: f.size,
+        buffer: f.buffer
+      };
+    });
+
+    // Atomic transaction for ticket number generation, attachment persistence, and creation (BR-01 concurrency safety)
     // Retry up to 3 times on unique constraint violation (P2002) as a safety net
     const MAX_RETRIES = 3;
     let lastError: unknown;
@@ -88,6 +175,18 @@ ticketsRouter.post('/', async (req: Request, res: Response) => {
       try {
         const newTicket = await prisma.$transaction(async (tx) => {
           const ticketNumber = await generateTicketNumber(tx);
+
+          // Write files to uploads directory
+          if (preparedAttachments.length > 0) {
+            if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            for (const file of preparedAttachments) {
+              if (file.buffer) {
+                fs.writeFileSync(path.join(uploadsDir, file.storedName), file.buffer);
+              }
+            }
+          }
 
           return tx.ticket.create({
             data: {
@@ -99,12 +198,32 @@ ticketsRouter.post('/', async (req: Request, res: Response) => {
               ticketDate: new Date(), // Set server-side (BR-23)
               requesterId: requesterIdInt!,
               categoryId: categoryIdInt!,
-              relatedSystemId: relatedSystemIdInt
+              relatedSystemId: relatedSystemIdInt,
+              attachments: preparedAttachments.length > 0 ? {
+                create: preparedAttachments.map(a => ({
+                  originalName: a.originalName,
+                  storedName: a.storedName,
+                  mimeType: a.mimeType,
+                  sizeBytes: a.sizeBytes,
+                  isRemoved: false
+                }))
+              } : undefined
             },
             include: {
               category: { select: { id: true, name: true } },
               relatedSystem: { select: { id: true, name: true } },
-              requester: { select: { id: true, name: true } }
+              requester: { select: { id: true, name: true } },
+              attachments: {
+                select: {
+                  id: true,
+                  originalName: true,
+                  storedName: true,
+                  mimeType: true,
+                  sizeBytes: true,
+                  isRemoved: true,
+                  createdAt: true
+                }
+              }
             }
           });
         });

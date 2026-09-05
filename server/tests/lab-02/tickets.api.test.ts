@@ -23,6 +23,7 @@ vi.mock('../../src/lib/prisma', () => {
     },
     $transaction: vi.fn(),
     $executeRaw: vi.fn().mockResolvedValue(1),
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
   return {
     prisma: mockPrisma,
@@ -201,5 +202,121 @@ describe('Tickets API - POST /api/tickets', () => {
     expect(response.status).toBe(201);
     expect(response.body.data.ticketNumber).toBe('TK-0002');
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('creates ticket with optional attachments via multipart/form-data', async () => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    vi.spyOn(ticketNumberLib, 'generateTicketNumber').mockResolvedValue('TK-0003');
+
+    const mockTicketWithAttachment = {
+      id: 3,
+      ticketNumber: 'TK-0003',
+      summary: 'Printer broken summary',
+      description: 'Printer keeps jamming paper constantly',
+      requestedPriority: 'HIGH',
+      currentStatus: 'NEW',
+      ticketDate: new Date(),
+      requesterId: 1,
+      categoryId: 1,
+      relatedSystemId: null,
+      category: { id: 1, name: 'Hardware' },
+      relatedSystem: null,
+      requester: { id: 1, name: 'Somchai' },
+      attachments: [
+        {
+          id: 1,
+          originalName: 'error_screenshot.png',
+          storedName: 'uuid-1234.png',
+          mimeType: 'image/png',
+          sizeBytes: 1024,
+          isRemoved: false,
+          createdAt: new Date()
+        }
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    (prisma.ticket.create as any).mockResolvedValue(mockTicketWithAttachment);
+
+    const response = await request(app)
+      .post('/api/tickets')
+      .field('requesterId', '1')
+      .field('categoryId', '1')
+      .field('summary', 'Printer broken summary')
+      .field('description', 'Printer keeps jamming paper constantly')
+      .field('requestedPriority', 'HIGH')
+      .attach('attachments', Buffer.from('fake image content'), {
+        filename: 'error_screenshot.png',
+        contentType: 'image/png'
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.ticketNumber).toBe('TK-0003');
+    expect(response.body.data.attachments).toHaveLength(1);
+    expect(response.body.data.attachments[0].originalName).toBe('error_screenshot.png');
+  });
+
+  it('rejects upload with more than 5 attachments (BR-10)', async () => {
+    const req = request(app)
+      .post('/api/tickets')
+      .field('requesterId', '1')
+      .field('categoryId', '1')
+      .field('summary', 'Printer broken summary')
+      .field('description', 'Printer keeps jamming paper constantly')
+      .field('requestedPriority', 'HIGH');
+
+    for (let i = 1; i <= 6; i++) {
+      req.attach('attachments', Buffer.from('file content'), {
+        filename: `photo${i}.png`,
+        contentType: 'image/png'
+      });
+    }
+
+    const response = await req;
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Validation failed');
+    const attachmentError = response.body.details.find((d: any) => d.field === 'attachments');
+    expect(attachmentError?.message).toContain('Maximum 5 attachments allowed');
+  });
+
+  it('rejects attachment with invalid file type (BR-08)', async () => {
+    const response = await request(app)
+      .post('/api/tickets')
+      .field('requesterId', '1')
+      .field('categoryId', '1')
+      .field('summary', 'Printer broken summary')
+      .field('description', 'Printer keeps jamming paper constantly')
+      .field('requestedPriority', 'HIGH')
+      .attach('attachments', Buffer.from('malicious content'), {
+        filename: 'virus.exe',
+        contentType: 'application/x-msdownload'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Validation failed');
+    const attachmentError = response.body.details.find((d: any) => d.field === 'attachments');
+    expect(attachmentError?.message).toContain('not permitted');
+  });
+
+  it('rejects oversized attachment > 5MB (BR-09)', async () => {
+    const largeBuffer = Buffer.alloc(5 * 1024 * 1024 + 1024); // 5MB + 1KB
+    const response = await request(app)
+      .post('/api/tickets')
+      .field('requesterId', '1')
+      .field('categoryId', '1')
+      .field('summary', 'Printer broken summary')
+      .field('description', 'Printer keeps jamming paper constantly')
+      .field('requestedPriority', 'HIGH')
+      .attach('attachments', largeBuffer, {
+        filename: 'huge_scan.pdf',
+        contentType: 'application/pdf'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Validation failed');
+    const attachmentError = response.body.details.find((d: any) => d.field === 'attachments');
+    expect(attachmentError?.message).toContain('5 MB limit');
   });
 });

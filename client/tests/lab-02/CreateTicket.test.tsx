@@ -68,6 +68,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Category is required')).toBeInTheDocument();
+      expect(screen.getByText('Priority is required')).toBeInTheDocument();
       expect(screen.getByText('Summary must be between 5 and 200 characters')).toBeInTheDocument();
       expect(screen.getByText('Description must be between 10 and 2000 characters')).toBeInTheDocument();
     });
@@ -76,7 +77,7 @@ describe('Create Ticket Feature', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2); // Only the 2 initial loads
   });
 
-  it('submits successfully and shows ticket number, and allows creating another ticket', async () => {
+  it('submits successfully using FormData and shows ticket number, and allows creating another ticket', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 2, name: 'Email' }] }) })
@@ -89,6 +90,7 @@ describe('Create Ticket Feature', () => {
     });
 
     fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Priority/), { target: { value: 'LOW' } });
     fireEvent.change(screen.getByLabelText(/Summary/), { target: { value: 'My issue summary' } });
     fireEvent.change(screen.getByLabelText(/Description/), { target: { value: 'Detailed description of the issue' } });
 
@@ -101,12 +103,105 @@ describe('Create Ticket Feature', () => {
       expect(screen.getByRole('button', { name: 'Create Another Ticket' })).toBeInTheDocument();
     });
 
+    // Verify FormData was used (no Content-Type header — browser sets it automatically)
+    const submitCall = (global.fetch as any).mock.calls[2];
+    expect(submitCall[0]).toBe('/api/tickets');
+    expect(submitCall[1].body).toBeInstanceOf(FormData);
+
     // Click Create Another Ticket to verify form reset
     fireEvent.click(screen.getByRole('button', { name: 'Create Another Ticket' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
       expect((screen.getByLabelText(/Summary/) as HTMLInputElement).value).toBe('');
+      expect((screen.getByLabelText(/Priority/) as HTMLSelectElement).value).toBe('');
+    });
+  });
+
+  it('renders the attachments section with format/size caption (ui-spec §6)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Choose File/)).toBeInTheDocument();
+      expect(screen.getByText('Supported formats: JPG, PNG, WEBP, PDF. Max size: 5 MB per file.')).toBeInTheDocument();
+    });
+  });
+
+  it('rejects oversized files immediately with inline error (BR-09, ui-spec §6)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Choose File/)).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByLabelText(/Choose File/) as HTMLInputElement;
+    const oversizedFile = new File(['x'.repeat(6 * 1024 * 1024)], 'large.png', { type: 'image/png' });
+    // Override size since jsdom doesn't compute from content
+    Object.defineProperty(oversizedFile, 'size', { value: 6 * 1024 * 1024 });
+
+    fireEvent.change(fileInput, { target: { files: [oversizedFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/exceeds the 5 MB limit/)).toBeInTheDocument();
+    });
+  });
+
+  it('rejects invalid file extensions immediately with inline error (BR-08, ui-spec §6)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Choose File/)).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByLabelText(/Choose File/) as HTMLInputElement;
+    const exeFile = new File(['binary'], 'malware.exe', { type: 'application/x-msdownload' });
+
+    fireEvent.change(fileInput, { target: { files: [exeFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/\.exe is not permitted/)).toBeInTheDocument();
+    });
+  });
+
+  it('accepts valid files and displays them in a list with remove buttons', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Choose File/)).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByLabelText(/Choose File/) as HTMLInputElement;
+    const validFile = new File(['data'], 'screenshot.png', { type: 'image/png' });
+    Object.defineProperty(validFile, 'size', { value: 1024 * 100 }); // 100 KB
+
+    fireEvent.change(fileInput, { target: { files: [validFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/screenshot\.png/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Remove screenshot\.png/ })).toBeInTheDocument();
+    });
+
+    // Remove the file
+    fireEvent.click(screen.getByRole('button', { name: /Remove screenshot\.png/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/screenshot\.png/)).not.toBeInTheDocument();
     });
   });
 });

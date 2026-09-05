@@ -166,12 +166,11 @@ cd server && npm test && cd ../client && npm test
 ```
 
 ## 6. Final Results
-*To be updated after implementation*
 
 | Suite | Total | Pass | Fail | Skip |
 |-------|-------|------|------|------|
-| Server API | - | - | - | 0 |
-| Client UI | - | - | - | 0 |
+| Server API & Unit | 24 | 24 | 0 | 0 |
+| Client UI | 12 | 12 | 0 | 0 |
 | E2E | - | - | - | 0 |
 
 ## 7. Known Limitations or Deferred Tests
