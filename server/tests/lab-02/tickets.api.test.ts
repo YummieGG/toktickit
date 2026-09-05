@@ -4,6 +4,7 @@ import app from '../../src/index';
 import { prisma } from '../../src/lib/prisma';
 import * as ticketNumberLib from '../../src/lib/ticket-number';
 import { Prisma } from '../../generated/prisma';
+import fs from 'fs';
 
 // Mock Prisma
 vi.mock('../../src/lib/prisma', () => {
@@ -65,6 +66,25 @@ describe('Tickets API - POST /api/tickets', () => {
     expect(response.body.error).toBe('Validation failed');
     const summaryError = response.body.details.find((d: any) => d.field === 'summary');
     expect(summaryError?.message).toContain('Summary must be between 5 and 200 characters');
+  });
+
+  it.each([
+    ['fractional requesterId', { requesterId: 1.5, categoryId: 1 }],
+    ['non-numeric categoryId', { requesterId: 1, categoryId: 'abc' }],
+    ['exponential categoryId string', { requesterId: 1, categoryId: '1e0' }],
+    ['object relatedSystemId', { requesterId: 1, categoryId: 1, relatedSystemId: { id: 2 } }],
+  ])('rejects %s before querying reference data', async (_label, ids) => {
+    const response = await request(app).post('/api/tickets').send({
+      ...ids,
+      summary: 'Valid summary here',
+      description: 'Valid description here',
+      requestedPriority: 'LOW'
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Validation failed');
+    expect(prisma.requesterUser.findUnique).not.toHaveBeenCalled();
+    expect(prisma.category.findUnique).not.toHaveBeenCalled();
   });
 
   it('returns 400 if requester does not exist or is inactive (BR-05)', async () => {
@@ -298,6 +318,86 @@ describe('Tickets API - POST /api/tickets', () => {
     expect(response.body.error).toBe('Validation failed');
     const attachmentError = response.body.details.find((d: any) => d.field === 'attachments');
     expect(attachmentError?.message).toContain('not permitted');
+  });
+
+  it('rejects a file sent under a multipart field other than attachments', async () => {
+    const response = await request(app)
+      .post('/api/tickets')
+      .field('requesterId', '1')
+      .field('categoryId', '1')
+      .field('summary', 'Printer broken summary')
+      .field('description', 'Printer keeps jamming paper constantly')
+      .field('requestedPriority', 'HIGH')
+      .attach('avatar', Buffer.from('fake image content'), {
+        filename: 'photo.png',
+        contentType: 'image/png'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.details).toContainEqual({
+      field: 'attachments',
+      message: 'Files must use the attachments field'
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not create database metadata when storing an attachment fails', async () => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    const mkdirSpy = vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined);
+    const writeSpy = vi.spyOn(fs.promises, 'writeFile').mockRejectedValue(new Error('disk full'));
+
+    try {
+      const response = await request(app)
+        .post('/api/tickets')
+        .field('requesterId', '1')
+        .field('categoryId', '1')
+        .field('summary', 'Printer broken summary')
+        .field('description', 'Printer keeps jamming paper constantly')
+        .field('requestedPriority', 'HIGH')
+        .attach('attachments', Buffer.from('fake image content'), {
+          filename: 'photo.png',
+          contentType: 'image/png'
+        });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ error: 'Internal server error' });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    } finally {
+      mkdirSpy.mockRestore();
+      writeSpy.mockRestore();
+    }
+  });
+
+  it('removes stored attachment files when ticket creation fails', async () => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    (prisma.$transaction as any).mockRejectedValue(new Error('database unavailable'));
+    const mkdirSpy = vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined);
+    const writeSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    const unlinkSpy = vi.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined);
+
+    try {
+      const response = await request(app)
+        .post('/api/tickets')
+        .field('requesterId', '1')
+        .field('categoryId', '1')
+        .field('summary', 'Printer broken summary')
+        .field('description', 'Printer keeps jamming paper constantly')
+        .field('requestedPriority', 'HIGH')
+        .attach('attachments', Buffer.from('fake image content'), {
+          filename: 'photo.png',
+          contentType: 'image/png'
+        });
+
+      expect(response.status).toBe(500);
+      expect(writeSpy).toHaveBeenCalledTimes(1);
+      expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      mkdirSpy.mockRestore();
+      writeSpy.mockRestore();
+      unlinkSpy.mockRestore();
+    }
   });
 
   it('rejects oversized attachment > 5MB (BR-09)', async () => {

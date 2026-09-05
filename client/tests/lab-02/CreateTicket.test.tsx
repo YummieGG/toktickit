@@ -205,6 +205,23 @@ describe('Create Ticket Feature', () => {
     });
   });
 
+  it('keeps valid files when the same selection also contains an invalid file', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    const fileInput = await screen.findByLabelText(/Choose File/);
+    const validFile = new File(['image'], 'valid.png', { type: 'image/png' });
+    const invalidFile = new File(['program'], 'invalid.exe', { type: 'application/x-msdownload' });
+    fireEvent.change(fileInput, { target: { files: [validFile, invalidFile] } });
+
+    expect(await screen.findByText(/valid\.png/)).toBeInTheDocument();
+    expect(await screen.findByText(/\.exe is not permitted/)).toBeInTheDocument();
+    expect(screen.queryByText(/invalid\.exe \(/)).not.toBeInTheDocument();
+  });
+
   it('rejects spoofed file with invalid MIME type even if extension is allowed (api-spec.md:150)', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
@@ -225,6 +242,21 @@ describe('Create Ticket Feature', () => {
     await waitFor(() => {
       expect(screen.getByText(/File type "application\/x-dosexec" is not permitted/)).toBeInTheDocument();
     });
+  });
+
+  it('rejects a file with an empty MIME type even if its extension is allowed', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    const fileInput = await screen.findByLabelText(/Choose File/);
+    const unknownTypeFile = new File(['data'], 'image.png', { type: '' });
+    fireEvent.change(fileInput, { target: { files: [unknownTypeFile] } });
+
+    expect(await screen.findByText(/File type "" is not permitted/)).toBeInTheDocument();
+    expect(fileInput).toHaveAttribute('aria-describedby', 'attachments-error attachments-help');
   });
 
   it('renders green confirmation banner with success token background on ticket creation (ui-spec.md:99, 23-24)', async () => {
@@ -253,5 +285,114 @@ describe('Create Ticket Feature', () => {
       expect(screen.getByText('TK-0007')).toBeInTheDocument();
     });
   });
-});
 
+  it('links error message to input via aria-describedby for accessibility (ui-spec.md §4, §9)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Summary/)).toBeInTheDocument();
+    });
+
+    const summaryInput = screen.getByLabelText(/Summary/);
+    expect(summaryInput).not.toHaveAttribute('aria-describedby');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
+
+    await waitFor(() => {
+      expect(summaryInput).toHaveAttribute('aria-describedby', 'summary-error');
+      const errorDiv = document.getElementById('summary-error');
+      expect(errorDiv).toBeInTheDocument();
+      expect(errorDiv).toHaveAttribute('role', 'alert');
+      expect(errorDiv).toHaveTextContent('Summary must be between 5 and 200 characters');
+    });
+  });
+
+  it('clears field error immediately when user begins typing (ui-spec.md §7.3)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Summary/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Summary must be between 5 and 200 characters')).toBeInTheDocument();
+    });
+
+    // User starts typing
+    fireEvent.change(screen.getByLabelText(/Summary/), { target: { value: 'Fixing network issues' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Summary must be between 5 and 200 characters')).not.toBeInTheDocument();
+    });
+  });
+
+  it('trims leading/trailing whitespace before sending to backend (BR-14, BR-15)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { ticketNumber: 'TK-0008' } }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Priority/), { target: { value: 'LOW' } });
+    fireEvent.change(screen.getByLabelText(/Summary/), { target: { value: '   Trimmed Summary   ' } });
+    fireEvent.change(screen.getByLabelText(/Description/), { target: { value: '   Detailed description with padding   ' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('TK-0008')).toBeInTheDocument();
+    });
+
+    const submitCall = (global.fetch as any).mock.calls[2];
+    const formData = submitCall[1].body as FormData;
+    expect(formData.get('summary')).toBe('Trimmed Summary');
+    expect(formData.get('description')).toBe('Detailed description with padding');
+  });
+
+  it('surfaces non-form backend validation errors in danger banner (ui-spec.md §7.6)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: 'Validation failed',
+          details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }]
+        })
+      });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Priority/), { target: { value: 'LOW' } });
+    fireEvent.change(screen.getByLabelText(/Summary/), { target: { value: 'Valid Summary Text' } });
+    fireEvent.change(screen.getByLabelText(/Description/), { target: { value: 'Valid Description Text Long Enough' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Requester not found or is inactive/)).toBeInTheDocument();
+    });
+  });
+});

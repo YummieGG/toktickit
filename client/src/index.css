@@ -1,169 +1,257 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* 1. Color Tokens (ui-spec.md §1) */
+  --primary-green: #006B3C;
+  --secondary-green: #0B7A46;
+  --pale-green: #EAF6EF;
+  --page-background: #F5F7F6;
+  --surface: #FFFFFF;
+  --surface-border: #DEE2E0;
+  --text-primary: #1A2E1A;
+  --text-secondary: #4A5D4A;
+  --error: #C62828;
+  --error-bg: #FFEBEE;
+  --warning: #E65100;
+  --warning-bg: #FFF3E0;
+  --success: #2E7D32;
+  --success-bg: #E8F5E9;
+  --disabled: #B0BDB0;
+  --disabled-bg: #E8EDE8;
+  --readonly-bg: #F0F4F0;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* 2. Typography (ui-spec.md §2) */
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  font: 16px/1.5 var(--sans);
+  letter-spacing: 0.1px;
+  color-scheme: light;
+  color: var(--text-primary);
+  background-color: var(--page-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background-color: var(--page-background);
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  background-color: var(--page-background);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+/* Headings (ui-spec.md §2) */
+h1, h2 {
+  font-family: var(--sans);
+  font-size: 1.75rem; /* 28px */
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+h3, h4 {
+  font-family: var(--sans);
+  font-size: 1.25rem; /* 20px */
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* Form Labels & Helper Text (ui-spec.md §2) */
+.form-label {
+  font-size: 0.875rem !important; /* 14px */
+  font-weight: 500 !important;
+  color: var(--text-primary) !important;
+  margin-bottom: 0.375rem;
 }
 
-/* Custom focus ring and Zen Green glow from ui-spec.md */
-*:focus-visible {
-  outline: 3px solid #0B7A46 !important;
-  outline-offset: 2px !important;
+.form-text, .helper-text {
+  font-size: 0.75rem !important; /* 12px */
+  font-weight: 400 !important;
+  color: var(--text-secondary) !important;
+}
+
+/* 3. Control States (ui-spec.md §3) */
+.form-control, .form-select {
+  background-color: var(--surface);
+  border: 1px solid var(--surface-border);
+  color: var(--text-primary);
+  font-size: 1rem;
+  border-radius: 0.375rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .form-control:focus,
 .form-select:focus,
-textarea:focus {
-  border-color: #0B7A46 !important;
+textarea.form-control:focus {
+  border-color: var(--secondary-green) !important;
   box-shadow: 0 0 0 0.2rem rgba(11, 122, 70, 0.25) !important;
   outline: none !important;
 }
 
-.btn:focus,
-.btn:focus-visible {
-  border-color: #0B7A46 !important;
-  box-shadow: 0 0 0 0.2rem rgba(11, 122, 70, 0.25) !important;
-  outline: 2px solid #0B7A46 !important;
+/* Invalid State */
+.form-control.is-invalid,
+.form-select.is-invalid {
+  border-color: var(--error) !important;
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus,
+textarea.form-control.is-invalid:focus {
+  border-color: var(--error) !important;
+  box-shadow: 0 0 0 0.2rem rgba(198, 40, 40, 0.25) !important;
+}
+
+/* Read-only State */
+.form-control[readonly],
+textarea.form-control[readonly] {
+  background-color: var(--readonly-bg) !important;
+  border-color: var(--surface-border) !important;
+  cursor: text !important;
+  color: var(--text-primary) !important;
+}
+
+/* Disabled State */
+.form-control:disabled,
+.form-select:disabled,
+.form-control[disabled],
+.form-select[disabled] {
+  background-color: var(--disabled-bg) !important;
+  border-color: var(--surface-border) !important;
+  color: var(--disabled) !important;
+  cursor: not-allowed !important;
+}
+
+/* Focus Visible */
+*:focus-visible {
+  outline: 3px solid var(--secondary-green) !important;
   outline-offset: 2px !important;
 }
 
-/* UI Spec: Form Validation styling */
+/* 4. Required Field & Validation Messages (ui-spec.md §4) */
 .required-asterisk {
-  color: #C62828 !important;
+  color: var(--error) !important;
+  font-weight: bold;
+  margin-left: 2px;
 }
 
 .invalid-feedback-custom {
-  font-size: 12px !important;
-  color: #C62828 !important;
+  font-size: 0.75rem !important; /* 12px */
+  color: var(--error) !important;
   display: flex !important;
   align-items: center;
   gap: 4px;
 }
 
-/* UI Spec: Secondary Button */
+/* 5. Button Hierarchy & Busy State (ui-spec.md §5) */
+.btn-zen-primary {
+  background-color: var(--primary-green) !important;
+  border: none !important;
+  color: #ffffff !important;
+  transition: background-color 0.15s ease-in-out;
+}
+.btn-zen-primary:hover:not(:disabled) {
+  background-color: #00542F !important;
+  color: #ffffff !important;
+}
+
 .btn-zen-secondary {
   background-color: transparent !important;
-  color: #006B3C !important;
-  border: 1px solid #006B3C !important;
+  color: var(--primary-green) !important;
+  border: 1px solid var(--primary-green) !important;
+  transition: background-color 0.15s ease-in-out;
+}
+.btn-zen-secondary:hover:not(:disabled) {
+  background-color: var(--pale-green) !important;
+  color: var(--primary-green) !important;
 }
 
-.btn-zen-secondary:hover {
-  background-color: #EAF6EF !important;
-}
-
-/* UI Spec: Tertiary Button */
 .btn-zen-tertiary {
   background-color: transparent !important;
-  color: #0B7A46 !important;
+  color: var(--secondary-green);
   border: none !important;
+  padding: 0.25rem 0.5rem;
 }
-
-.btn-zen-tertiary:hover {
+.btn-zen-tertiary:hover:not(:disabled) {
   text-decoration: underline !important;
   background-color: transparent !important;
+  color: var(--secondary-green);
+}
+
+.navbar-dark .btn-zen-tertiary {
+  color: #ffffff !important;
+}
+.navbar-dark .btn-zen-tertiary:hover:not(:disabled) {
+  color: #ffffff !important;
+  text-decoration: underline !important;
+}
+
+.btn-zen-destructive {
+  background-color: var(--error) !important;
+  border: none !important;
+  color: #ffffff !important;
+  transition: background-color 0.15s ease-in-out;
+}
+.btn-zen-destructive:hover:not(:disabled) {
+  background-color: #A72020 !important;
+  color: #ffffff !important;
+}
+
+.btn:disabled, .btn.disabled {
+  background-color: var(--disabled-bg) !important;
+  color: var(--disabled) !important;
+  border-color: var(--surface-border) !important;
+  cursor: not-allowed !important;
+}
+
+.btn-zen-primary.is-busy:disabled {
+  background-color: var(--primary-green) !important;
+  border-color: var(--primary-green) !important;
+  color: #ffffff !important;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.btn:focus,
+.btn:focus-visible {
+  border-color: var(--secondary-green) !important;
+  box-shadow: 0 0 0 0.2rem rgba(11, 122, 70, 0.25) !important;
+  outline: 2px solid var(--secondary-green) !important;
+  outline-offset: 2px !important;
+}
+
+/* Alert Styling aligned with Zen Green Theme */
+.alert-danger {
+  background-color: var(--error-bg) !important;
+  border-color: var(--error) !important;
+  color: var(--error) !important;
+}
+
+.alert-warning {
+  background-color: var(--warning-bg) !important;
+  border-color: var(--warning) !important;
+  color: var(--warning) !important;
+}
+
+.alert-success {
+  background-color: var(--success-bg) !important;
+  border-color: var(--success) !important;
+  color: var(--success) !important;
+}
+
+/* 8. Responsive Utilities (ui-spec.md §8) */
+@media (min-width: 768px) {
+  .w-md-auto {
+    width: auto !important;
+  }
 }

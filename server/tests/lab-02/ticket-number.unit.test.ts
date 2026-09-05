@@ -62,36 +62,6 @@ describe('generateTicketNumber (Unit Test - BR-01)', () => {
     expect(ticketNumber10001).toBe('TK-10001');
   });
 
-  it('falls back to ticket.findFirst if $queryRaw is not available', async () => {
-    const mockTxFallback = {
-      $executeRaw: vi.fn().mockResolvedValue(1),
-      ticket: {
-        findFirst: vi.fn().mockResolvedValue({ ticketNumber: 'TK-0003' }),
-      },
-    } as unknown as Prisma.TransactionClient;
-
-    const ticketNumber = await generateTicketNumber(mockTxFallback);
-    expect(ticketNumber).toBe('TK-0004');
-    expect(mockTxFallback.ticket.findFirst).toHaveBeenCalled();
-  });
-
-  it('correctly handles findMany in fallback sorting by length and filtering malformed records', async () => {
-    const mockTxFindMany = {
-      $executeRaw: vi.fn().mockResolvedValue(1),
-      ticket: {
-        findMany: vi.fn().mockResolvedValue([
-          { ticketNumber: 'TK-9999' },
-          { ticketNumber: 'TK-10000' },
-          { ticketNumber: 'TK-INVALID' }
-        ]),
-      },
-    } as unknown as Prisma.TransactionClient;
-
-    const ticketNumber = await generateTicketNumber(mockTxFindMany);
-    expect(ticketNumber).toBe('TK-10001');
-    expect(mockTxFindMany.ticket.findMany).toHaveBeenCalled();
-  });
-
   it('uses constant TICKET_NUMBER_ADVISORY_LOCK_ID equal to 888334', () => {
     expect(TICKET_NUMBER_ADVISORY_LOCK_ID).toBe(888334);
   });

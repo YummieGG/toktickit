@@ -17,11 +17,14 @@ describe('Button Component (ui-spec.md:79)', () => {
     render(<Button variant="primary" isLoading={true}>Submit</Button>);
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
+    expect(button).toHaveClass('is-busy');
+    expect(button).toHaveAttribute('aria-busy', 'true');
     expect(button).toHaveStyle({
       backgroundColor: '#006B3C',
       opacity: '0.75',
       pointerEvents: 'none',
     });
     expect(button.querySelector('.spinner-border')).toBeInTheDocument();
+    expect(getComputedStyle(button).backgroundColor).toBe('rgb(0, 107, 60)');
   });
 });

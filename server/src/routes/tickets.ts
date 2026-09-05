@@ -19,6 +19,48 @@ const ALLOWED_MIME_TYPES = [
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per file (BR-09)
 
+interface PreparedAttachment {
+  originalName: string;
+  storedName: string;
+  mimeType: string;
+  sizeBytes: number;
+  buffer: Buffer;
+}
+
+async function removeStoredFiles(filePaths: string[]): Promise<void> {
+  await Promise.all(filePaths.map(async filePath => {
+    try {
+      await fs.promises.unlink(filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.error(`Failed to clean up attachment file ${filePath}:`, error);
+      }
+    }
+  }));
+}
+
+async function storePreparedAttachments(
+  uploadsDir: string,
+  attachments: PreparedAttachment[]
+): Promise<string[]> {
+  if (attachments.length === 0) return [];
+
+  await fs.promises.mkdir(uploadsDir, { recursive: true });
+  const storedPaths: string[] = [];
+
+  try {
+    for (const attachment of attachments) {
+      const filePath = path.join(uploadsDir, attachment.storedName);
+      await fs.promises.writeFile(filePath, attachment.buffer, { flag: 'wx' });
+      storedPaths.push(filePath);
+    }
+    return storedPaths;
+  } catch (error) {
+    await removeStoredFiles(storedPaths);
+    throw error;
+  }
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -30,12 +72,21 @@ const upload = multer({
 const handleMultipartUpload = (req: Request, res: Response, next: NextFunction) => {
   const contentType = req.headers['content-type'] || '';
   if (contentType.includes('multipart/form-data')) {
-    upload.any()(req, res, (err: any) => {
+    upload.array('attachments', 10)(req, res, (err: unknown) => {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             error: 'Validation failed',
             details: [{ field: 'attachments', message: 'File exceeds the 5 MB limit' }],
+          });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          const message = err.field === 'attachments'
+            ? 'Maximum 5 attachments allowed per ticket'
+            : 'Files must use the attachments field';
+          return res.status(400).json({
+            error: 'Validation failed',
+            details: [{ field: 'attachments', message }],
           });
         }
         return res.status(400).json({
@@ -69,15 +120,24 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
 
     const details: Array<{ field: string; message: string }> = [];
 
-    const parseIntField = (value: any, fieldName: string, isRequired: boolean) => {
-      if (value === undefined || value === null || value === '') {
+    const parseIntField = (value: unknown, fieldName: string, isRequired: boolean) => {
+      const normalizedValue = typeof value === 'string' ? value.trim() : value;
+      if (normalizedValue === undefined || normalizedValue === null || normalizedValue === '') {
         if (isRequired) {
           details.push({ field: fieldName, message: `${fieldName} is required` });
         }
         return isRequired ? undefined : null;
       }
-      const parsed = Number(value);
-      if (isNaN(parsed)) {
+      if (typeof normalizedValue !== 'string' && typeof normalizedValue !== 'number') {
+        details.push({ field: fieldName, message: `${fieldName} must be a valid integer` });
+        return isRequired ? undefined : null;
+      }
+      if (typeof normalizedValue === 'string' && !/^[1-9]\d*$/.test(normalizedValue)) {
+        details.push({ field: fieldName, message: `${fieldName} must be a valid integer` });
+        return isRequired ? undefined : null;
+      }
+      const parsed = Number(normalizedValue);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
         details.push({ field: fieldName, message: `${fieldName} must be a valid integer` });
         return isRequired ? undefined : null;
       }
@@ -154,7 +214,7 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
 
     // Prepare files with UUID stored names
     const uploadsDir = path.resolve(process.cwd(), 'uploads');
-    const preparedAttachments = rawFiles.map(f => {
+    const preparedAttachments: PreparedAttachment[] = rawFiles.map(f => {
       const ext = path.extname(f.originalname);
       const storedName = `${crypto.randomUUID()}${ext}`;
       return {
@@ -166,7 +226,17 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
       };
     });
 
-    // Atomic transaction for ticket number generation, attachment persistence, and creation (BR-01 concurrency safety)
+    // Persist files before creating database metadata so a successful ticket never points to a missing file.
+    // Any database failure below removes these files again.
+    let storedFilePaths: string[] = [];
+    try {
+      storedFilePaths = await storePreparedAttachments(uploadsDir, preparedAttachments);
+    } catch (error) {
+      console.error('Error storing ticket attachments:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+
+    // Atomic transaction for ticket number generation, attachment metadata, and ticket creation (BR-01 concurrency safety)
     // Retry up to 3 times on unique constraint violation (P2002) as a safety net
     const MAX_RETRIES = 3;
     let lastError: unknown;
@@ -187,15 +257,17 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
               requesterId: requesterIdInt!,
               categoryId: categoryIdInt!,
               relatedSystemId: relatedSystemIdInt,
-              attachments: preparedAttachments.length > 0 ? {
-                create: preparedAttachments.map(a => ({
-                  originalName: a.originalName,
-                  storedName: a.storedName,
-                  mimeType: a.mimeType,
-                  sizeBytes: a.sizeBytes,
-                  isRemoved: false
-                }))
-              } : undefined
+              ...(preparedAttachments.length > 0 && {
+                attachments: {
+                  create: preparedAttachments.map(a => ({
+                    originalName: a.originalName,
+                    storedName: a.storedName,
+                    mimeType: a.mimeType,
+                    sizeBytes: a.sizeBytes,
+                    isRemoved: false
+                  }))
+                }
+              })
             },
             include: {
               category: { select: { id: true, name: true } },
@@ -216,18 +288,6 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
           });
         });
 
-        // Write files to uploads directory ONLY after transaction successfully commits
-        if (preparedAttachments.length > 0) {
-          if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-          }
-          for (const file of preparedAttachments) {
-            if (file.buffer) {
-              fs.writeFileSync(path.join(uploadsDir, file.storedName), file.buffer);
-            }
-          }
-        }
-
         return res.status(201).json({ 
           data: newTicket 
         });
@@ -247,6 +307,7 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
       }
     }
 
+    await removeStoredFiles(storedFilePaths);
     console.error('Error creating ticket:', lastError);
     res.status(500).json({ error: 'Internal server error' });
   } catch (error) {
