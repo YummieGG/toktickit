@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button';
 import { InputField } from '../components/ui/InputField';
 import { SelectField } from '../components/ui/SelectField';
 import { TextAreaField } from '../components/ui/TextAreaField';
+import { Alert } from '../components/ui/Alert';
 
 interface Category {
   id: number;
@@ -99,9 +100,9 @@ export const CreateTicket: React.FC = () => {
         const sysJson = await sysRes.json();
         setCategories(catJson.data || []);
         setSystems(sysJson.data || []);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to load master data', err);
-        setApiError(err.message || 'Failed to load master data. Please refresh.');
+        setApiError((err as Error).message || 'Failed to load master data. Please refresh.');
       } finally {
         setIsLoadingData(false);
       }
@@ -130,7 +131,7 @@ export const CreateTicket: React.FC = () => {
         firstError ??= `File type ${ext} is not permitted. Supported formats: JPG, PNG, WEBP, PDF`;
         continue;
       }
-      if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
         firstError ??= `File type "${file.type}" is not permitted. Supported formats: JPG, PNG, WEBP, PDF`;
         continue;
       }
@@ -160,7 +161,7 @@ export const CreateTicket: React.FC = () => {
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (!isSubmitting && selectedFiles.length < MAX_FILE_COUNT) {
+    if (!isSubmitting && !isLoadingData && selectedFiles.length < MAX_FILE_COUNT) {
       setIsDragging(true);
     }
   };
@@ -173,7 +174,7 @@ export const CreateTicket: React.FC = () => {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    if (isSubmitting || selectedFiles.length >= MAX_FILE_COUNT) return;
+    if (isSubmitting || isLoadingData || selectedFiles.length >= MAX_FILE_COUNT) return;
     if (e.dataTransfer.files) {
       processFiles(e.dataTransfer.files);
     }
@@ -256,25 +257,12 @@ export const CreateTicket: React.FC = () => {
       }
 
       setSuccessTicketNumber(data.data.ticketNumber);
-    } catch (err: any) {
-      setApiError(err.message || 'An error occurred during submission');
+    } catch (err: unknown) {
+      setApiError((err as Error).message || 'An error occurred during submission');
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  if (isLoadingData) {
-    return (
-      <div className="card shadow-sm mt-4 text-center p-4 p-md-5" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--surface-border)' }}>
-        <div className="card-body">
-          <div className="spinner-border mb-3" role="status" style={{ width: '3rem', height: '3rem', color: '#006B3C' }}>
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <h4 className="fw-semibold" style={{ color: 'var(--text-secondary)' }}>Loading...</h4>
-        </div>
-      </div>
-    );
-  }
 
   if (successTicketNumber) {
     return (
@@ -313,26 +301,36 @@ export const CreateTicket: React.FC = () => {
   }
 
   return (
-    <div className="card shadow-sm mt-4" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--surface-border)' }}>
-      <div className="card-body p-3 p-md-4">
-        <h2 className="mb-4 fw-semibold border-bottom pb-2" style={{ color: 'var(--text-primary)', borderColor: 'var(--surface-border)' }}>
-          Create New Ticket
-        </h2>
-        
-        {apiError && (
-          <div className="alert alert-danger mb-4" role="alert">
-            {apiError}
+    <>
+      {isLoadingData && (
+        <div className="text-center mb-4 py-2" role="status">
+          <div className="spinner-border mb-2" role="status" style={{ width: '2.5rem', height: '2.5rem', color: '#006B3C' }}>
+            <span className="visually-hidden">Loading...</span>
           </div>
-        )}
+          <h4 className="fw-semibold fs-5" style={{ color: 'var(--text-secondary)' }}>Loading...</h4>
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit} noValidate>
+      <div className="card shadow-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--surface-border)' }}>
+        <div className="card-body p-3 p-md-4">
+          <h2 className="mb-4 fw-semibold border-bottom pb-2" style={{ color: 'var(--text-primary)', borderColor: 'var(--surface-border)' }}>
+            Create New Ticket
+          </h2>
+
+          {apiError && (
+            <Alert variant="danger" className="mb-4">
+              {apiError}
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate>
           <div className="row">
             <div className="col-12 col-md-6">
               <SelectField
                 id="categoryId"
                 label="Category"
                 required
-                disabled={isSubmitting}
+                disabled={isLoadingData || isSubmitting}
                 options={categories.map(c => ({ value: c.id, label: c.name }))}
                 value={categoryId}
                 onChange={e => {
@@ -347,7 +345,7 @@ export const CreateTicket: React.FC = () => {
                 id="relatedSystemId"
                 label="Related System"
                 placeholder="-- None --"
-                disabled={isSubmitting}
+                disabled={isLoadingData || isSubmitting}
                 options={systems.map(s => ({ value: s.id, label: s.name }))}
                 value={relatedSystemId}
                 onChange={e => {
@@ -365,7 +363,7 @@ export const CreateTicket: React.FC = () => {
                 id="requestedPriority"
                 label="Requested Priority"
                 required
-                disabled={isSubmitting}
+                disabled={isLoadingData || isSubmitting}
                 options={[
                   { value: 'LOW', label: 'Low' },
                   { value: 'MEDIUM', label: 'Medium' },
@@ -388,7 +386,7 @@ export const CreateTicket: React.FC = () => {
                 id="summary"
                 label="Summary"
                 required
-                disabled={isSubmitting}
+                disabled={isLoadingData || isSubmitting}
                 placeholder="Brief description of the issue"
                 value={summary}
                 onChange={e => {
@@ -407,7 +405,7 @@ export const CreateTicket: React.FC = () => {
                 label="Description"
                 required
                 rows={5}
-                disabled={isSubmitting}
+                disabled={isLoadingData || isSubmitting}
                 placeholder="Provide detailed information..."
                 value={description}
                 onChange={e => {
@@ -442,7 +440,7 @@ export const CreateTicket: React.FC = () => {
                   className={`form-control ${attachmentError || errors.attachments ? 'is-invalid' : ''}`}
                   accept=".jpg,.jpeg,.png,.webp,.pdf"
                   multiple
-                  disabled={isSubmitting || selectedFiles.length >= MAX_FILE_COUNT}
+                  disabled={isLoadingData || isSubmitting || selectedFiles.length >= MAX_FILE_COUNT}
                   onChange={handleFileChange}
                   aria-label="Choose File"
                   aria-invalid={!!(attachmentError || errors.attachments)}
@@ -453,9 +451,9 @@ export const CreateTicket: React.FC = () => {
                 </div>
 
                 {(attachmentError || errors.attachments) && (
-                  <div id="attachments-error" className="alert alert-danger py-2 px-3 mt-2 mb-0" role="alert">
+                  <Alert id="attachments-error" variant="danger" className="py-2 px-3 mt-2 mb-0">
                     ⚠ {attachmentError || errors.attachments}
-                  </div>
+                  </Alert>
                 )}
 
                 {selectedFiles.length > 0 && (
@@ -470,7 +468,7 @@ export const CreateTicket: React.FC = () => {
                           className="btn btn-sm btn-zen-destructive text-white border-0 px-2 py-1"
                           style={{ backgroundColor: '#C62828', fontSize: '0.75rem', minHeight: '44px' }}
                           onClick={() => handleRemoveFile(index)}
-                          disabled={isSubmitting}
+                          disabled={isLoadingData || isSubmitting}
                           aria-label={`Remove ${file.name}`}
                         >
                           Remove
@@ -486,10 +484,10 @@ export const CreateTicket: React.FC = () => {
           <div className="d-flex flex-column-reverse flex-md-row justify-content-md-end gap-3 mt-4 pt-3 border-top" style={{ borderColor: 'var(--surface-border)' }}>
             <Link 
               to="/tickets" 
-              className={`btn btn-zen-secondary px-4 py-2 text-center w-100 w-md-auto ${isSubmitting ? 'disabled' : ''}`}
-              aria-disabled={isSubmitting}
-              tabIndex={isSubmitting ? -1 : undefined}
-              onClick={e => { if (isSubmitting) e.preventDefault(); }}
+              className={`btn btn-zen-secondary px-4 py-2 text-center w-100 w-md-auto ${isLoadingData || isSubmitting ? 'disabled' : ''}`}
+              aria-disabled={isLoadingData || isSubmitting}
+              tabIndex={isLoadingData || isSubmitting ? -1 : undefined}
+              onClick={e => { if (isLoadingData || isSubmitting) e.preventDefault(); }}
               style={{ minHeight: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             >
               Cancel
@@ -497,6 +495,7 @@ export const CreateTicket: React.FC = () => {
             <Button
               type="submit"
               isLoading={isSubmitting}
+              disabled={isLoadingData || isSubmitting}
               className="px-4 py-2 w-100 w-md-auto"
               style={{ minHeight: '44px' }}
             >
@@ -506,5 +505,6 @@ export const CreateTicket: React.FC = () => {
         </form>
       </div>
     </div>
+    </>
   );
 };

@@ -22,6 +22,9 @@ describe('Requester Context Feature', () => {
 
     render(<App />);
     expect(screen.getByText('⚠️ This is for testing only, not actual authentication')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Loading requesters...')).not.toBeInTheDocument();
+    });
   });
 
   it('handles loading state and fetches requesters', async () => {
@@ -30,9 +33,21 @@ describe('Requester Context Feature', () => {
       { id: 2, name: 'Suda Srisawat', email: 'suda@example.com' },
     ];
 
-    (global.fetch as any).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: mockRequesters }),
+    (global.fetch as any).mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/requesters') {
+        return Promise.resolve({ ok: true, json: async () => ({ data: mockRequesters }) });
+      }
+      if (url === '/api/categories') {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [],
+          pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0 },
+        }),
+      });
     });
 
     render(<App />);
@@ -78,8 +93,8 @@ describe('Requester Context Feature', () => {
       expect(screen.getByRole('button', { name: 'Change Requester' })).toBeInTheDocument();
     });
     
-    // Should show tickets placeholder
-    expect(screen.getByText(/You are now logged in to the development context./)).toBeInTheDocument();
+    // Should show the selected requester's ticket list.
+    expect(screen.getByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
   });
 
   it('handles error state', async () => {

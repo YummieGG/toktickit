@@ -30,12 +30,14 @@ describe('Create Ticket Feature', () => {
     render(<App />);
 
     expect(screen.getByRole('heading', { name: 'Loading...' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Category/)).toBeDisabled();
 
     resolveCategories({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Software' }] }) });
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Loading...' })).not.toBeInTheDocument();
       expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
   });
 
@@ -244,7 +246,7 @@ describe('Create Ticket Feature', () => {
     });
   });
 
-  it('rejects a file with an empty MIME type even if its extension is allowed', async () => {
+  it('accepts a file with an empty MIME type when its extension is allowed (prevents false-positive rejection)', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
@@ -255,8 +257,8 @@ describe('Create Ticket Feature', () => {
     const unknownTypeFile = new File(['data'], 'image.png', { type: '' });
     fireEvent.change(fileInput, { target: { files: [unknownTypeFile] } });
 
-    expect(await screen.findByText(/File type "" is not permitted/)).toBeInTheDocument();
-    expect(fileInput).toHaveAttribute('aria-describedby', 'attachments-error attachments-help');
+    expect(await screen.findByText(/image\.png/)).toBeInTheDocument();
+    expect(screen.queryByText(/is not permitted/)).not.toBeInTheDocument();
   });
 
   it('renders green confirmation banner with success token background on ticket creation (ui-spec.md:99, 23-24)', async () => {

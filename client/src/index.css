@@ -255,3 +255,72 @@ textarea.form-control[readonly] {
     width: auto !important;
   }
 }
+
+/* My Tickets list (ui-spec.md sections 12, 13, 15, and 18) */
+.ticket-sort {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  padding: 0.75rem 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ticket-number-link {
+  color: var(--primary-green);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.ticket-summary {
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-row {
+  cursor: pointer;
+}
+
+.ticket-row:hover > * {
+  background-color: var(--pale-green) !important;
+}
+
+.ticket-card {
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ticket-card:hover,
+.ticket-card:focus-visible {
+  background-color: var(--pale-green);
+  border-color: var(--secondary-green);
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+}
+
+.pagination .page-link {
+  color: var(--primary-green);
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: var(--primary-green);
+  border-color: var(--primary-green);
+  color: #ffffff;
+}
+
+@media (max-width: 767.98px) {
+  .my-tickets .btn,
+  .my-tickets .form-control,
+  .my-tickets .form-select {
+    min-height: 44px;
+  }
+}
