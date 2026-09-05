@@ -18,6 +18,17 @@ const ALLOWED_MIME_TYPES = [
 
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per file (BR-09)
+const TICKET_STATUSES = ['NEW'] as const;
+const REQUESTED_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
+const TICKET_SORT_FIELDS = [
+  'ticketDate',
+  'ticketNumber',
+  'summary',
+  'requestedPriority',
+  'currentStatus',
+] as const;
+const SORT_ORDERS = ['asc', 'desc'] as const;
+const PAGE_SIZES = [5, 10, 20] as const;
 
 interface PreparedAttachment {
   originalName: string;
@@ -106,6 +117,208 @@ const handleMultipartUpload = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
+function getSingleQueryValue(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function isPositiveIntegerString(value: string): boolean {
+  if (!/^[1-9]\d*$/.test(value)) return false;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed <= 2_147_483_647;
+}
+
+interface ValidatedTicketsQuery {
+  requesterId: number;
+  search?: string | undefined;
+  categoryId?: number | undefined;
+  status?: (typeof TICKET_STATUSES)[number] | undefined;
+  priority?: (typeof REQUESTED_PRIORITIES)[number] | undefined;
+  sortBy: (typeof TICKET_SORT_FIELDS)[number];
+  sortOrder: (typeof SORT_ORDERS)[number];
+  page: number;
+  pageSize: (typeof PAGE_SIZES)[number];
+}
+
+type TicketsQueryParseResult =
+  | { success: true; data: ValidatedTicketsQuery }
+  | { success: false; details: Array<{ field: string; message: string }> };
+
+function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
+  const details: Array<{ field: string; message: string }> = [];
+
+  const requesterIdValue = getSingleQueryValue(query.requesterId);
+  const searchValue = getSingleQueryValue(query.search);
+  const categoryValue = getSingleQueryValue(query.category);
+  const statusValue = getSingleQueryValue(query.status);
+  const priorityValue = getSingleQueryValue(query.priority);
+  const sortByValue = getSingleQueryValue(query.sortBy) ?? 'ticketDate';
+  const sortOrderValue = getSingleQueryValue(query.sortOrder) ?? 'desc';
+  const pageValue = getSingleQueryValue(query.page) ?? '1';
+  const pageSizeValue = getSingleQueryValue(query.pageSize) ?? '10';
+
+  if (!requesterIdValue || !isPositiveIntegerString(requesterIdValue)) {
+    details.push({ field: 'requesterId', message: 'requesterId must be a positive integer' });
+  }
+  if (query.search !== undefined && searchValue === undefined) {
+    details.push({ field: 'search', message: 'search must be a string' });
+  }
+  if (
+    query.category !== undefined &&
+    (!categoryValue || !isPositiveIntegerString(categoryValue))
+  ) {
+    details.push({ field: 'category', message: 'category must be a positive integer' });
+  }
+  if (
+    query.status !== undefined &&
+    (!statusValue || !TICKET_STATUSES.includes(statusValue as (typeof TICKET_STATUSES)[number]))
+  ) {
+    details.push({ field: 'status', message: `status must be one of ${TICKET_STATUSES.join(', ')}` });
+  }
+  if (
+    query.priority !== undefined &&
+    (!priorityValue || !REQUESTED_PRIORITIES.includes(priorityValue as (typeof REQUESTED_PRIORITIES)[number]))
+  ) {
+    details.push({
+      field: 'priority',
+      message: `priority must be one of ${REQUESTED_PRIORITIES.join(', ')}`,
+    });
+  }
+  if (query.sortBy !== undefined && getSingleQueryValue(query.sortBy) === undefined) {
+    details.push({ field: 'sortBy', message: 'sortBy must be a string' });
+  }
+  if (!TICKET_SORT_FIELDS.includes(sortByValue as (typeof TICKET_SORT_FIELDS)[number])) {
+    details.push({ field: 'sortBy', message: `sortBy must be one of ${TICKET_SORT_FIELDS.join(', ')}` });
+  }
+  if (query.sortOrder !== undefined && getSingleQueryValue(query.sortOrder) === undefined) {
+    details.push({ field: 'sortOrder', message: 'sortOrder must be a string' });
+  }
+  if (!SORT_ORDERS.includes(sortOrderValue as (typeof SORT_ORDERS)[number])) {
+    details.push({ field: 'sortOrder', message: 'sortOrder must be asc or desc' });
+  }
+  if (query.page !== undefined && getSingleQueryValue(query.page) === undefined) {
+    details.push({ field: 'page', message: 'page must be a string integer' });
+  }
+  if (!isPositiveIntegerString(pageValue)) {
+    details.push({ field: 'page', message: 'page must be an integer greater than or equal to 1' });
+  }
+  if (query.pageSize !== undefined && getSingleQueryValue(query.pageSize) === undefined) {
+    details.push({ field: 'pageSize', message: 'pageSize must be a string integer' });
+  }
+  const pageSizeNumber = Number(pageSizeValue);
+  if (
+    !isPositiveIntegerString(pageSizeValue) ||
+    !PAGE_SIZES.includes(pageSizeNumber as (typeof PAGE_SIZES)[number])
+  ) {
+    details.push({ field: 'pageSize', message: `pageSize must be one of ${PAGE_SIZES.join(', ')}` });
+  }
+
+  if (details.length > 0) {
+    return { success: false, details };
+  }
+
+  return {
+    success: true,
+    data: {
+      requesterId: Number(requesterIdValue),
+      categoryId: categoryValue ? Number(categoryValue) : undefined,
+      status: statusValue as (typeof TICKET_STATUSES)[number] | undefined,
+      priority: priorityValue as (typeof REQUESTED_PRIORITIES)[number] | undefined,
+      sortBy: sortByValue as (typeof TICKET_SORT_FIELDS)[number],
+      sortOrder: sortOrderValue as (typeof SORT_ORDERS)[number],
+      page: Number(pageValue),
+      pageSize: pageSizeNumber as (typeof PAGE_SIZES)[number],
+      search: searchValue?.trim() || undefined,
+    },
+  };
+}
+
+// GET /api/tickets
+ticketsRouter.get('/', async (req: Request, res: Response) => {
+  const parseResult = parseTicketsQuery(req.query);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: 'Validation failed', details: parseResult.details });
+  }
+
+  const {
+    requesterId,
+    categoryId,
+    status,
+    priority,
+    sortBy,
+    sortOrder,
+    page,
+    pageSize,
+    search,
+  } = parseResult.data;
+
+  try {
+    const requester = await prisma.requesterUser.findUnique({
+      where: { id: requesterId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!requester || !requester.isActive) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }],
+      });
+    }
+
+    const where: Prisma.TicketWhereInput = {
+      requesterId,
+      ...(categoryId !== undefined ? { categoryId } : {}),
+      ...(status ? { currentStatus: status } : {}),
+      ...(priority ? { requestedPriority: priority } : {}),
+      ...(search
+        ? {
+            OR: [
+              { ticketNumber: { contains: search, mode: 'insensitive' } },
+              { summary: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const prismaSortOrder = sortOrder as Prisma.SortOrder;
+    const orderBy: Prisma.TicketOrderByWithRelationInput = {
+      [sortBy]: prismaSortOrder,
+    };
+
+    const [tickets, totalItems] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        orderBy: [orderBy, { id: prismaSortOrder }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          ticketNumber: true,
+          summary: true,
+          requestedPriority: true,
+          currentStatus: true,
+          ticketDate: true,
+          category: { select: { id: true, name: true } },
+          updatedAt: true,
+        },
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      data: tickets,
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages: Math.ceil(totalItems / pageSize),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching tickets:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/tickets
 ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Response) => {
   try {
@@ -128,20 +341,14 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
         }
         return isRequired ? undefined : null;
       }
-      if (typeof normalizedValue !== 'string' && typeof normalizedValue !== 'number') {
+      if (
+        (typeof normalizedValue !== 'string' && typeof normalizedValue !== 'number') ||
+        !isPositiveIntegerString(String(normalizedValue))
+      ) {
         details.push({ field: fieldName, message: `${fieldName} must be a valid integer` });
         return isRequired ? undefined : null;
       }
-      if (typeof normalizedValue === 'string' && !/^[1-9]\d*$/.test(normalizedValue)) {
-        details.push({ field: fieldName, message: `${fieldName} must be a valid integer` });
-        return isRequired ? undefined : null;
-      }
-      const parsed = Number(normalizedValue);
-      if (!Number.isInteger(parsed) || parsed <= 0) {
-        details.push({ field: fieldName, message: `${fieldName} must be a valid integer` });
-        return isRequired ? undefined : null;
-      }
-      return parsed;
+      return Number(normalizedValue);
     };
 
     const requesterIdInt = parseIntField(requesterId, 'requesterId', true) as number | undefined;
@@ -156,8 +363,7 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
       details.push({ field: 'description', message: 'Description must be between 10 and 2000 characters' });
     }
 
-    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-    if (!requestedPriority || !validPriorities.includes(requestedPriority)) {
+    if (!requestedPriority || !REQUESTED_PRIORITIES.includes(requestedPriority)) {
       details.push({ field: 'requestedPriority', message: 'Invalid requested priority. Must be one of LOW, MEDIUM, HIGH, CRITICAL' });
     }
 
