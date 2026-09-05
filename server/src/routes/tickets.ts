@@ -176,18 +176,6 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
         const newTicket = await prisma.$transaction(async (tx) => {
           const ticketNumber = await generateTicketNumber(tx);
 
-          // Write files to uploads directory
-          if (preparedAttachments.length > 0) {
-            if (!fs.existsSync(uploadsDir)) {
-              fs.mkdirSync(uploadsDir, { recursive: true });
-            }
-            for (const file of preparedAttachments) {
-              if (file.buffer) {
-                fs.writeFileSync(path.join(uploadsDir, file.storedName), file.buffer);
-              }
-            }
-          }
-
           return tx.ticket.create({
             data: {
               ticketNumber,
@@ -227,6 +215,18 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
             }
           });
         });
+
+        // Write files to uploads directory ONLY after transaction successfully commits
+        if (preparedAttachments.length > 0) {
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          for (const file of preparedAttachments) {
+            if (file.buffer) {
+              fs.writeFileSync(path.join(uploadsDir, file.storedName), file.buffer);
+            }
+          }
+        }
 
         return res.status(201).json({ 
           data: newTicket 

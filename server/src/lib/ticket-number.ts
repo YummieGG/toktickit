@@ -27,12 +27,20 @@ export async function generateTicketNumber(dbClient: Prisma.TransactionClient): 
     if (rows && rows.length > 0) {
       lastTicketNumber = rows[0].ticketNumber;
     }
-  } else if (dbClient.ticket && typeof dbClient.ticket.findFirst === 'function') {
-    const fallbackTicket = await dbClient.ticket.findFirst({
-      orderBy: { ticketNumber: 'desc' },
-      select: { ticketNumber: true }
-    });
-    lastTicketNumber = fallbackTicket?.ticketNumber;
+  } else if (dbClient.ticket) {
+    if (typeof dbClient.ticket.findMany === 'function') {
+      const tickets = await dbClient.ticket.findMany({ select: { ticketNumber: true } });
+      const valid = (tickets || [])
+        .map(t => t.ticketNumber)
+        .filter((num): num is string => typeof num === 'string' && /^TK-[0-9]+$/.test(num))
+        .sort((a, b) => b.length - a.length || b.localeCompare(a));
+      lastTicketNumber = valid[0];
+    } else if (typeof dbClient.ticket.findFirst === 'function') {
+      const fallbackTicket = await dbClient.ticket.findFirst({
+        select: { ticketNumber: true }
+      });
+      lastTicketNumber = fallbackTicket?.ticketNumber;
+    }
   }
 
   let nextNum = 1;

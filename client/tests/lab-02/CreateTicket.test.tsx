@@ -204,4 +204,54 @@ describe('Create Ticket Feature', () => {
       expect(screen.queryByText(/screenshot\.png/)).not.toBeInTheDocument();
     });
   });
+
+  it('rejects spoofed file with invalid MIME type even if extension is allowed (api-spec.md:150)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Choose File/)).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByLabelText(/Choose File/) as HTMLInputElement;
+    // An executable file renamed with a .png extension
+    const spoofedFile = new File(['fake-binary'], 'image.png', { type: 'application/x-dosexec' });
+
+    fireEvent.change(fileInput, { target: { files: [spoofedFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/File type "application\/x-dosexec" is not permitted/)).toBeInTheDocument();
+    });
+  });
+
+  it('renders green confirmation banner with success token background on ticket creation (ui-spec.md:99, 23-24)', async () => {
+    (global.fetch as any)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { ticketNumber: 'TK-0007' } }) });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Priority/), { target: { value: 'HIGH' } });
+    fireEvent.change(screen.getByLabelText(/Summary/), { target: { value: 'Printer not printing' } });
+    fireEvent.change(screen.getByLabelText(/Description/), { target: { value: 'Need help to configure the printer' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
+
+    await waitFor(() => {
+      const banner = screen.getByRole('alert');
+      expect(banner).toBeInTheDocument();
+      expect(banner).toHaveStyle({ backgroundColor: '#E8F5E9' });
+      expect(screen.getByText('TK-0007')).toBeInTheDocument();
+    });
+  });
 });
+

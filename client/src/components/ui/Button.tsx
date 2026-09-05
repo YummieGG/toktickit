@@ -23,12 +23,23 @@ export const Button: React.FC<ButtonProps> = ({
     tertiary: 'btn-zen-tertiary'
   };
 
-  const primaryStyle = variant === 'primary' ? { backgroundColor: '#006B3C', borderColor: '#006B3C' } : {};
+  const getStyle = (): React.CSSProperties => {
+    const style: React.CSSProperties = {};
+    if (variant === 'primary') {
+      style.backgroundColor = '#006B3C';
+      style.borderColor = '#006B3C';
+    }
+    if (isLoading) {
+      style.opacity = 0.75;
+      style.pointerEvents = 'none';
+    }
+    return style;
+  };
 
   return (
     <button 
       className={`${baseClasses} ${variantClasses[variant]} ${className}`}
-      style={primaryStyle}
+      style={getStyle()}
       disabled={isLoading || disabled}
       {...props}
     >

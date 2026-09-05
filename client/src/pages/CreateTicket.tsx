@@ -32,6 +32,12 @@ export const CreateTicket: React.FC = () => {
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+  const ALLOWED_MIME_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+  ];
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
   const MAX_FILE_COUNT = 5;
 
@@ -119,6 +125,11 @@ export const CreateTicket: React.FC = () => {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
         setAttachmentError(`File type ${ext} is not permitted. Supported formats: JPG, PNG, WEBP, PDF`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+        setAttachmentError(`File type "${file.type}" is not permitted. Supported formats: JPG, PNG, WEBP, PDF`);
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
@@ -224,12 +235,17 @@ export const CreateTicket: React.FC = () => {
 
   if (successTicketNumber) {
     return (
-      <div className="card shadow-sm border-0 mt-4 text-center p-5">
+      <div 
+        className="card shadow-sm mt-4 text-center p-5 rounded-3" 
+        style={{ backgroundColor: '#E8F5E9', border: '1px solid #2E7D32' }}
+        role="alert"
+        aria-live="polite"
+      >
         <div className="card-body">
-          <div className="mb-4 text-success" style={{ fontSize: '4rem' }}>✓</div>
-          <h2 className="fw-bold text-black mb-3">Ticket Created Successfully</h2>
-          <p className="lead mb-4">
-            Your ticket number is <strong className="text-primary">{successTicketNumber}</strong>
+          <div className="mb-4" style={{ fontSize: '4rem', color: '#2E7D32' }}>✓</div>
+          <h2 className="fw-bold mb-3" style={{ color: '#1B5E20' }}>Ticket Created Successfully</h2>
+          <p className="lead mb-4" style={{ color: '#1B5E20' }}>
+            Your ticket number is <strong style={{ color: '#006B3C', fontSize: '1.25em' }}>{successTicketNumber}</strong>
           </p>
           <div className="d-flex justify-content-center gap-3">
             <Link to="/tickets" className="btn btn-lg text-white px-4" style={{ backgroundColor: '#006B3C' }}>
@@ -238,7 +254,7 @@ export const CreateTicket: React.FC = () => {
             <button 
               type="button" 
               onClick={handleCreateAnother}
-              className="btn btn-lg btn-outline-secondary px-4"
+              className="btn btn-lg btn-outline-secondary px-4 bg-white"
             >
               Create Another Ticket
             </button>
