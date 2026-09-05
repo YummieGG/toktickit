@@ -16,7 +16,7 @@ const PRIORITY_STYLES: Record<PriorityType, React.CSSProperties> = {
   CRITICAL: { backgroundColor: '#FFCDD2', color: '#B71C1C' },
 };
 
-const STATUS_STYLES: Record<string, React.CSSProperties> = {
+const STATUS_STYLES: Record<StatusType, React.CSSProperties> = {
   NEW: { backgroundColor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7' },
 };
 
@@ -25,7 +25,7 @@ const DEFAULT_STYLE: React.CSSProperties = { backgroundColor: '#E8EDE8', color: 
 export const Badge: React.FC<BadgeProps> = ({ type, value, className = '' }) => {
   const getStyle = (): React.CSSProperties => {
     if (type === 'status') {
-      return STATUS_STYLES[value] ?? DEFAULT_STYLE;
+      return STATUS_STYLES[value as StatusType] ?? DEFAULT_STYLE;
     }
     return PRIORITY_STYLES[value as PriorityType] ?? DEFAULT_STYLE;
   };

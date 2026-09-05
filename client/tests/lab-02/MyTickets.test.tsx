@@ -88,6 +88,70 @@ describe('My Tickets screen', () => {
     });
   });
 
+  it('renders only the category-filtered records returned by the API', async () => {
+    const softwareTicket = {
+      ...ticket,
+      id: 13,
+      ticketNumber: 'TK-0013',
+      summary: 'Email client setup',
+      category: { id: 3, name: 'Software' },
+    };
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/categories') {
+        return jsonResponse({ data: [ticket.category, softwareTicket.category] }) as Promise<Response>;
+      }
+      const data = url.includes('category=2') ? [ticket] : [ticket, softwareTicket];
+      return jsonResponse({
+        data,
+        pagination: { page: 1, pageSize: 10, totalItems: data.length, totalPages: 1 },
+      }) as Promise<Response>;
+    });
+    render(<App />);
+    await screen.findAllByText('Email client setup');
+
+    fireEvent.change(screen.getByLabelText('Category'), { target: { value: '2' } });
+
+    await waitFor(() => {
+      const rows = Array.from(screen.getByRole('table').querySelectorAll('tbody tr'));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveTextContent('VPN access unavailable');
+      expect(screen.queryByText('Email client setup')).not.toBeInTheDocument();
+    });
+  });
+
+  it('renders only the status-filtered records returned by the API', async () => {
+    const resolvedTicket = {
+      ...ticket,
+      id: 14,
+      ticketNumber: 'TK-0014',
+      summary: 'Resolved printer issue',
+      currentStatus: 'RESOLVED',
+    };
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/categories') {
+        return jsonResponse({ data: [ticket.category] }) as Promise<Response>;
+      }
+      const data = url.includes('status=NEW') ? [ticket] : [ticket, resolvedTicket];
+      return jsonResponse({
+        data,
+        pagination: { page: 1, pageSize: 10, totalItems: data.length, totalPages: 1 },
+      }) as Promise<Response>;
+    });
+    render(<App />);
+    await screen.findAllByText('Resolved printer issue');
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'NEW' } });
+
+    await waitFor(() => {
+      const rows = Array.from(screen.getByRole('table').querySelectorAll('tbody tr'));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toHaveTextContent('VPN access unavailable');
+      expect(screen.queryByText('Resolved printer issue')).not.toBeInTheDocument();
+    });
+  });
+
   it('changes API sorting, page, and page size from the controls', async () => {
     mockSuccessfulRequests(25);
     render(<App />);
@@ -110,6 +174,52 @@ describe('My Tickets screen', () => {
       '/api/tickets?requesterId=7&sortBy=summary&sortOrder=asc&page=1&pageSize=20',
       expect.any(Object)
     ));
+  });
+
+  it('keeps pagination controls bounded for large result sets', async () => {
+    mockSuccessfulRequests(1000);
+    render(<App />);
+    await screen.findAllByText('TK-0012');
+
+    expect(screen.getByRole('button', { name: '5' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '100' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '50' })).not.toBeInTheDocument();
+  });
+
+  it('moves to the last available page when the requested page disappears', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/categories') return jsonResponse({ data: [ticket.category] }) as Promise<Response>;
+      if (url.includes('page=3')) {
+        return jsonResponse({
+          data: [],
+          pagination: { page: 3, pageSize: 10, totalItems: 12, totalPages: 2 },
+        }) as Promise<Response>;
+      }
+      if (url.includes('page=2')) {
+        return jsonResponse({
+          data: [ticket],
+          pagination: { page: 2, pageSize: 10, totalItems: 12, totalPages: 2 },
+        }) as Promise<Response>;
+      }
+      return jsonResponse({
+        data: [ticket],
+        pagination: { page: 1, pageSize: 10, totalItems: 21, totalPages: 3 },
+      }) as Promise<Response>;
+    });
+    render(<App />);
+    await screen.findAllByText('TK-0012');
+
+    fireEvent.click(screen.getByRole('button', { name: '3' }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/tickets?requesterId=7&sortBy=ticketDate&sortOrder=desc&page=2&pageSize=10',
+        expect.any(Object)
+      );
+      expect(screen.getByText('Showing 11-12 of 12 tickets')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '2' })).toHaveAttribute('aria-current', 'page');
+    });
   });
 
   it('renders the filtered and sorted data returned by the API', async () => {
@@ -264,5 +374,38 @@ describe('My Tickets screen', () => {
     expect(lastRequesterCall).toBe(
       '/api/tickets?requesterId=8&sortBy=ticketDate&sortOrder=desc&page=1&pageSize=10'
     );
+  });
+
+  it('preserves user-selected pageSize when clear filters is clicked', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/categories') return jsonResponse({ data: [] }) as Promise<Response>;
+      return jsonResponse({
+        data: [ticket],
+        pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+      }) as Promise<Response>;
+    });
+
+    render(<App />);
+    await screen.findByRole('table');
+
+    // Change page size to 20
+    fireEvent.change(screen.getByLabelText('Per page'), { target: { value: '20' } });
+
+    // Enter search to make Clear Filters appear
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'VPN' } });
+    fireEvent.submit(screen.getByRole('search'));
+
+    const clearBtn = await screen.findByRole('button', { name: 'Clear Filters' });
+    fireEvent.click(clearBtn);
+
+    await waitFor(() => {
+      const select = screen.getByLabelText('Per page') as HTMLSelectElement;
+      expect(select.value).toBe('20');
+      expect(global.fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('pageSize=20'),
+        expect.any(Object)
+      );
+    });
   });
 });

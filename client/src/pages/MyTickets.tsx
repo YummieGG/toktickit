@@ -92,6 +92,21 @@ const TABLE_COLUMNS: ColumnConfig[] = [
   { key: 'ticketDate', label: 'Date Created', sortField: 'ticketDate' },
 ];
 
+type PaginationItem = number | 'start-ellipsis' | 'end-ellipsis';
+
+function getPaginationItems(currentPage: number, totalPages: number): PaginationItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, 'end-ellipsis', totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, 'start-ellipsis', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, 'start-ellipsis', currentPage - 1, currentPage, currentPage + 1, 'end-ellipsis', totalPages];
+}
+
 async function fetchJson<T>(url: string, signal: AbortSignal, fallbackMessage: string): Promise<T> {
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(fallbackMessage);
@@ -172,8 +187,13 @@ export function MyTickets() {
           controller.signal,
           'Unable to load tickets'
         );
+        const nextPagination = payload.pagination ?? DEFAULT_PAGINATION;
+        if (nextPagination.totalPages > 0 && nextPagination.page > nextPagination.totalPages) {
+          setFilters(prev => ({ ...prev, page: nextPagination.totalPages }));
+          return;
+        }
         setTickets(payload.data ?? []);
-        setPagination(payload.pagination ?? DEFAULT_PAGINATION);
+        setPagination(nextPagination);
         setLoadedRequesterId(requestRequesterId);
       } catch (requestError) {
         if ((requestError as Error).name !== 'AbortError') {
@@ -216,7 +236,10 @@ export function MyTickets() {
 
   const clearFilters = () => {
     setSearchInput('');
-    setFilters(DEFAULT_FILTERS);
+    setFilters(prev => ({
+      ...DEFAULT_FILTERS,
+      pageSize: prev.pageSize,
+    }));
   };
 
   const submitSearch = (event: FormEvent) => {
@@ -235,9 +258,9 @@ export function MyTickets() {
 
   const openTicket = (ticketId: number) => navigate(`/tickets/${ticketId}`);
 
-  const startItem = pagination.totalItems === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
-  const endItem = Math.min(filters.page * filters.pageSize, pagination.totalItems);
-  const pageNumbers = Array.from({ length: pagination.totalPages }, (_, index) => index + 1);
+  const startItem = pagination.totalItems === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
+  const endItem = Math.min(pagination.page * pagination.pageSize, pagination.totalItems);
+  const paginationItems = getPaginationItems(pagination.page, pagination.totalPages);
 
   return (
     <section className="my-tickets mt-4" aria-labelledby="my-tickets-title">
@@ -471,11 +494,15 @@ export function MyTickets() {
                       Previous
                     </button>
                   </li>
-                  {pageNumbers.map(pageNumber => (
-                    <li key={pageNumber} className={`page-item ${pageNumber === filters.page ? 'active' : ''}`}>
-                      <button className="page-link" type="button" aria-current={pageNumber === filters.page ? 'page' : undefined} onClick={() => setFilters(prev => ({ ...prev, page: pageNumber }))}>
-                        {pageNumber}
+                  {paginationItems.map(item => typeof item === 'number' ? (
+                    <li key={item} className={`page-item ${item === pagination.page ? 'active' : ''}`}>
+                      <button className="page-link" type="button" aria-current={item === pagination.page ? 'page' : undefined} onClick={() => setFilters(prev => ({ ...prev, page: item }))}>
+                        {item}
                       </button>
+                    </li>
+                  ) : (
+                    <li key={item} className="page-item disabled" aria-hidden="true">
+                      <span className="page-link">…</span>
                     </li>
                   ))}
                   <li className={`page-item ${filters.page >= pagination.totalPages ? 'disabled' : ''}`}>

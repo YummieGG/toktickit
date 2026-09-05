@@ -8,3 +8,5 @@ build/
 .claude/
 .windsurf/
 uploads/
+
+issue-spec.md
