@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 
-export const categoriesRouter = Router();
+export const relatedSystemsRouter = Router();
 
-// GET /api/categories
-categoriesRouter.get('/', async (req: Request, res: Response) => {
+// GET /api/related-systems
+relatedSystemsRouter.get('/', async (req: Request, res: Response) => {
   try {
-    const categories = await prisma.category.findMany({
+    const systems = await prisma.relatedSystem.findMany({
       where: { isActive: true },
       select: {
         id: true,
@@ -14,9 +14,9 @@ categoriesRouter.get('/', async (req: Request, res: Response) => {
       },
       orderBy: { name: 'asc' }
     });
-    res.status(200).json({ data: categories });
+    res.status(200).json({ data: systems });
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error('Error fetching related systems:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -87,10 +87,11 @@
 - `500`: `{ "error": "Internal server error" }`
 
 ### POST /api/tickets
-**Purpose**: Create a new ticket for the selected requester
-**Auth**: Requires requesterId param in body
+**Purpose**: Create a new ticket for the selected requester with optional file attachments
+**Auth**: Requires requesterId param in body / form data
 **Request**: 
-- Body (`application/json`)
+- Content-Type: `application/json` or `multipart/form-data`
+- Body (`application/json`):
 ```json
 {
   "requesterId": 1,
@@ -101,6 +102,14 @@
   "requestedPriority": "MEDIUM"
 }
 ```
+- Form Data (`multipart/form-data`):
+  - `requesterId`: integer or string
+  - `categoryId`: integer or string
+  - `relatedSystemId`: optional integer or string
+  - `summary`: string
+  - `description`: string
+  - `requestedPriority`: string (LOW, MEDIUM, HIGH, CRITICAL)
+  - `attachments`: optional file(s) (up to 5 files, <= 5MB each, JPG/PNG/WEBP/PDF)
 **Response**: 201 Created
 ```json
 {
@@ -115,20 +124,32 @@
     "category": { "id": 2, "name": "Hardware" },
     "relatedSystem": { "id": 3, "name": "Corporate Laptop" },
     "requester": { "id": 1, "name": "Somchai" },
+    "attachments": [
+      {
+        "id": 1,
+        "originalName": "battery-drain.png",
+        "storedName": "a8f3b201-d703-4567-89ab-cdef01234567.png",
+        "mimeType": "image/png",
+        "sizeBytes": 1048576,
+        "isRemoved": false,
+        "createdAt": "2026-08-31T08:00:00.000Z"
+      }
+    ],
     "createdAt": "2026-08-31T08:00:00.000Z",
     "updatedAt": "2026-08-31T08:00:00.000Z"
   }
 }
 ```
 **Validation**:
-- `requesterId`: required, must exist, must be active
-- `categoryId`: required, must exist, must be active
-- `relatedSystemId`: optional, if provided must exist and be active
-- `summary`: required, string, trimmed, 5-200 chars after trim
-- `description`: required, string, trimmed, 10-2000 chars after trim
+- `requesterId`: required, must exist, must be active (BR-05)
+- `categoryId`: required, must exist, must be active (BR-24)
+- `relatedSystemId`: optional, if provided must exist and be active (BR-25)
+- `summary`: required, string, trimmed, 5-200 chars after trim (BR-14)
+- `description`: required, string, trimmed, 10-2000 chars after trim (BR-15)
 - `requestedPriority`: required, must be one of LOW, MEDIUM, HIGH, CRITICAL
+- `attachments`: optional, max 5 files per ticket (BR-10), each file <= 5MB (BR-09), allowed types: `image/jpeg`, `image/png`, `image/webp`, `application/pdf` (BR-08)
 **Errors**: 
-- `400`: validation failures with field-level details
+- `400`: validation failures with field-level details `{ error: "Validation failed", details: [{ field: string, message: string }] }`
 - `500`: unexpected server error
 
 ### GET /api/tickets

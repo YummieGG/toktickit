@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/toktickit?schema=public';
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/toktickit_db?schema=public';
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 
