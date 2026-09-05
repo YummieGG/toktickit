@@ -4,47 +4,9 @@ import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useRequester } from '../contexts/RequesterContext';
-import type { TicketPriority, TicketStatus } from '../types/ticket';
+import type { TicketDetail } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
 import { formatFileSize } from '../utils/file';
-
-interface NamedReference {
-  id: number;
-  name: string;
-}
-
-interface TicketRequester {
-  id: number;
-  name: string;
-  email: string;
-}
-
-interface TicketAttachment {
-  id: number;
-  originalName: string;
-  mimeType: string;
-  sizeBytes: number;
-  isRemoved: boolean;
-  removalReason: string | null;
-  removedAt: string | null;
-  createdAt: string;
-}
-
-interface TicketDetail {
-  id: number;
-  ticketNumber: string;
-  summary: string;
-  description: string;
-  requestedPriority: TicketPriority;
-  currentStatus: TicketStatus;
-  ticketDate: string;
-  category: NamedReference;
-  relatedSystem: NamedReference | null;
-  requester: TicketRequester;
-  attachments: TicketAttachment[];
-  createdAt: string;
-  updatedAt: string;
-}
 
 type DetailErrorKind = 'not-found' | 'unauthorized' | 'failure';
 
