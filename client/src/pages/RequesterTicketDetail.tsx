@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { useRequester } from '../contexts/RequesterContext';
 import type { TicketPriority, TicketStatus } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
+import { formatFileSize } from '../utils/file';
 
 interface NamedReference {
   id: number;
@@ -61,14 +62,6 @@ class TicketDetailRequestError extends Error {
   }
 }
 
-function formatFileSize(sizeBytes: number): string {
-  const kilobytes = sizeBytes / 1024;
-  if (kilobytes < 1024) {
-    return `${kilobytes < 10 ? kilobytes.toFixed(1) : Math.round(kilobytes)} KB`;
-  }
-  const megabytes = kilobytes / 1024;
-  return `${megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes)} MB`;
-}
 
 function ReadOnlyField({ label, children, className = '' }: {
   label: string;

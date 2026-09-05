@@ -117,6 +117,11 @@ const handleMultipartUpload = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
+interface ValidationErrorDetail {
+  field: string;
+  message: string;
+}
+
 function getSingleQueryValue(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
@@ -125,6 +130,29 @@ function isPositiveIntegerString(value: string): boolean {
   if (!/^[1-9]\d*$/.test(value)) return false;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed <= 2_147_483_647;
+}
+
+function validatePositiveIntegerParam(
+  rawValue: unknown,
+  field: string,
+  details: ValidationErrorDetail[],
+  options?: { required?: boolean }
+): number | undefined {
+  const isRequired = options?.required ?? true;
+  if (rawValue === undefined) {
+    if (isRequired) {
+      details.push({ field, message: `${field} must be a positive integer` });
+    }
+    return undefined;
+  }
+
+  const value = getSingleQueryValue(rawValue);
+  if (!value || !isPositiveIntegerString(value)) {
+    details.push({ field, message: `${field} must be a positive integer` });
+    return undefined;
+  }
+
+  return Number(value);
 }
 
 interface ValidatedTicketsQuery {
@@ -141,14 +169,14 @@ interface ValidatedTicketsQuery {
 
 type TicketsQueryParseResult =
   | { success: true; data: ValidatedTicketsQuery }
-  | { success: false; details: Array<{ field: string; message: string }> };
+  | { success: false; details: ValidationErrorDetail[] };
 
 function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
-  const details: Array<{ field: string; message: string }> = [];
+  const details: ValidationErrorDetail[] = [];
 
-  const requesterIdValue = getSingleQueryValue(query.requesterId);
+  const requesterId = validatePositiveIntegerParam(query.requesterId, 'requesterId', details);
+  const categoryId = validatePositiveIntegerParam(query.category, 'category', details, { required: false });
   const searchValue = getSingleQueryValue(query.search);
-  const categoryValue = getSingleQueryValue(query.category);
   const statusValue = getSingleQueryValue(query.status);
   const priorityValue = getSingleQueryValue(query.priority);
   const sortByValue = getSingleQueryValue(query.sortBy) ?? 'ticketDate';
@@ -156,17 +184,8 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   const pageValue = getSingleQueryValue(query.page) ?? '1';
   const pageSizeValue = getSingleQueryValue(query.pageSize) ?? '10';
 
-  if (!requesterIdValue || !isPositiveIntegerString(requesterIdValue)) {
-    details.push({ field: 'requesterId', message: 'requesterId must be a positive integer' });
-  }
   if (query.search !== undefined && searchValue === undefined) {
     details.push({ field: 'search', message: 'search must be a string' });
-  }
-  if (
-    query.category !== undefined &&
-    (!categoryValue || !isPositiveIntegerString(categoryValue))
-  ) {
-    details.push({ field: 'category', message: 'category must be a positive integer' });
   }
   if (
     query.status !== undefined &&
@@ -219,8 +238,8 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   return {
     success: true,
     data: {
-      requesterId: Number(requesterIdValue),
-      categoryId: categoryValue ? Number(categoryValue) : undefined,
+      requesterId: requesterId!,
+      categoryId,
       status: statusValue as (typeof TICKET_STATUSES)[number] | undefined,
       priority: priorityValue as (typeof REQUESTED_PRIORITIES)[number] | undefined,
       sortBy: sortByValue as (typeof TICKET_SORT_FIELDS)[number],
@@ -321,23 +340,13 @@ ticketsRouter.get('/', async (req: Request, res: Response) => {
 
 // GET /api/tickets/:id
 ticketsRouter.get('/:id', async (req: Request, res: Response) => {
-  const details: Array<{ field: string; message: string }> = [];
-  const ticketIdValue = getSingleQueryValue(req.params.id);
-  const requesterIdValue = getSingleQueryValue(req.query.requesterId);
+  const details: ValidationErrorDetail[] = [];
+  const ticketId = validatePositiveIntegerParam(req.params.id, 'id', details);
+  const requesterId = validatePositiveIntegerParam(req.query.requesterId, 'requesterId', details);
 
-  if (!ticketIdValue || !isPositiveIntegerString(ticketIdValue)) {
-    details.push({ field: 'id', message: 'id must be a positive integer' });
-  }
-  if (!requesterIdValue || !isPositiveIntegerString(requesterIdValue)) {
-    details.push({ field: 'requesterId', message: 'requesterId must be a positive integer' });
-  }
-
-  if (details.length > 0) {
+  if (details.length > 0 || ticketId === undefined || requesterId === undefined) {
     return res.status(400).json({ error: 'Validation failed', details });
   }
-
-  const ticketId = Number(ticketIdValue);
-  const requesterId = Number(requesterIdValue);
 
   try {
     const requester = await prisma.requesterUser.findUnique({
