@@ -1,0 +1,307 @@
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Alert } from '../components/ui/Alert';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { useRequester } from '../contexts/RequesterContext';
+
+type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+type TicketStatus = 'NEW';
+
+interface NamedReference {
+  id: number;
+  name: string;
+}
+
+interface TicketRequester {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface TicketAttachment {
+  id: number;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  isRemoved: boolean;
+  removalReason: string | null;
+  removedAt: string | null;
+  createdAt: string;
+}
+
+interface TicketDetail {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  description: string;
+  requestedPriority: Priority;
+  currentStatus: TicketStatus;
+  ticketDate: string;
+  category: NamedReference;
+  relatedSystem: NamedReference | null;
+  requester: TicketRequester;
+  attachments: TicketAttachment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+type DetailErrorKind = 'not-found' | 'unauthorized' | 'failure';
+
+interface DetailError {
+  kind: DetailErrorKind;
+  message: string;
+}
+
+class TicketDetailRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().slice(0, 16).replace('T', ' ');
+}
+
+function formatFileSize(sizeBytes: number): string {
+  const kilobytes = sizeBytes / 1024;
+  if (kilobytes < 1024) {
+    return `${kilobytes < 10 ? kilobytes.toFixed(1) : Math.round(kilobytes)} KB`;
+  }
+  const megabytes = kilobytes / 1024;
+  return `${megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes)} MB`;
+}
+
+function ReadOnlyField({ label, children, className = '' }: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <dt className="ticket-detail-label">{label}</dt>
+      <dd className="ticket-detail-readonly mb-0">{children}</dd>
+    </div>
+  );
+}
+
+export function RequesterTicketDetail() {
+  const { id } = useParams();
+  const { requester } = useRequester();
+  const navigate = useNavigate();
+  const [result, setResult] = useState<{ requesterId: string; ticket: TicketDetail } | null>(null);
+  const [error, setError] = useState<DetailError | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  useEffect(() => {
+    if (!requester) {
+      navigate('/');
+    }
+  }, [navigate, requester]);
+
+  useEffect(() => {
+    if (!requester || !id) return;
+
+    const controller = new AbortController();
+    const requesterId = String(requester.id);
+
+    const loadTicket = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/api/tickets/${encodeURIComponent(id)}?requesterId=${encodeURIComponent(requesterId)}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          let message = 'Unable to load ticket details';
+          try {
+            const payload = await response.json() as { error?: string };
+            message = payload.error || message;
+          } catch {
+            // Keep the safe fallback when the server does not return JSON.
+          }
+          throw new TicketDetailRequestError(response.status, message);
+        }
+
+        const payload = await response.json() as { data?: TicketDetail };
+        if (!payload.data) {
+          throw new Error('Unable to load ticket details');
+        }
+        setResult({ requesterId, ticket: payload.data });
+      } catch (requestError) {
+        if ((requestError as Error).name === 'AbortError') return;
+        if (requestError instanceof TicketDetailRequestError && requestError.status === 404) {
+          setError({ kind: 'not-found', message: 'The requested ticket could not be found.' });
+        } else if (requestError instanceof TicketDetailRequestError && requestError.status === 403) {
+          setError({ kind: 'unauthorized', message: 'You do not have permission to view this ticket.' });
+        } else {
+          setError({
+            kind: 'failure',
+            message: requestError instanceof Error ? requestError.message : 'Unable to load ticket details',
+          });
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    };
+
+    void loadTicket();
+    return () => controller.abort();
+  }, [id, requester, retryTrigger]);
+
+  if (!requester) return null;
+
+  const ticket = result?.requesterId === String(requester.id) ? result.ticket : null;
+
+  return (
+    <section className="ticket-detail mt-2" aria-label="Ticket detail">
+      <Link className="btn btn-zen-tertiary mb-3 px-0" to="/tickets">
+        ← Back to My Tickets
+      </Link>
+
+      {(isLoading || (!ticket && !error)) && (
+        <div className="card shadow-sm text-center p-5" aria-live="polite">
+          <div className="spinner-border mx-auto mb-3" role="status" style={{ color: 'var(--primary-green)' }}>
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mb-0">Loading...</p>
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <Alert variant={error.kind === 'failure' ? 'danger' : 'warning'} className="ticket-detail-error text-center p-4">
+          <h1 id="ticket-detail-title" className="h3 mb-2">
+            {error.kind === 'not-found'
+              ? 'Ticket Not Found'
+              : error.kind === 'unauthorized'
+                ? 'Access Denied'
+                : 'Unable to Load Ticket'}
+          </h1>
+          <p className="mb-3">{error.message}</p>
+          <div className="d-flex flex-column flex-sm-row justify-content-center gap-3">
+            {error.kind === 'failure' && (
+              <Button type="button" onClick={() => setRetryTrigger(value => value + 1)}>
+                Retry
+              </Button>
+            )}
+            <Link className="btn btn-zen-secondary" to="/tickets">
+              Back to My Tickets
+            </Link>
+          </div>
+        </Alert>
+      )}
+
+      {!isLoading && !error && ticket && (
+        <>
+          <header className="card shadow-sm mb-4 ticket-detail-header">
+            <div className="card-body p-3 p-md-4">
+              <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3">
+                <div>
+                  <p className="mb-1 small" style={{ color: 'var(--text-secondary)' }}>Ticket Number</p>
+                  <h1 id="ticket-detail-title" className="ticket-detail-number mb-0">{ticket.ticketNumber}</h1>
+                </div>
+                <div className="d-flex flex-wrap gap-2" aria-label="Ticket status and requested priority">
+                  <Badge type="status" value={ticket.currentStatus} />
+                  <Badge type="priority" value={ticket.requestedPriority} />
+                </div>
+              </div>
+              <dl className="row g-3 mt-2 mb-0">
+                <ReadOnlyField label="Date Created" className="col-12 col-sm-6">
+                  {formatDateTime(ticket.ticketDate)}
+                </ReadOnlyField>
+                <ReadOnlyField label="Last Updated" className="col-12 col-sm-6">
+                  {formatDateTime(ticket.updatedAt)}
+                </ReadOnlyField>
+              </dl>
+            </div>
+          </header>
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-body p-3 p-md-4">
+              <h2 className="h3 mb-3">Classification</h2>
+              <dl className="row g-3 mb-0">
+                <ReadOnlyField label="Category" className="col-12 col-md-6">
+                  {ticket.category.name}
+                </ReadOnlyField>
+                <ReadOnlyField label="Related System" className="col-12 col-md-6">
+                  {ticket.relatedSystem?.name ?? <span className="text-muted">Not specified</span>}
+                </ReadOnlyField>
+              </dl>
+            </div>
+          </div>
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-body p-3 p-md-4">
+              <h2 className="h3 mb-3">Request Details</h2>
+              <dl className="mb-0 d-grid gap-3">
+                <ReadOnlyField label="Summary">{ticket.summary}</ReadOnlyField>
+                <ReadOnlyField label="Description">
+                  <span className="ticket-detail-description">{ticket.description}</span>
+                </ReadOnlyField>
+              </dl>
+            </div>
+          </div>
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-body p-3 p-md-4">
+              <h2 className="h3 mb-3">Requester</h2>
+              <dl className="row g-3 mb-0">
+                <ReadOnlyField label="Requester Name" className="col-12 col-md-6">
+                  {ticket.requester.name}
+                </ReadOnlyField>
+                <ReadOnlyField label="Requester Email" className="col-12 col-md-6">
+                  {ticket.requester.email}
+                </ReadOnlyField>
+              </dl>
+            </div>
+          </div>
+
+          <div className="card shadow-sm mb-4">
+            <div className="card-body p-3 p-md-4">
+              <h2 className="h3 mb-3">Attachments</h2>
+              {ticket.attachments.length === 0 ? (
+                <p className="mb-0 text-muted">No attachments were submitted with this ticket.</p>
+              ) : (
+                <ul className="list-unstyled d-grid gap-3 mb-0">
+                  {ticket.attachments.map(attachment => (
+                    <li
+                      key={attachment.id}
+                      className={`ticket-attachment ${attachment.isRemoved ? 'ticket-attachment-removed' : ''}`}
+                    >
+                      <div className="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                        <div className="min-w-0">
+                          <div className={`ticket-attachment-name fw-semibold ${attachment.isRemoved ? 'text-decoration-line-through' : ''}`}>
+                            📎 {attachment.originalName}
+                          </div>
+                          <div className="small mt-1" style={{ color: 'var(--text-secondary)' }}>
+                            {attachment.mimeType} · {formatFileSize(attachment.sizeBytes)} · Uploaded {formatDateTime(attachment.createdAt)}
+                          </div>
+                        </div>
+                        <span className={`attachment-state-badge ${attachment.isRemoved ? 'is-removed' : 'is-active'}`}>
+                          {attachment.isRemoved ? 'Removed' : 'Active'}
+                        </span>
+                      </div>
+                      {attachment.isRemoved && (
+                        <div className="small mt-2">
+                          <div><strong>Removal reason:</strong> {attachment.removalReason || 'Reason not provided'}</div>
+                          <div><strong>Removed at:</strong> {attachment.removedAt ? formatDateTime(attachment.removedAt) : 'Removal time unavailable'}</div>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

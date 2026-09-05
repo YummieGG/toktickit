@@ -319,6 +319,93 @@ ticketsRouter.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/tickets/:id
+ticketsRouter.get('/:id', async (req: Request, res: Response) => {
+  const details: Array<{ field: string; message: string }> = [];
+  const ticketIdValue = getSingleQueryValue(req.params.id);
+  const requesterIdValue = getSingleQueryValue(req.query.requesterId);
+
+  if (!ticketIdValue || !isPositiveIntegerString(ticketIdValue)) {
+    details.push({ field: 'id', message: 'id must be a positive integer' });
+  }
+  if (!requesterIdValue || !isPositiveIntegerString(requesterIdValue)) {
+    details.push({ field: 'requesterId', message: 'requesterId must be a positive integer' });
+  }
+
+  if (details.length > 0) {
+    return res.status(400).json({ error: 'Validation failed', details });
+  }
+
+  const ticketId = Number(ticketIdValue);
+  const requesterId = Number(requesterIdValue);
+
+  try {
+    const requester = await prisma.requesterUser.findUnique({
+      where: { id: requesterId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!requester || !requester.isActive) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }],
+      });
+    }
+
+    const ticketOwnership = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true, requesterId: true },
+    });
+
+    if (!ticketOwnership) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (ticketOwnership.requesterId !== requesterId) {
+      return res.status(403).json({ error: 'You do not have access to this ticket' });
+    }
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: {
+        id: true,
+        ticketNumber: true,
+        summary: true,
+        description: true,
+        requestedPriority: true,
+        currentStatus: true,
+        ticketDate: true,
+        category: { select: { id: true, name: true } },
+        relatedSystem: { select: { id: true, name: true } },
+        requester: { select: { id: true, name: true, email: true } },
+        attachments: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            isRemoved: true,
+            removalReason: true,
+            removedAt: true,
+            createdAt: true,
+          },
+        },
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    return res.status(200).json({ data: ticket });
+  } catch (error) {
+    console.error('Error fetching ticket detail:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/tickets
 ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Response) => {
   try {
