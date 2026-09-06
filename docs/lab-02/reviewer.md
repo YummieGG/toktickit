@@ -123,6 +123,13 @@
 
 ## Review Comments Received & Responses
 
+## Issue #18 Review Status
+
+- **Author:** @YummieGG
+- **Branch:** `feature/lab2-8-testing-and-release`
+- **Status:** Implementation complete locally; PR link, peer-review comments, and response will be recorded after the branch is intentionally staged and published.
+- **Verification evidence:** See [`tests.md`](tests.md) for the executed matrix, AC/FR/BR traceability, test totals, migration/seed checks, and screenshot paths.
+
 ### PR #19: docs: Lab 2 Engineering Specification and Test Plan
 - **Reviewer comment received (@Snnn3):**
   > Great job! The specifications and test plans are complete and fully aligned with the Lab 02 labsheet:
