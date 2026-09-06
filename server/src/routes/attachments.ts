@@ -216,7 +216,16 @@ attachmentsRouter.get('/:id', async (req: Request, res: Response) => {
     if (!(await validateActiveRequester(requesterId, res))) return;
     const attachment = await findOwnedAttachment(attachmentId, requesterId, res);
     if (!attachment) return;
-    const { ticket: _ticket, ...metadata } = attachment;
+    const metadata = {
+      id: attachment.id,
+      originalName: attachment.originalName,
+      storedName: attachment.storedName,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      isRemoved: attachment.isRemoved,
+      createdAt: attachment.createdAt,
+      ticketId: attachment.ticketId,
+    };
     return res.status(200).json({ data: metadata });
   } catch (error) {
     console.error('Error fetching attachment metadata:', error);

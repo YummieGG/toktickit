@@ -41,7 +41,7 @@ export function RequesterTicketDetail() {
   const { id } = useParams();
   const { requester } = useRequester();
   const navigate = useNavigate();
-  const [result, setResult] = useState<{ requesterId: string; ticket: TicketDetail } | null>(null);
+  const [scopedTicketState, setScopedTicketState] = useState<{ requesterId: string; ticket: TicketDetail } | null>(null);
   const [error, setError] = useState<DetailError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [retryTrigger, setRetryTrigger] = useState(0);
@@ -81,7 +81,7 @@ export function RequesterTicketDetail() {
         if (!payload.data) {
           throw new Error('Unable to load ticket details');
         }
-        setResult({ requesterId, ticket: payload.data });
+        setScopedTicketState({ requesterId, ticket: payload.data });
       } catch (requestError) {
         if ((requestError as Error).name === 'AbortError') return;
         if (requestError instanceof TicketDetailRequestError && requestError.status === 404) {
@@ -103,10 +103,10 @@ export function RequesterTicketDetail() {
     return () => controller.abort();
   }, [id, requester, retryTrigger]);
 
-  const ticket = result?.requesterId === String(requester?.id) ? result.ticket : null;
+  const ticket = scopedTicketState?.requesterId === String(requester?.id) ? scopedTicketState.ticket : null;
 
   const updateAttachments = (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => {
-    setResult(previous => previous
+    setScopedTicketState(previous => previous
       ? { ...previous, ticket: { ...previous.ticket, attachments: update(previous.ticket.attachments) } }
       : previous);
   };

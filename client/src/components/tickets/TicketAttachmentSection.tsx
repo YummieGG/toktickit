@@ -276,6 +276,7 @@ export function TicketAttachmentSection({
                         minLength={3}
                         maxLength={500}
                         required
+                        aria-required="true"
                         value={removalReason}
                         disabled={isRemoving}
                         onChange={event => {

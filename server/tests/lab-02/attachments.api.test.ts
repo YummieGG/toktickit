@@ -180,11 +180,22 @@ describe('Attachment lifecycle API', () => {
     expect(fs.readdirSync(uploadsDirectory)).toHaveLength(0);
   });
 
-  it('returns owned attachment metadata without exposing its ticket relation', async () => {
+  it('returns owned attachment metadata matching the exact API contract without over-exposure', async () => {
     const response = await request(app).get('/api/attachments/11?requesterId=7');
     expect(response.status).toBe(200);
-    expect(response.body.data).toMatchObject({ id: 11, originalName: 'evidence.png', ticketId: 8 });
+    expect(response.body.data).toEqual({
+      id: 11,
+      originalName: 'evidence.png',
+      storedName: '11111111-1111-4111-8111-111111111111.png',
+      mimeType: 'image/png',
+      sizeBytes: 8,
+      isRemoved: false,
+      createdAt: '2026-09-05T08:35:00.000Z',
+      ticketId: 8,
+    });
     expect(response.body.data).not.toHaveProperty('ticket');
+    expect(response.body.data).not.toHaveProperty('removalReason');
+    expect(response.body.data).not.toHaveProperty('removedAt');
   });
 
   it.each([
