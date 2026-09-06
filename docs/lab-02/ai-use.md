@@ -20,4 +20,6 @@
 
 ## My Reflection
 
-The AI accurately fulfilled all requirements, effectively adapting to vertical fullstack slices, generating clean code and tests, and quickly diagnosing runtime bundling errors with minimal human refinement. For issue #18, the key human verification points were the real test totals, clean build configuration, database migration/seed checks, and visual inspection of generated evidence at all required viewport sizes.
+Using AI with clear specifications helped speed up writing code and tests significantly. When given detailed requirements and test cases upfront, the AI could generate the fullstack features and components accurately.
+
+However, human review was still essential. The peer review with `@Snnn3` helped catch edge cases that the AI initially missed—such as database concurrency issues during ticket generation. Giving clear feedback allowed the AI to quickly fix these problems. Overall, AI works great as a pair programming assistant, but the developer must always review and verify the final code.
