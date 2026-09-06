@@ -1,23 +1,29 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { Prisma } from '../../generated/prisma';
 import { generateTicketNumber } from '../lib/ticket-number';
+import {
+  getUploadsDirectory,
+  MAX_ACTIVE_ATTACHMENTS,
+  MAX_ATTACHMENT_SIZE_BYTES,
+  prepareAttachment,
+  removeStoredFiles,
+  storePreparedAttachment,
+  validateAttachmentFile,
+  type PreparedAttachment,
+} from '../lib/attachment-policy';
+
+import {
+  getSingleStringParam,
+  isPositiveIntegerString,
+  validateActiveRequester,
+  validatePositiveIntegerParam,
+  type ValidationErrorDetail,
+} from '../lib/validation';
 
 export const ticketsRouter = Router();
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-];
-
-const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB per file (BR-09)
 const TICKET_STATUSES = ['NEW'] as const;
 const REQUESTED_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 const TICKET_SORT_FIELDS = [
@@ -30,39 +36,17 @@ const TICKET_SORT_FIELDS = [
 const SORT_ORDERS = ['asc', 'desc'] as const;
 const PAGE_SIZES = [5, 10, 20] as const;
 
-interface PreparedAttachment {
-  originalName: string;
-  storedName: string;
-  mimeType: string;
-  sizeBytes: number;
-  buffer: Buffer;
-}
-
-async function removeStoredFiles(filePaths: string[]): Promise<void> {
-  await Promise.all(filePaths.map(async filePath => {
-    try {
-      await fs.promises.unlink(filePath);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error(`Failed to clean up attachment file ${filePath}:`, error);
-      }
-    }
-  }));
-}
-
 async function storePreparedAttachments(
   uploadsDir: string,
   attachments: PreparedAttachment[]
 ): Promise<string[]> {
   if (attachments.length === 0) return [];
 
-  await fs.promises.mkdir(uploadsDir, { recursive: true });
   const storedPaths: string[] = [];
 
   try {
     for (const attachment of attachments) {
-      const filePath = path.join(uploadsDir, attachment.storedName);
-      await fs.promises.writeFile(filePath, attachment.buffer, { flag: 'wx' });
+      const filePath = await storePreparedAttachment(uploadsDir, attachment);
       storedPaths.push(filePath);
     }
     return storedPaths;
@@ -75,7 +59,7 @@ async function storePreparedAttachments(
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: MAX_FILE_SIZE,
+    fileSize: MAX_ATTACHMENT_SIZE_BYTES,
     files: 10, // catch > 5 to return friendly validation error
   },
 });
@@ -116,64 +100,6 @@ const handleMultipartUpload = (req: Request, res: Response, next: NextFunction) 
     next();
   }
 };
-
-interface ValidationErrorDetail {
-  field: string;
-  message: string;
-}
-
-function getSingleStringParam(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
-function isPositiveIntegerString(value: string): boolean {
-  if (!/^[1-9]\d*$/.test(value)) return false;
-  const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed <= 2_147_483_647;
-}
-
-function validatePositiveIntegerParam(
-  rawValue: unknown,
-  field: string,
-  details: ValidationErrorDetail[],
-  options?: { required?: boolean }
-): number | undefined {
-  const isRequired = options?.required ?? true;
-  if (rawValue === undefined) {
-    if (isRequired) {
-      details.push({ field, message: `${field} must be a positive integer` });
-    }
-    return undefined;
-  }
-
-  const value = getSingleStringParam(rawValue);
-  if (!value || !isPositiveIntegerString(value)) {
-    details.push({ field, message: `${field} must be a positive integer` });
-    return undefined;
-  }
-
-  return Number(value);
-}
-
-async function validateActiveRequester(
-  requesterId: number,
-  res: Response
-): Promise<boolean> {
-  const requester = await prisma.requesterUser.findUnique({
-    where: { id: requesterId },
-    select: { id: true, isActive: true },
-  });
-
-  if (!requester || !requester.isActive) {
-    res.status(400).json({
-      error: 'Validation failed',
-      details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }],
-    });
-    return false;
-  }
-
-  return true;
-}
 
 interface ValidatedTicketsQuery {
   requesterId: number;
@@ -469,24 +395,14 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
 
     // Attachment validation (BR-08, BR-09, BR-10)
     const rawFiles = (req.files as Express.Multer.File[]) || [];
-    if (rawFiles.length > 5) {
+    if (rawFiles.length > MAX_ACTIVE_ATTACHMENTS) {
       details.push({ field: 'attachments', message: 'Maximum 5 attachments allowed per ticket' });
     }
 
     for (const file of rawFiles) {
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(ext) || !ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-        details.push({ 
-          field: 'attachments', 
-          message: `File type for "${file.originalname}" is not permitted. Supported formats: JPG, PNG, WEBP, PDF` 
-        });
-      }
-
-      if (file.size > MAX_FILE_SIZE) {
-        details.push({ 
-          field: 'attachments', 
-          message: `File "${file.originalname}" exceeds the 5 MB limit` 
-        });
+      const validationMessage = validateAttachmentFile(file);
+      if (validationMessage) {
+        details.push({ field: 'attachments', message: validationMessage });
       }
     }
 
@@ -519,18 +435,8 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
     }
 
     // Prepare files with UUID stored names
-    const uploadsDir = path.resolve(process.cwd(), 'uploads');
-    const preparedAttachments: PreparedAttachment[] = rawFiles.map(f => {
-      const ext = path.extname(f.originalname);
-      const storedName = `${crypto.randomUUID()}${ext}`;
-      return {
-        originalName: f.originalname,
-        storedName,
-        mimeType: f.mimetype,
-        sizeBytes: f.size,
-        buffer: f.buffer
-      };
-    });
+    const uploadsDir = getUploadsDirectory();
+    const preparedAttachments = rawFiles.map(prepareAttachment);
 
     // Persist files before creating database metadata so a successful ticket never points to a missing file.
     // Any database failure below removes these files again.

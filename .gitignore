@@ -8,6 +8,8 @@ build/
 .claude/
 .windsurf/
 uploads/
+server/uploads/
+
 
 issue-spec.md
 agents

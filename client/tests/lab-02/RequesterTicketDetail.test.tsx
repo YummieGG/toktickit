@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import App from '../../src/App';
 
 const requester = { id: 7, name: 'Somchai Prasert', email: 'somchai@example.com' };
@@ -100,8 +100,213 @@ describe('Requester Ticket Detail screen', () => {
     expect(screen.getByText('Removal reason:').closest('.ticket-attachment-removal-details')).toHaveClass(
       'ticket-attachment-removal-details'
     );
-    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    const removedItem = screen.getByText(/old-log\.pdf/).closest('li');
+    expect(removedItem).not.toBeNull();
+    expect(within(removedItem!).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('uploads a valid attachment and adds the returned active metadata to the list', async () => {
+    global.fetch = vi.fn()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => jsonResponse({
+        data: {
+          id: 13,
+          originalName: 'new-proof.pdf',
+          storedName: 'uuid.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 4096,
+          isRemoved: false,
+          createdAt: '2026-09-06T09:00:00.000Z',
+          ticketId: 8,
+        },
+      }, 201));
+    render(<App />);
+
+    const picker = await screen.findByLabelText('Add attachment');
+    const file = new File(['proof'], 'new-proof.pdf', { type: 'application/pdf' });
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText('📎 new-proof.pdf')).toBeInTheDocument());
+    expect(global.fetch).toHaveBeenLastCalledWith('/api/tickets/8/attachments', expect.objectContaining({
+      method: 'POST',
+      body: expect.any(FormData),
+    }));
+  });
+
+  it('shows the Uploading state and disables the picker while upload is pending', async () => {
+    let resolveUpload!: (response: Response) => void;
+    global.fetch = vi.fn()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => new Promise<Response>(resolve => { resolveUpload = resolve; }));
+    render(<App />);
+
+    const picker = await screen.findByLabelText('Add attachment');
+    fireEvent.change(picker, {
+      target: { files: [new File(['image'], 'pending.png', { type: 'image/png' })] },
+    });
+
+    expect(await screen.findByText('Uploading: pending.png')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Uploading pending.png' })).toBeInTheDocument();
+    expect(picker).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled();
+
+    resolveUpload(await jsonResponse({
+      data: {
+        id: 13,
+        originalName: 'pending.png',
+        mimeType: 'image/png',
+        sizeBytes: 5,
+        isRemoved: false,
+        createdAt: '2026-09-06T09:00:00.000Z',
+      },
+    }, 201));
+    await waitFor(() => expect(screen.queryByText('Uploading: pending.png')).not.toBeInTheDocument());
+  });
+
+  it('shows a dismissible Invalid state for a client-invalid file without uploading', async () => {
+    global.fetch = vi.fn(() => jsonResponse({ data: ticket }));
+    render(<App />);
+
+    const picker = await screen.findByLabelText('Add attachment');
+    fireEvent.change(picker, {
+      target: { files: [new File(['bad'], 'malware.exe', { type: 'application/octet-stream' })] },
+    });
+
+    expect(screen.getByText('Invalid: malware.exe')).toBeInTheDocument();
+    expect(screen.getByText(/Supported formats/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Invalid: malware.exe')).not.toBeInTheDocument();
+  });
+
+  it('rejects a file over 5 MB on the client before uploading', async () => {
+    global.fetch = vi.fn(() => jsonResponse({ data: ticket }));
+    render(<App />);
+
+    const picker = await screen.findByLabelText('Add attachment');
+    fireEvent.change(picker, {
+      target: { files: [new File([new Uint8Array(5_242_881)], 'large.pdf', { type: 'application/pdf' })] },
+    });
+
+    expect(screen.getByText('Invalid: large.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/exceeds the 5 MB limit/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a server HTTP 400 upload failure as a dismissible Invalid state', async () => {
+    global.fetch = vi.fn()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => jsonResponse({
+        error: 'Validation failed',
+        details: [{ field: 'file', message: 'Maximum 5 active attachments allowed per ticket' }],
+      }, 400));
+    render(<App />);
+
+    const picker = await screen.findByLabelText('Add attachment');
+    fireEvent.change(picker, {
+      target: { files: [new File(['image'], 'extra.png', { type: 'image/png' })] },
+    });
+
+    expect(await screen.findByText('Invalid: extra.png')).toBeInTheDocument();
+    expect(screen.getByText(/Maximum 5 active attachments/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Invalid: extra.png')).not.toBeInTheDocument();
+  });
+
+  it('keeps the picker enabled at five active files and reports the sixth selection as Invalid', async () => {
+    const fiveActive = Array.from({ length: 5 }, (_, index) => ({
+      ...ticket.attachments[0],
+      id: 20 + index,
+      originalName: `active-${index + 1}.png`,
+    }));
+    global.fetch = vi.fn(() => jsonResponse({ data: { ...ticket, attachments: fiveActive } }));
+    render(<App />);
+
+    const picker = await screen.findByLabelText('Add attachment');
+    expect(picker).toBeEnabled();
+    fireEvent.change(picker, {
+      target: { files: [new File(['image'], 'sixth.png', { type: 'image/png' })] },
+    });
+
+    expect(screen.getByText('Invalid: sixth.png')).toBeInTheDocument();
+    expect(screen.getByText(/Maximum 5 active attachments/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('downloads an active attachment through the owned endpoint', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:download');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    global.fetch = vi.fn()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['downloaded']),
+      } as Response));
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith('/api/attachments/11/download?requesterId=7'));
+    expect(createObjectUrl).toHaveBeenCalled();
+    expect(click).toHaveBeenCalled();
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download');
+  });
+
+  it('changes a failed download into the Unavailable state with no actions', async () => {
+    global.fetch = vi.fn()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => jsonResponse({ error: 'File not found on server' }, 404));
+    render(<App />);
+
+    const activeItem = (await screen.findByText(/vpn error screenshot/)).closest('li');
+    fireEvent.click(within(activeItem!).getByRole('button', { name: 'Download' }));
+
+    expect(await within(activeItem!).findByText('Unavailable')).toBeInTheDocument();
+    expect(within(activeItem!).getByText(/File not found on server/)).toBeInTheDocument();
+    expect(within(activeItem!).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('requires explicit confirmation and a valid reason before soft removal', async () => {
+    global.fetch = vi.fn()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => jsonResponse({
+        data: {
+          id: 11,
+          originalName: 'vpn error screenshot with a long filename.png',
+          isRemoved: true,
+          removalReason: 'Uploaded the wrong screenshot',
+          removedAt: '2026-09-06T10:00:00.000Z',
+        },
+      }));
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    const dialog = screen.getByRole('dialog', { name: /Remove vpn error screenshot/ });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Attachment' }));
+    expect(within(dialog).getByText(/between 3 and 500 characters/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(within(dialog).getByLabelText(/Removal reason/), {
+      target: { value: '  Uploaded the wrong screenshot  ' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Attachment' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith('/api/attachments/11/remove', expect.objectContaining({
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requesterId: 7, removalReason: 'Uploaded the wrong screenshot' }),
+    })));
+    const removedItem = screen.getByText(/vpn error screenshot/).closest('li');
+    expect(await within(removedItem!).findByText('Removed')).toBeInTheDocument();
+    expect(within(removedItem!).getByText(/Uploaded the wrong screenshot/)).toBeInTheDocument();
+    expect(within(removedItem!).queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('represents a missing related system and empty attachments clearly', async () => {

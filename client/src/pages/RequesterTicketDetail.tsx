@@ -3,10 +3,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { TicketAttachmentSection } from '../components/tickets/TicketAttachmentSection';
 import { useRequester } from '../contexts/RequesterContext';
-import type { TicketDetail } from '../types/ticket';
+import type { TicketAttachment, TicketDetail } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
-import { formatFileSize } from '../utils/file';
 
 type DetailErrorKind = 'not-found' | 'unauthorized' | 'failure';
 
@@ -23,7 +23,6 @@ class TicketDetailRequestError extends Error {
     this.status = status;
   }
 }
-
 
 function ReadOnlyField({ label, children, className = '' }: {
   label: string;
@@ -42,7 +41,7 @@ export function RequesterTicketDetail() {
   const { id } = useParams();
   const { requester } = useRequester();
   const navigate = useNavigate();
-  const [result, setResult] = useState<{ requesterId: string; ticket: TicketDetail } | null>(null);
+  const [scopedTicketState, setScopedTicketState] = useState<{ requesterId: string; ticket: TicketDetail } | null>(null);
   const [error, setError] = useState<DetailError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [retryTrigger, setRetryTrigger] = useState(0);
@@ -82,7 +81,7 @@ export function RequesterTicketDetail() {
         if (!payload.data) {
           throw new Error('Unable to load ticket details');
         }
-        setResult({ requesterId, ticket: payload.data });
+        setScopedTicketState({ requesterId, ticket: payload.data });
       } catch (requestError) {
         if ((requestError as Error).name === 'AbortError') return;
         if (requestError instanceof TicketDetailRequestError && requestError.status === 404) {
@@ -104,9 +103,15 @@ export function RequesterTicketDetail() {
     return () => controller.abort();
   }, [id, requester, retryTrigger]);
 
-  if (!requester) return null;
+  const ticket = scopedTicketState?.requesterId === String(requester?.id) ? scopedTicketState.ticket : null;
 
-  const ticket = result?.requesterId === String(requester.id) ? result.ticket : null;
+  const updateAttachments = (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => {
+    setScopedTicketState(previous => previous
+      ? { ...previous, ticket: { ...previous.ticket, attachments: update(previous.ticket.attachments) } }
+      : previous);
+  };
+
+  if (!requester) return null;
 
   return (
     <section className="ticket-detail mt-2" aria-label="Ticket detail">
@@ -210,43 +215,12 @@ export function RequesterTicketDetail() {
             </div>
           </div>
 
-          <div className="card shadow-sm mb-4">
-            <div className="card-body p-3 p-md-4">
-              <h2 className="h3 mb-3">Attachments</h2>
-              {ticket.attachments.length === 0 ? (
-                <p className="mb-0 text-muted">No attachments were submitted with this ticket.</p>
-              ) : (
-                <ul className="list-unstyled d-grid gap-3 mb-0">
-                  {ticket.attachments.map(attachment => (
-                    <li
-                      key={attachment.id}
-                      className={`ticket-attachment ${attachment.isRemoved ? 'ticket-attachment-removed' : ''}`}
-                    >
-                      <div className="ticket-attachment-content d-flex flex-column flex-sm-row justify-content-between gap-2">
-                        <div className="ticket-attachment-metadata">
-                          <div className={`ticket-attachment-name fw-semibold ${attachment.isRemoved ? 'text-decoration-line-through' : ''}`}>
-                            📎 {attachment.originalName}
-                          </div>
-                          <div className="small mt-1" style={{ color: 'var(--text-secondary)' }}>
-                            {attachment.mimeType} · {formatFileSize(attachment.sizeBytes)} · Uploaded {formatTicketDateTime(attachment.createdAt)}
-                          </div>
-                        </div>
-                        <span className={`attachment-state-badge ${attachment.isRemoved ? 'is-removed' : 'is-active'}`}>
-                          {attachment.isRemoved ? 'Removed' : 'Active'}
-                        </span>
-                      </div>
-                      {attachment.isRemoved && (
-                        <div className="ticket-attachment-removal-details small mt-2">
-                          <div><strong>Removal reason:</strong> {attachment.removalReason || 'Reason not provided'}</div>
-                          <div><strong>Removed at:</strong> {attachment.removedAt ? formatTicketDateTime(attachment.removedAt) : 'Removal time unavailable'}</div>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+          <TicketAttachmentSection
+            ticketId={ticket.id}
+            attachments={ticket.attachments}
+            requesterId={requester.id}
+            onUpdateAttachments={updateAttachments}
+          />
         </>
       )}
     </section>
