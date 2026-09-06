@@ -117,7 +117,12 @@ const handleMultipartUpload = (req: Request, res: Response, next: NextFunction) 
   }
 };
 
-function getSingleQueryValue(value: unknown): string | undefined {
+interface ValidationErrorDetail {
+  field: string;
+  message: string;
+}
+
+function getSingleStringParam(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
@@ -125,6 +130,49 @@ function isPositiveIntegerString(value: string): boolean {
   if (!/^[1-9]\d*$/.test(value)) return false;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed <= 2_147_483_647;
+}
+
+function validatePositiveIntegerParam(
+  rawValue: unknown,
+  field: string,
+  details: ValidationErrorDetail[],
+  options?: { required?: boolean }
+): number | undefined {
+  const isRequired = options?.required ?? true;
+  if (rawValue === undefined) {
+    if (isRequired) {
+      details.push({ field, message: `${field} must be a positive integer` });
+    }
+    return undefined;
+  }
+
+  const value = getSingleStringParam(rawValue);
+  if (!value || !isPositiveIntegerString(value)) {
+    details.push({ field, message: `${field} must be a positive integer` });
+    return undefined;
+  }
+
+  return Number(value);
+}
+
+async function validateActiveRequester(
+  requesterId: number,
+  res: Response
+): Promise<boolean> {
+  const requester = await prisma.requesterUser.findUnique({
+    where: { id: requesterId },
+    select: { id: true, isActive: true },
+  });
+
+  if (!requester || !requester.isActive) {
+    res.status(400).json({
+      error: 'Validation failed',
+      details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }],
+    });
+    return false;
+  }
+
+  return true;
 }
 
 interface ValidatedTicketsQuery {
@@ -141,32 +189,23 @@ interface ValidatedTicketsQuery {
 
 type TicketsQueryParseResult =
   | { success: true; data: ValidatedTicketsQuery }
-  | { success: false; details: Array<{ field: string; message: string }> };
+  | { success: false; details: ValidationErrorDetail[] };
 
 function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
-  const details: Array<{ field: string; message: string }> = [];
+  const details: ValidationErrorDetail[] = [];
 
-  const requesterIdValue = getSingleQueryValue(query.requesterId);
-  const searchValue = getSingleQueryValue(query.search);
-  const categoryValue = getSingleQueryValue(query.category);
-  const statusValue = getSingleQueryValue(query.status);
-  const priorityValue = getSingleQueryValue(query.priority);
-  const sortByValue = getSingleQueryValue(query.sortBy) ?? 'ticketDate';
-  const sortOrderValue = getSingleQueryValue(query.sortOrder) ?? 'desc';
-  const pageValue = getSingleQueryValue(query.page) ?? '1';
-  const pageSizeValue = getSingleQueryValue(query.pageSize) ?? '10';
+  const requesterId = validatePositiveIntegerParam(query.requesterId, 'requesterId', details);
+  const categoryId = validatePositiveIntegerParam(query.category, 'category', details, { required: false });
+  const searchValue = getSingleStringParam(query.search);
+  const statusValue = getSingleStringParam(query.status);
+  const priorityValue = getSingleStringParam(query.priority);
+  const sortByValue = getSingleStringParam(query.sortBy) ?? 'ticketDate';
+  const sortOrderValue = getSingleStringParam(query.sortOrder) ?? 'desc';
+  const pageValue = getSingleStringParam(query.page) ?? '1';
+  const pageSizeValue = getSingleStringParam(query.pageSize) ?? '10';
 
-  if (!requesterIdValue || !isPositiveIntegerString(requesterIdValue)) {
-    details.push({ field: 'requesterId', message: 'requesterId must be a positive integer' });
-  }
   if (query.search !== undefined && searchValue === undefined) {
     details.push({ field: 'search', message: 'search must be a string' });
-  }
-  if (
-    query.category !== undefined &&
-    (!categoryValue || !isPositiveIntegerString(categoryValue))
-  ) {
-    details.push({ field: 'category', message: 'category must be a positive integer' });
   }
   if (
     query.status !== undefined &&
@@ -183,25 +222,25 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
       message: `priority must be one of ${REQUESTED_PRIORITIES.join(', ')}`,
     });
   }
-  if (query.sortBy !== undefined && getSingleQueryValue(query.sortBy) === undefined) {
+  if (query.sortBy !== undefined && getSingleStringParam(query.sortBy) === undefined) {
     details.push({ field: 'sortBy', message: 'sortBy must be a string' });
   }
   if (!TICKET_SORT_FIELDS.includes(sortByValue as (typeof TICKET_SORT_FIELDS)[number])) {
     details.push({ field: 'sortBy', message: `sortBy must be one of ${TICKET_SORT_FIELDS.join(', ')}` });
   }
-  if (query.sortOrder !== undefined && getSingleQueryValue(query.sortOrder) === undefined) {
+  if (query.sortOrder !== undefined && getSingleStringParam(query.sortOrder) === undefined) {
     details.push({ field: 'sortOrder', message: 'sortOrder must be a string' });
   }
   if (!SORT_ORDERS.includes(sortOrderValue as (typeof SORT_ORDERS)[number])) {
     details.push({ field: 'sortOrder', message: 'sortOrder must be asc or desc' });
   }
-  if (query.page !== undefined && getSingleQueryValue(query.page) === undefined) {
+  if (query.page !== undefined && getSingleStringParam(query.page) === undefined) {
     details.push({ field: 'page', message: 'page must be a string integer' });
   }
   if (!isPositiveIntegerString(pageValue)) {
     details.push({ field: 'page', message: 'page must be an integer greater than or equal to 1' });
   }
-  if (query.pageSize !== undefined && getSingleQueryValue(query.pageSize) === undefined) {
+  if (query.pageSize !== undefined && getSingleStringParam(query.pageSize) === undefined) {
     details.push({ field: 'pageSize', message: 'pageSize must be a string integer' });
   }
   const pageSizeNumber = Number(pageSizeValue);
@@ -219,8 +258,8 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   return {
     success: true,
     data: {
-      requesterId: Number(requesterIdValue),
-      categoryId: categoryValue ? Number(categoryValue) : undefined,
+      requesterId: requesterId!,
+      categoryId,
       status: statusValue as (typeof TICKET_STATUSES)[number] | undefined,
       priority: priorityValue as (typeof REQUESTED_PRIORITIES)[number] | undefined,
       sortBy: sortByValue as (typeof TICKET_SORT_FIELDS)[number],
@@ -252,16 +291,8 @@ ticketsRouter.get('/', async (req: Request, res: Response) => {
   } = parseResult.data;
 
   try {
-    const requester = await prisma.requesterUser.findUnique({
-      where: { id: requesterId },
-      select: { id: true, isActive: true },
-    });
-
-    if (!requester || !requester.isActive) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }],
-      });
+    if (!(await validateActiveRequester(requesterId, res))) {
+      return;
     }
 
     const where: Prisma.TicketWhereInput = {
@@ -315,6 +346,75 @@ ticketsRouter.get('/', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching tickets:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tickets/:id
+ticketsRouter.get('/:id', async (req: Request, res: Response) => {
+  const details: ValidationErrorDetail[] = [];
+  const ticketId = validatePositiveIntegerParam(req.params.id, 'id', details);
+  const requesterId = validatePositiveIntegerParam(req.query.requesterId, 'requesterId', details);
+
+  if (details.length > 0 || ticketId === undefined || requesterId === undefined) {
+    return res.status(400).json({ error: 'Validation failed', details });
+  }
+
+  try {
+    if (!(await validateActiveRequester(requesterId, res))) {
+      return;
+    }
+
+    const ticketOwnership = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true, requesterId: true },
+    });
+
+    if (!ticketOwnership) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    if (ticketOwnership.requesterId !== requesterId) {
+      return res.status(403).json({ error: 'You do not have access to this ticket' });
+    }
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: {
+        id: true,
+        ticketNumber: true,
+        summary: true,
+        description: true,
+        requestedPriority: true,
+        currentStatus: true,
+        ticketDate: true,
+        category: { select: { id: true, name: true } },
+        relatedSystem: { select: { id: true, name: true } },
+        requester: { select: { id: true, name: true, email: true } },
+        attachments: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            isRemoved: true,
+            removalReason: true,
+            removedAt: true,
+            createdAt: true,
+          },
+        },
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    return res.status(200).json({ data: ticket });
+  } catch (error) {
+    console.error('Error fetching ticket detail:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
