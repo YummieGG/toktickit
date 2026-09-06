@@ -1,16 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '../generated/prisma';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { requestersRouter } from './routes/requesters';
+import { categoriesRouter } from './routes/categories';
+import { relatedSystemsRouter } from './routes/related-systems';
+import { ticketsRouter } from './routes/tickets';
+import { attachmentsRouter, ticketAttachmentsRouter } from './routes/attachments';
 
 dotenv.config();
-
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/toktickit?schema=public';
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,17 +26,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/categories', async (req, res) => {
-  try {
-    const categories = await prisma.category.findMany({
-      orderBy: { id: 'asc' }
-    });
-    res.status(200).json(categories);
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// API Routes
+app.use('/api/categories', categoriesRouter);
+app.use('/api/requesters', requestersRouter);
+app.use('/api/related-systems', relatedSystemsRouter);
+app.use('/api/tickets', ticketsRouter);
+app.use('/api/tickets/:ticketId/attachments', ticketAttachmentsRouter);
+app.use('/api/attachments', attachmentsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

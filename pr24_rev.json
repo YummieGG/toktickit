@@ -1,0 +1,42 @@
+[
+  {
+    "id": 5123566148,
+    "node_id": "PRR_kwDOTtWhbc8AAAABMWNqRA",
+    "user": {
+      "login": "Snnn3",
+      "id": 83298842,
+      "node_id": "MDQ6VXNlcjgzMjk4ODQy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/83298842?u=a7fa376889bd305d751bb3006b46eae6a39ac858&v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/Snnn3",
+      "html_url": "https://github.com/Snnn3",
+      "followers_url": "https://api.github.com/users/Snnn3/followers",
+      "following_url": "https://api.github.com/users/Snnn3/following{/other_user}",
+      "gists_url": "https://api.github.com/users/Snnn3/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/Snnn3/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Snnn3/subscriptions",
+      "organizations_url": "https://api.github.com/users/Snnn3/orgs",
+      "repos_url": "https://api.github.com/users/Snnn3/repos",
+      "events_url": "https://api.github.com/users/Snnn3/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/Snnn3/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "body": "LGTM! The Ticket Detail read-only layout and `GET /api/tickets/:id` API adhere strictly to Issue #16 and the Zen Green design system. Ownership validation, error states (400, 403, 404, 500), whitespace preservation, and attachment metadata audit trails are all cleanly implemented. Verified that all server tests (62 passed), client tests (50 passed), and the production build pass without errors. Approved!",
+    "state": "APPROVED",
+    "html_url": "https://github.com/YummieGG/toktickit/pull/24#pullrequestreview-5123566148",
+    "pull_request_url": "https://api.github.com/repos/YummieGG/toktickit/pulls/24",
+    "author_association": "COLLABORATOR",
+    "_links": {
+      "html": {
+        "href": "https://github.com/YummieGG/toktickit/pull/24#pullrequestreview-5123566148"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/YummieGG/toktickit/pulls/24"
+      }
+    },
+    "submitted_at": "2026-09-06T00:32:26Z",
+    "commit_id": "1abb09a42e5187658f317b6b36240afb4a51007c"
+  }
+]

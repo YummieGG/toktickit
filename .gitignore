@@ -7,3 +7,11 @@ build/
 .agents/
 .claude/
 .windsurf/
+uploads/
+server/uploads/
+e2e/test-results/
+e2e/playwright-report/
+
+
+issue-spec.md
+agents
