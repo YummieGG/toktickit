@@ -19,6 +19,9 @@
 | [#21](https://github.com/YummieGG/toktickit/pull/21) | feat: implement requester context selection | `feature/lab2-3-requester-context` | Merged | @Snnn3 |
 | [#22](https://github.com/YummieGG/toktickit/pull/22) | feat: implement create ticket form with validation and reusable ui | `feature/lab2-4-ticket-creation` | Merged | @Snnn3 |
 | [#23](https://github.com/YummieGG/toktickit/pull/23) | feat(tickets): implement My Tickets paginated list API and responsive UI | `feature/lab2-5-my-tickets` | Merged | @Snnn3 |
+| [#24](https://github.com/YummieGG/toktickit/pull/24) | feat(tickets): implement requester ticket detail API and read-only detail screen | `feature/lab2-6-ticket-detail` | Merged | @Snnn3 |
+| [#25](https://github.com/YummieGG/toktickit/pull/25) | feat(attachments): implement attachment lifecycle API and UI components | `feature/lab2-7-attachments` | Merged | @Snnn3 |
+| [#26](https://github.com/YummieGG/toktickit/pull/26) | test(release): implement end-to-end testing suite, release verification, and engineering artifacts | `feature/lab2-8-testing-and-release` | Merged | @Snnn3 |
 
 ## Pull Requests Reviewed
 
@@ -31,6 +34,7 @@
 | [#29](https://github.com/Snnn3/TokTickIT/pull/29) | Lab2-5: implement My Tickets list, filters, search, and pagination (#19) | @Snnn3 | Merged | Great job on this one! The API query validation is solid, and the 300ms debounce on the search input is a great UX touch. I also love how you separated the Empty state from the No-results state perfectly. Approved! |
 | [#30](https://github.com/Snnn3/TokTickIT/pull/30) | Lab2-6: implement Ticket Detail and Attachment lifecycle (#20) | @Snnn3 | Merged | The read-only Ticket Detail layout perfectly adheres to the Zen Green design system and spec. The attachment lifecycle is robust, cleanly handling all 5 row states along with the soft-removal modal dialog. API security scoping, error handling, and status codes (403, 409, 410) are spot on. |
 | [#31](https://github.com/Snnn3/TokTickIT/pull/31) | Lab2-7: Playwright E2E Flow and Responsive Visual Evidence (#21) | @Snnn3 | Merged | Excellent work! The Playwright E2E suite (E-01, E-02, R-01 & E-03) runs cleanly and covers the happy path, multi-requester isolation, and attachment lifecycles thoroughly. Responsive layouts and visual evidence screenshots are complete across all 3 viewports with zero horizontal scrolling. |
+| [#33](https://github.com/Snnn3/TokTickIT/pull/33) | chore(32): report evidence captures, screenshots and fresh results | @Snnn3 | Merged | LGTM! Everything looks good to me. Approved |
 
 ## Review Comments Given
 
@@ -121,14 +125,16 @@
 - **Partner's response (@Snnn3)**:
   > Thanks for merging and review.
 
+### PR #33: chore(32): report evidence captures, screenshots and fresh results
+- **Target PR**: [Snnn3/TokTickIT#33](https://github.com/Snnn3/TokTickIT/pull/33)
+- **Author**: @Snnn3
+- **Verdict**: Approved
+- **My comment (@YummieGG)**:
+  > LGTM! Everything looks good to me. Approved
+- **Partner's response (@Snnn3)**:
+  > Thank you for reviewing.
+
 ## Review Comments Received & Responses
-
-## Issue #18 Review Status
-
-- **Author:** @YummieGG
-- **Branch:** `feature/lab2-8-testing-and-release`
-- **Status:** Implementation complete locally; PR link, peer-review comments, and response will be recorded after the branch is intentionally staged and published.
-- **Verification evidence:** See [`tests.md`](tests.md) for the executed matrix, AC/FR/BR traceability, test totals, migration/seed checks, and screenshot paths.
 
 ### PR #19: docs: Lab 2 Engineering Specification and Test Plan
 - **Reviewer comment received (@Snnn3):**
@@ -293,3 +299,74 @@
   >   - Production TypeScript build (`tsc -b && vite build`): Succeeded with zero errors.
   > ---
   > LGTM! Approved!
+
+### PR #24: feat(tickets): implement requester ticket detail API and read-only detail screen
+- **Target PR**: [YummieGG/toktickit#24](https://github.com/YummieGG/toktickit/pull/24)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Branch**: `feature/lab2-6-ticket-detail`
+- **Status**: Merged
+
+- **Reviewer comment received (@Snnn3):**
+  > LGTM! The Ticket Detail read-only layout and `GET /api/tickets/:id` API adhere strictly to Issue #16 and the Zen Green design system. Ownership validation, error states (400, 403, 404, 500), whitespace preservation, and attachment metadata audit trails are all cleanly implemented. Verified that all server tests (62 passed), client tests (50 passed), and the production build pass without errors. Approved!
+
+- **How I responded (@YummieGG):**
+  > Thanks man
+
+### PR #25: feat(attachments): implement attachment lifecycle API and UI components
+- **Target PR**: [YummieGG/toktickit#25](https://github.com/YummieGG/toktickit/pull/25)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Branch**: `feature/lab2-7-attachments`
+- **Status**: Merged
+
+- **Reviewer comment received (Iteration 1 - Changes Requested by @Snnn3):**
+  > ## Pull Request Review: Lab2-7 Attachment Lifecycle (PR #25 / Issue #17)
+  > 
+  > Thank you for putting together the complete attachment lifecycle implementation! The test suite is extensive (38 API tests + detailed UI tests), file cleanup on failure is well-handled, and requester isolation is strictly maintained across endpoints.
+  > 
+  > Before this PR can be merged into `lab2-staging`, there are a few issues identified across **Standards** and **Specification** compliance that need attention:
+  > 
+  > ---
+  > 
+  > ### Critical / Action Required (Spec & Standards Alignment)
+  > 
+  > #### 1. Contract Over-Exposure on `GET /api/attachments/:id`
+  > - **Location**: `server/src/routes/attachments.ts` (lines 219–221)
+  > - **Problem**: The endpoint returns the full database record except `ticket`:
+  >   ```ts
+  >   const { ticket: _ticket, ...metadata } = attachment;
+  >   return res.status(200).json({ data: metadata });
+  >   ```
+
+- **How I responded (@YummieGG):**
+  > Thank you for the review and catching this!
+  > 
+  > ### 1. Contract Over-Exposure on `GET /api/attachments/:id` (Resolved)
+  > - Updated `server/src/routes/attachments.ts` to strictly return a whitelist projection of the 8 fields defined in `docs/lab-02/api-spec.md` (`id`, `originalName`, `storedName`, `mimeType`, `sizeBytes`, `isRemoved`, `createdAt`, `ticketId`).
+  > - Added strict assertions in `server/tests/lab-02/attachments.api.test.ts` ensuring internal fields like `ticket`, `removalReason`, and `removedAt` are never exposed in this endpoint.
+  > 
+  > ### 2. Note on 5-Active Attachment Picker Behavior
+  > - For the attachment picker at 5 active files on the Ticket Detail screen, we deliberately keep the picker enabled so that attempting a 6th selection triggers an explicit and dismissible **Invalid State banner** ("Maximum 5 active attachments allowed per ticket"). This aligns with **AC-17** and allows the UI to visually demonstrate the Invalid state in the attachment lifecycle without locking the control prematurely.
+
+- **Reviewer comment received (Iteration 2 - Approval by @Snnn3):**
+  > ## Pull Request Review: Approved! 🎉
+  > Great work on **Issue #17 (Lab 2-7: Attachment Lifecycle API and UI Components)**!
+  > The implementation is solid, thoroughly tested, and meets all core functional requirements and business rules outlined in the specification.
+
+- **How I responded (@YummieGG):**
+  > luv you eiei
+
+### PR #26: test(release): implement end-to-end testing suite, release verification, and engineering artifacts
+- **Target PR**: [YummieGG/toktickit#26](https://github.com/YummieGG/toktickit/pull/26)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Branch**: `feature/lab2-8-testing-and-release`
+- **Status**: Merged
+
+- **Reviewer comment received (@Snnn3):**
+  > ## Pull Request Review: Approved
+  > Thank you for completing the testing and release verification sprint for **Lab 2-8 (Issue #18)**! The test coverage, documentation updates, and visual artifacts are thorough and well-organized.
+
+- **How I responded (@YummieGG):**
+  > Thanks you kub
