@@ -5,6 +5,7 @@ import { requestersRouter } from './routes/requesters';
 import { categoriesRouter } from './routes/categories';
 import { relatedSystemsRouter } from './routes/related-systems';
 import { ticketsRouter } from './routes/tickets';
+import { attachmentsRouter, ticketAttachmentsRouter } from './routes/attachments';
 
 dotenv.config();
 
@@ -30,6 +31,8 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/requesters', requestersRouter);
 app.use('/api/related-systems', relatedSystemsRouter);
 app.use('/api/tickets', ticketsRouter);
+app.use('/api/tickets/:ticketId/attachments', ticketAttachmentsRouter);
+app.use('/api/attachments', attachmentsRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

@@ -6,6 +6,7 @@ import { InputField } from '../components/ui/InputField';
 import { SelectField } from '../components/ui/SelectField';
 import { TextAreaField } from '../components/ui/TextAreaField';
 import { Alert } from '../components/ui/Alert';
+import { MAX_ACTIVE_ATTACHMENTS, validateAttachmentSelection } from '../utils/attachment';
 
 interface Category {
   id: number;
@@ -31,16 +32,6 @@ export const CreateTicket: React.FC = () => {
   const [description, setDescription] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
-
-  const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
-  const ALLOWED_MIME_TYPES = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'application/pdf',
-  ];
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-  const MAX_FILE_COUNT = 5;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,21 +117,13 @@ export const CreateTicket: React.FC = () => {
 
     // Reject invalid files individually while retaining valid files from the same selection.
     for (const file of newFiles) {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        firstError ??= `File type ${ext} is not permitted. Supported formats: JPG, PNG, WEBP, PDF`;
-        continue;
-      }
-      if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
-        firstError ??= `File type "${file.type}" is not permitted. Supported formats: JPG, PNG, WEBP, PDF`;
-        continue;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        firstError ??= `File "${file.name}" exceeds the 5 MB limit`;
-        continue;
-      }
-      if (selectedFiles.length + acceptedFiles.length >= MAX_FILE_COUNT) {
-        firstError ??= `Maximum ${MAX_FILE_COUNT} attachments allowed per ticket`;
+      const validationMessage = validateAttachmentSelection(
+        file,
+        selectedFiles.length + acceptedFiles.length,
+        'attachments'
+      );
+      if (validationMessage) {
+        firstError ??= validationMessage;
         continue;
       }
       acceptedFiles.push(file);
@@ -161,7 +144,7 @@ export const CreateTicket: React.FC = () => {
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (!isSubmitting && !isLoadingData && selectedFiles.length < MAX_FILE_COUNT) {
+    if (!isSubmitting && !isLoadingData && selectedFiles.length < MAX_ACTIVE_ATTACHMENTS) {
       setIsDragging(true);
     }
   };
@@ -174,7 +157,7 @@ export const CreateTicket: React.FC = () => {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    if (isSubmitting || isLoadingData || selectedFiles.length >= MAX_FILE_COUNT) return;
+    if (isSubmitting || isLoadingData || selectedFiles.length >= MAX_ACTIVE_ATTACHMENTS) return;
     if (e.dataTransfer.files) {
       processFiles(e.dataTransfer.files);
     }
@@ -440,7 +423,7 @@ export const CreateTicket: React.FC = () => {
                   className={`form-control ${attachmentError || errors.attachments ? 'is-invalid' : ''}`}
                   accept=".jpg,.jpeg,.png,.webp,.pdf"
                   multiple
-                  disabled={isLoadingData || isSubmitting || selectedFiles.length >= MAX_FILE_COUNT}
+                  disabled={isLoadingData || isSubmitting || selectedFiles.length >= MAX_ACTIVE_ATTACHMENTS}
                   onChange={handleFileChange}
                   aria-label="Choose File"
                   aria-invalid={!!(attachmentError || errors.attachments)}
