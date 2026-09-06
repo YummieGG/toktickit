@@ -111,6 +111,14 @@ describe('Tickets API - GET /api/tickets', () => {
     );
   });
 
+  it.each([5, 10, 20])('accepts permitted page size %s', async pageSize => {
+    const response = await request(app).get(`/api/tickets?requesterId=1&pageSize=${pageSize}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.pagination.pageSize).toBe(pageSize);
+    expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: pageSize }));
+  });
+
   it.each([
     ['missing requesterId (API-16)', ''],
     ['invalid requesterId', '?requesterId=0'],

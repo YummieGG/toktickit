@@ -7,7 +7,7 @@ TokTickIT is an IT service desk management system designed for logging, tracking
 - **Frontend**: React 19, TypeScript, Vite, React Router 7, Bootstrap 5
 - **Backend**: Node.js, Express 5, TypeScript, TSX
 - **Database & ORM**: PostgreSQL 15, Prisma ORM 7 (with `@prisma/adapter-pg`)
-- **Testing**: Vitest, Supertest, React Testing Library
+- **Testing**: Vitest, Supertest, React Testing Library, Playwright
 
 ---
 
@@ -65,7 +65,11 @@ cp .env.example .env
 # 3. Apply database migrations and seed initial data
 npx prisma migrate dev
 
-# 4. Start the backend development server
+# 4. Verify the seed is idempotent (safe to run more than once)
+npx prisma db seed
+npx prisma db seed
+
+# 5. Start the backend development server
 npm run dev
 ```
 
@@ -88,6 +92,25 @@ npm run dev
 ```
 
 The frontend will run at `http://localhost:5173` (or the port indicated in your terminal).
+
+---
+
+### 5. E2E Setup (Playwright)
+
+From the repository root, install the E2E dependencies and Chromium once:
+
+```bash
+cd e2e
+npm install
+npx playwright install chromium
+```
+
+The E2E suite uses deterministic API fixtures and starts the Vite client automatically. It covers the complete requester flow and responsive evidence at 1280px, 768px, and 375px:
+
+```bash
+cd e2e
+npm test
+```
 
 ---
 
@@ -117,6 +140,13 @@ npm test
 To run a specific test file:
 ```bash
 npx vitest run tests/lab-02/CreateTicket.test.tsx
+```
+
+To run the production build checks:
+```bash
+cd server && npm run build
+cd ../client && npm run build
+cd ../e2e && npm test
 ```
 
 ---

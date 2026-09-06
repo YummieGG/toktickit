@@ -68,6 +68,63 @@ describe('Tickets API - POST /api/tickets', () => {
     expect(summaryError?.message).toContain('Summary must be between 5 and 200 characters');
   });
 
+  it.each(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])('accepts requested priority enum %s', async requestedPriority => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    vi.spyOn(ticketNumberLib, 'generateTicketNumber').mockResolvedValue('TK-0001');
+    (prisma.ticket.create as any).mockResolvedValue({ id: 1, ticketNumber: 'TK-0001', requestedPriority });
+
+    const response = await request(app).post('/api/tickets').send({
+      requesterId: 1,
+      categoryId: 1,
+      summary: 'Valid summary',
+      description: 'Valid description',
+      requestedPriority,
+    });
+
+    expect(response.status).toBe(201);
+    expect(prisma.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ requestedPriority }),
+    }));
+  });
+
+  it('rejects an invalid requested priority enum before database writes', async () => {
+    const response = await request(app).post('/api/tickets').send({
+      requesterId: 1,
+      categoryId: 1,
+      summary: 'Valid summary',
+      description: 'Valid description',
+      requestedPriority: 'URGENT',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.details).toContainEqual(expect.objectContaining({ field: 'requestedPriority' }));
+    expect(prisma.ticket.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['minimum boundaries', 'abcde', 'abcdefghij'],
+    ['maximum boundaries', 'x'.repeat(200), 'x'.repeat(2000)],
+  ])('accepts trimmed %s for summary and description', async (_label, summary, description) => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    vi.spyOn(ticketNumberLib, 'generateTicketNumber').mockResolvedValue('TK-0001');
+    (prisma.ticket.create as any).mockResolvedValue({ id: 1, ticketNumber: 'TK-0001' });
+
+    const response = await request(app).post('/api/tickets').send({
+      requesterId: 1,
+      categoryId: 1,
+      summary: `  ${summary}  `,
+      description: `  ${description}  `,
+      requestedPriority: 'LOW',
+    });
+
+    expect(response.status).toBe(201);
+    expect(prisma.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ summary, description }),
+    }));
+  });
+
   it.each([
     ['fractional requesterId', { requesterId: 1.5, categoryId: 1 }],
     ['non-numeric categoryId', { requesterId: 1, categoryId: 'abc' }],
@@ -119,6 +176,25 @@ describe('Tickets API - POST /api/tickets', () => {
     expect(response.status).toBe(400);
     const categoryError = response.body.details.find((d: any) => d.field === 'categoryId');
     expect(categoryError?.message).toContain('Category not found or is inactive');
+  });
+
+  it('returns 400 if related system does not exist or is inactive (BR-25)', async () => {
+    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, name: 'Somchai', isActive: true });
+    (prisma.category.findUnique as any).mockResolvedValue({ id: 1, name: 'Hardware', isActive: true });
+    (prisma.relatedSystem.findUnique as any).mockResolvedValue({ id: 999, name: 'Inactive System', isActive: false });
+
+    const response = await request(app).post('/api/tickets').send({
+      requesterId: 1,
+      categoryId: 1,
+      relatedSystemId: 999,
+      summary: 'Valid summary here',
+      description: 'Valid description here',
+      requestedPriority: 'LOW',
+    });
+
+    expect(response.status).toBe(400);
+    const systemError = response.body.details.find((d: any) => d.field === 'relatedSystemId');
+    expect(systemError?.message).toContain('Related system not found or is inactive');
   });
 
   it('creates ticket successfully inside transaction and returns expanded contract', async () => {

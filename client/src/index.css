@@ -320,7 +320,8 @@ textarea.form-control[readonly] {
 @media (max-width: 767.98px) {
   .my-tickets .btn,
   .my-tickets .form-control,
-  .my-tickets .form-select {
+  .my-tickets .form-select,
+  .ticket-detail .btn {
     min-height: 44px;
   }
 }
@@ -454,10 +455,4 @@ textarea.form-control[readonly] {
 
 .ticket-detail-error .btn {
   min-height: 44px;
-}
-
-@media (max-width: 767.98px) {
-  .ticket-detail .btn {
-    min-height: 44px;
-  }
 }
