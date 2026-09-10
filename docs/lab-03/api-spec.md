@@ -1,6 +1,6 @@
 # Lab 3 REST API Contract
 
-**Base URL:** `http://localhost:3000/api`  
+**Base URL:** `http://localhost:3000/api`
 **Authentication:** server-side opaque session in the `tt_session` HttpOnly cookie
 
 ## 1. Common response and security contract
@@ -34,6 +34,39 @@ Successful responses use either `{ "data": ... }` or `{ "data": [...], "paginati
 
 State-changing requests must include the configured application `Origin`. A mismatched/missing Origin returns `403 CSRF_ORIGIN_INVALID`; `GET`/`HEAD` are not subject to this check. Production runs with an explicit trusted-proxy configuration; local development does not trust forwarded IP headers.
 
+## 1.1 Endpoint authorization matrix
+
+This table is the canonical method/path-level authorization contract. `Own` means the authenticated Requester owns the referenced Ticket; `All` means all tickets; `Read` means no mutation; `Write` includes the operation described in the endpoint section. Unauthenticated requests receive `401`. An authenticated user with the wrong role receives `403`. For Requester-owned resources, a different owner's resource returns a safe `404`.
+
+| Method and path | Requester | IT Staff | Administrator |
+|---|---|---|---|
+| `POST /api/auth/login` | Public | Public | Public |
+| `POST /api/auth/logout` | Own session | Own session | Own session |
+| `GET /api/auth/me` | Own session | Own session | Own session |
+| `POST /api/auth/change-password` | Own session | Own session | Own session |
+| `GET /api/categories` | Read | Read | Read |
+| `GET /api/related-systems` | Read | Read | Read |
+| `POST /api/tickets` | Write | 403 | 403 |
+| `GET /api/tickets` | Own | 403 | 403 |
+| `GET /api/tickets/:id` | Own/read | All/read | All/read |
+| `POST /api/tickets/:ticketId/attachments` | Own/write | 403 | 403 |
+| `GET /api/attachments/:id` | Own/read metadata | All/read metadata | All/read metadata |
+| `GET /api/attachments/:id/download` | Own/read file | All/read file | 403 |
+| `PATCH /api/attachments/:id/remove` | Own/write | 403 | 403 |
+| `GET /api/tickets/:ticketId/comments` | Own/read | All/read | All/read |
+| `POST /api/tickets/:ticketId/comments` | Own/write | All/write | 403 |
+| `POST /api/tickets/:id/problem-appears-resolved` | Own/write | 403 | 403 |
+| `GET /api/staff/tickets` | 403 | All/read | All/read |
+| `PATCH /api/tickets/:id/owner` | 403 | All/write | 403 |
+| `PATCH /api/tickets/:id/it-priority` | 403 | All/write | 403 |
+| `PATCH /api/tickets/:id/status` | 403 | All/write | 403 |
+| `GET /api/tickets/:ticketId/internal-notes` | 403 | All/read | All/read |
+| `POST /api/tickets/:ticketId/internal-notes` | 403 | All/write | 403 |
+| `GET /api/admin/users` | 403 | 403 | Read |
+| `POST /api/admin/users` | 403 | 403 | Write |
+| `PATCH /api/admin/users/:id` | 403 | 403 | Write |
+| `POST /api/admin/users/:id/initial-password` | 403 | 403 | Write |
+
 ## 2. Authentication
 
 ### `POST /api/auth/login`
@@ -50,7 +83,7 @@ Requires a valid session. Returns `{ id, name, email, role, isActive, mustChange
 
 ### `POST /api/auth/change-password`
 
-Requires a valid session. Body: `{ "currentPassword": string, "newPassword": string }`. Enforces the shared password policy, updates the scrypt hash, clears `mustChangePassword`, and revokes all other sessions. Returns `200` with the safe user projection. Errors: `400 INVALID_PASSWORD` or `401 CURRENT_PASSWORD_INVALID`.
+Requires a valid session. Body: `{ "currentPassword": string, "newPassword": string }`. Enforces the shared password policy, updates the scrypt hash, clears `mustChangePassword`, and revokes every existing session for that user, including the current session. Returns `200` with the safe user projection; the client must sign in again to establish a new session. Errors: `400 INVALID_PASSWORD` or `401 CURRENT_PASSWORD_INVALID`.
 
 ## 3. Reference data
 
@@ -70,11 +103,14 @@ Requester only; always scopes to the session user. Query: `search`, `category`, 
 
 ### `GET /api/tickets/:id`
 
-Requester only and ownership-scoped. Returns full detail, active/removed attachment metadata, public comments authored by any role, and `problemAppearsResolvedAt`. An unowned ticket returns safe `404`.
+Requester owner, IT Staff, and Administrator may read this endpoint according to the authorization matrix. The Requester view is ownership-scoped and returns full detail, active/removed attachment metadata, public comments authored by any role, and `problemAppearsResolvedAt`; an unowned Requester access returns safe `404`. Staff/Admin receive the Staff detail projection described below.
 
-### `POST /api/tickets/:ticketId/attachments`, `GET /api/attachments/:id/download`, `PATCH /api/attachments/:id/remove`
+### Attachment operations
 
-Requester owner only and preserve Lab 2 file rules (JPG/JPEG/PNG/WEBP/PDF, 5 MB each, five active attachments, soft remove with reason). Download is blocked for removed files.
+- `POST /api/tickets/:ticketId/attachments`: Requester owner only. Preserve Lab 2 file rules (JPG/JPEG/PNG/WEBP/PDF, 5 MB each, five active attachments).
+- `GET /api/attachments/:id`: returns metadata only after authorization. Requester owner, IT Staff, and Administrator may read metadata; cross-owner Requester access returns safe `404`. A successful response is `200` with `{ "data": { "id": number, "originalName": string, "storedName": string, "mimeType": string, "sizeBytes": number, "isRemoved": boolean, "createdAt": string, "ticketId": number } }`; it never includes file bytes, Internal Notes, or unrelated Ticket data.
+- `GET /api/attachments/:id/download`: streams an active file for the Requester owner or IT Staff. Administrator receives `403`; removed files are blocked and never streamed.
+- `PATCH /api/attachments/:id/remove`: Requester owner only; performs Lab 2 soft removal with a required reason. IT Staff and Administrator cannot remove files.
 
 ### `GET /api/tickets/:ticketId/comments` and `POST /api/tickets/:ticketId/comments`
 
@@ -97,9 +133,9 @@ IT Staff can read the full queue; Administrator can read it read-only. Query:
 
 Response includes ticket number/date, summary, category, both priorities, status, owner, requester, resolution indication, and `pagination`. Invalid query returns `400 INVALID_QUERY`; no matches return `200` with an empty list.
 
-### `GET /api/tickets/:id`
+### Staff/Admin ticket detail projection
 
-IT Staff receives the Staff detail projection for any ticket. Administrator receives the same data without mutation affordances. The projection includes attachments, public comments, internal notes (Staff/Admin only), owner, priorities, status, and resolution indication.
+IT Staff receives the Staff detail projection for any ticket, including attachment metadata and download actions. Administrator receives the same read-only detail but attachment metadata only; no download or mutation affordances. The projection includes attachments, public comments, internal notes (Staff/Admin only), owner, priorities, status, and resolution indication.
 
 ### `PATCH /api/tickets/:id/owner`
 

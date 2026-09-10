@@ -7,10 +7,15 @@ This is the pre-implementation test contract for Issue 1. Feature issues may add
 - **Server unit:** Vitest for password policy/hash, email canonicalization, login-attempt windows, status transitions, authorization decisions, and queue query parsing.
 - **Server API/integration:** Supertest against PostgreSQL test data and mocked filesystem boundaries, covering migration/seed, authentication, ownership, role guards, workflow, comments/notes, resolution, and Administrator safety.
 - **Client UI:** Vitest + React Testing Library for screen state matrices, form validation, route guards, response rendering, and accessibility labels.
+- **UI style/visual:** `visual-style.test.tsx` checks Zen Green tokens, shared component styling, readable editable/read-only states, contrast, focus indicators, and mobile control sizing.
 - **E2E:** Playwright Chromium for login/change-password, Requester regression, Staff workflow, Administrator management, cross-role denial, and responsive screenshots.
 - **Security/regression:** Explicit direct-API, session, CSRF-Origin, requesterId-tampering, cross-owner, Internal Note leakage, and Lab 2 data-preservation cases.
 
+The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for authorization tests. Each method/path row must have an allowed-role case and a wrong-role/unauthenticated case where applicable.
+
 ## 2. Required repository paths
+
+The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548ff`, `docs/lab-02/{specification,api-spec,ui-spec,tests}.md`, the existing Prisma schema/routes, and the existing Lab 2 test directories are the sources for regression cases. The migration suite must assert that this baseline data and behavior remain intact after authentication is introduced.
 
 ### Server
 
@@ -29,6 +34,7 @@ This is the pre-implementation test contract for Issue 1. Feature issues may add
 - `client/tests/lab-03/StaffTicketQueue.test.tsx`
 - `client/tests/lab-03/StaffTicketDetail.test.tsx`
 - `client/tests/lab-03/UserManagement.test.tsx`
+- `client/tests/lab-03/visual-style.test.tsx`
 - Existing Lab 2 component tests remain green and are extended for authenticated Requester behavior.
 
 ### E2E and evidence
@@ -59,7 +65,7 @@ This is the pre-implementation test contract for Issue 1. Feature issues may add
 | AC-11 | `users-admin.api.test.ts`, `UserManagement.test.tsx`, `user-administration.spec.ts` |
 | AC-12 | Authorization API tests, route-guard UI tests, cross-role E2E |
 | AC-13 | All server/client/E2E commands and final test-result table in this file |
-| AC-14 | Playwright 1280/768/375 checks, accessibility assertions, and screenshot paths above |
+| AC-14 | `visual-style.test.tsx`, Playwright 1280/768/375 checks, accessibility assertions, and screenshot paths above |
 
 ## 4. Minimum case matrix
 
@@ -70,7 +76,8 @@ This is the pre-implementation test contract for Issue 1. Feature issues may add
 
 ### Authorization and Requester regression
 
-- Requester cannot supply another `requesterId`, read another ticket, download/remove another attachment, view Internal Notes, or call Staff/Admin mutations.
+- Requester cannot supply another `requesterId`, read another ticket, download/remove another attachment, view Internal Notes, or call Staff/Admin mutations. IT Staff can read/download permitted attachments; Administrator can read metadata but cannot download or mutate attachments.
+- Attachment metadata has a dedicated authorization case for `GET /api/attachments/:id`: verify the safe metadata projection for the Requester owner, IT Staff, and Administrator; safe `404` for a different Requester owner; metadata remains readable after soft removal; and no file bytes or unrelated fields are returned.
 - IT Staff can read queue/detail and write allowed workflow/comments/notes but cannot manage users.
 - Administrator can read tickets/comments/notes/resolution but receives 403 for Staff mutations.
 - Existing Lab 2 create/list/detail/attachment tests pass with session identity.

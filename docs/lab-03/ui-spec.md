@@ -28,7 +28,7 @@ The client bootstraps `/api/auth/me` on refresh. Unauthenticated users go to Log
 | Screen | Initial/loading | Valid/normal | Empty/no-results | Validation | Saving/success | Failure/forbidden |
 |---|---|---|---|---|---|---|
 | Login | Empty fields; submit enabled | Email/password fields | N/A | Inline email/password messages | Busy submit; route to shell or Change Password | Generic invalid-credentials/cooldown banner; preserve fields; retry |
-| Change Password | Password guidance visible | Current/new/confirm fields | N/A | Shared complexity and mismatch messages | Busy submit; success notice then shell | Safe current-password/API error; preserve non-secret field state appropriately |
+| Change Password | Password guidance visible | Current/new/confirm fields | N/A | Shared complexity and mismatch messages | Busy submit; success notice then Login for a new session | Safe current-password/API error; preserve non-secret field state appropriately |
 | Shell/bootstrap | App spinner | Role-specific nav and identity | N/A | N/A | Logout busy state | Session expiry redirects to Login with safe notice |
 | Requester Create Ticket | Lab 2 form with active references | Editable fields and attachments | Reference-data empty state | Inline field/file errors | Busy submit; Ticket Number confirmation | Top safe API error; preserve form |
 | Requester My Tickets | Spinner then list/table | Lab 2 columns, search/filter/sort/page | Friendly “No Tickets Submitted Yet” | Invalid query reset/message | Refresh after actions | Retryable API error; ownership-safe 404 |
@@ -51,7 +51,7 @@ Desktop (>=992 px) uses a readable table with Ticket Number, Ticket Date, Summar
 
 ## 7. Staff Ticket Detail
 
-The header shows Ticket Number, Ticket Date, Requester, status, both priorities, owner, and resolution indication. Base ticket fields and attachments remain readable; workflow controls are grouped separately. Owner assignment, IT Priority, and status controls show current values, allowed options, saving feedback, and required confirmation for Cancelled/Resolved/Closed/Reopened. Public Comments and Internal Notes use separate headings, composers, and visually distinct panels. Internal Notes are never rendered in Requester views.
+The header shows Ticket Number, Ticket Date, Requester, status, both priorities, owner, and resolution indication. Base ticket fields and attachments remain readable; IT Staff can download active attachments, while Administrator sees attachment metadata only. Workflow controls are grouped separately. Owner assignment, IT Priority, and status controls show current values, allowed options, saving feedback, and required confirmation for Cancelled/Resolved/Closed/Reopened. Public Comments and Internal Notes use separate headings, composers, and visually distinct panels. Internal Notes are never rendered in Requester views.
 
 ## 8. Administrator User Management
 
