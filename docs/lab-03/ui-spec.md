@@ -23,6 +23,30 @@ The header shows TokTickIT, the current user's name/email and role, Change Passw
 
 The client bootstraps `/api/auth/me` on refresh. Unauthenticated users go to Login; `mustChangePassword` users go to Change Password; forbidden routes show a safe 403 page and a route-appropriate navigation link.
 
+### 2.1 Screen authorization matrix
+
+This is the canonical screen/route authorization contract. Backend endpoint
+authorization remains authoritative; a route guard only controls navigation and
+must never be treated as a security control. `Own` means the authenticated
+Requester owns the referenced Ticket. A `mustChangePassword` user may access
+only Change Password and Logout until the change succeeds.
+
+| Screen / route | Requester | IT Staff | Administrator | Unauthenticated or wrong-role behavior |
+|---|---|---|---|---|
+| Login (`/login`) | Public auth form | Public auth form | Public auth form | Unauthenticated users may access; an already authenticated user is redirected to Shell |
+| Change Password (`/change-password`) | Own session / edit | Own session / edit | Own session / edit | Unauthenticated → Login; other protected screens are blocked while `mustChangePassword=true` |
+| Shell / bootstrap (`/app`) | Own session / Requester navigation | Own session / Staff navigation | Own session / Admin navigation | Unauthenticated → Login; invalid/expired session → safe Login notice |
+| Create Ticket (`/tickets/new`) | Own / edit | 403 | 403 | Unauthenticated → Login; wrong role → safe 403 |
+| My Tickets (`/tickets`) | Own / read and query | 403 | 403 | Unauthenticated → Login; wrong role → safe 403 |
+| Requester Ticket Detail (`/tickets/:id`) | Own / read with permitted attachment, comment, and resolution actions | 403 on Requester route | 403 on Requester route | Unauthenticated → Login; non-owner or wrong role → safe 404/403 per API contract |
+| Staff Queue (`/staff/tickets`) | 403 | All / read and open detail | All / read-only | Unauthenticated → Login; wrong role → safe 403 |
+| Staff Ticket Detail (`/staff/tickets/:id`) | 403 | All / edit owner, IT Priority, status, comments, and notes | All / read-only; no Staff mutation or attachment download controls | Unauthenticated → Login; wrong role → safe 403 |
+| User Management (`/admin/users`) | 403 | 403 | Own session / edit scoped user fields | Unauthenticated → Login; wrong role → safe 403 |
+
+The UI must not render unauthorized navigation destinations or mutation
+controls, but direct navigation must still reach the safe forbidden/not-found
+state and the corresponding API request must be rejected by the backend.
+
 ## 3. Screen state matrix
 
 | Screen | Initial/loading | Valid/normal | Empty/no-results | Validation | Saving/success | Failure/forbidden |

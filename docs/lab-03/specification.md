@@ -108,7 +108,7 @@ Only IT Staff performs formal transitions. Administrator is read-only; Requester
 
 ## 6. UI Specification Summary
 
-The UI keeps the Zen Green reusable component language and provides Login, Change Password, an authenticated role-aware shell, the Lab 2 Requester screens, the IT Staff Queue and Detail screens, and Administrator User Management. Each screen defines loading, validation, success, empty/no-results, forbidden, not-found, conflict, and API-failure states. Navigation and content are role-scoped, and the layout must remain usable at 1280 px, 768 px, and 375 px with keyboard and accessibility support.
+The UI keeps the Zen Green reusable component language and provides Login, Change Password, an authenticated role-aware shell, the Lab 2 Requester screens, the IT Staff Queue and Detail screens, and Administrator User Management. Each screen defines loading, validation, success, empty/no-results, forbidden, not-found, conflict, and API-failure states. Navigation and content are role-scoped by the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix), and the layout must remain usable at 1280 px, 768 px, and 375 px with keyboard and accessibility support.
 
 The detailed screen state matrix, responsive behavior, tokens, and accessibility requirements are in [`ui-spec.md`](./ui-spec.md). This summary is the UI Specification required by the Lab sheet; the linked document is the implementation reference.
 

@@ -11,7 +11,7 @@ This is the pre-implementation test contract for Issue 1. Feature issues may add
 - **E2E:** Playwright Chromium for login/change-password, Requester regression, Staff workflow, Administrator management, cross-role denial, and responsive screenshots.
 - **Security/regression:** Explicit direct-API, session, CSRF-Origin, requesterId-tampering, cross-owner, Internal Note leakage, and Lab 2 data-preservation cases.
 
-The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for authorization tests. Each method/path row must have an allowed-role case and a wrong-role/unauthenticated case where applicable.
+The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for API authorization tests, and the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix) is the canonical source for route-guard tests. Each endpoint and screen row must have an allowed-role case and a wrong-role/unauthenticated case where applicable.
 
 ## 2. Required repository paths
 
@@ -92,6 +92,7 @@ owns final integration and submission evidence.
 - Attachment metadata has a dedicated authorization case for `GET /api/attachments/:id`: verify the safe metadata projection for the Requester owner, IT Staff, and Administrator; safe `404` for a different Requester owner; metadata remains readable after soft removal; and no file bytes or unrelated fields are returned.
 - IT Staff can read queue/detail and write allowed workflow/comments/notes but cannot manage users.
 - Administrator can read tickets/comments/notes/resolution but receives 403 for Staff mutations.
+- Every screen/route in the UI authorization matrix has a role-allowed route-guard case, a wrong-role safe 403 case, and an unauthenticated redirect case; `mustChangePassword` users are blocked from normal screens until Change Password succeeds.
 - Existing Lab 2 create/list/detail/attachment tests pass with session identity.
 
 ### Queue query and pagination
