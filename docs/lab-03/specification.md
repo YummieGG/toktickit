@@ -74,8 +74,8 @@ Self-registration, password recovery email/MFA/SSO, account deletion, bulk impor
 
 ### Data and migration rules
 
-- **BR-08:** `RequesterUser` evolves to `User`; existing IDs, ticket ownership, attachments, reference data, and timestamps are preserved. Existing users become active/inactive Requesters according to the existing value.
-- **BR-09:** Seed is idempotent. Local development uses `SEED_INITIAL_PASSWORD` from an uncommitted `.env`; it is hashed before insertion, never returned, logged, emailed, or committed. Existing password hashes are not overwritten.
+- **BR-08:** `RequesterUser` evolves to `User`; existing IDs, ticket ownership, attachments, reference data, and timestamps are preserved. Existing users become active/inactive Requesters according to the existing value. For each migrated user whose `passwordHash` is null, an application-level backfill reads `SEED_INITIAL_PASSWORD`, validates it against BR-02, stores only its scrypt hash, and sets `mustChangePassword=true`. Existing non-null password hashes and their password-change state are preserved.
+- **BR-09:** Seed and password backfill are idempotent. Local development uses `SEED_INITIAL_PASSWORD` from an uncommitted `.env`; it is hashed before insertion/backfill, never returned, logged, emailed, or committed. If the variable is missing or invalid, the operation fails before committing any user changes. Inactive migrated users remain inactive and cannot log in until reactivated.
 - **BR-10:** Deactivating or changing the role of a ticket owner runs in one transaction and unassigns affected tickets (`ownerId=null`). Only active IT Staff or Administrator users can be assigned.
 - **BR-11:** There must always be at least one active Administrator; an Administrator cannot deactivate themself.
 
@@ -104,6 +104,7 @@ Only IT Staff performs formal transitions. Administrator is read-only; Requester
 - **BR-18:** Each User has exactly one permitted role: `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR`. Multiple roles and role history are out of scope.
 - **BR-19:** Each Ticket has zero or one primary owner. An owner must be an active IT Staff or Administrator; a new Ticket may remain unassigned. Deactivation or role changes that make an owner ineligible unassign the Ticket transactionally.
 - **BR-20:** `IT Priority` initially copies the Requester’s `Requested Priority` at Ticket creation and is stored separately thereafter. Requester endpoints cannot change it; mutation permissions follow the approved endpoint matrix.
+- **BR-21:** Ticket collections use offset pagination with `page` (default `1`) and `pageSize` (`5`, `10`, or `20`; default `10`). Responses include `page`, `pageSize`, `totalItems`, `totalPages`, `hasNextPage`, and `hasPreviousPage`; invalid values return `400 INVALID_QUERY`, and an out-of-range page returns `200` with an empty collection.
 
 ## 6. UI Specification Summary
 
@@ -121,13 +122,13 @@ The detailed screen state matrix, responsive behavior, tokens, and accessibility
 
 Seed data must be idempotent and include at least four active Requesters, one inactive Requester, three active IT Staff, one inactive IT Staff, one active Administrator, realistic Tickets distributed across statuses/priorities and assigned or unassigned owners, and non-sensitive Public Comments/Internal Notes.
 
-Migration must be non-destructive, preserve existing IDs and ownership, and be safe to run more than once in development. The migration and seed evidence required for these changes are defined in [`tests.md`](./tests.md).
+Migration must be non-destructive, preserve existing IDs and ownership, and be safe to run more than once in development. Schema changes run first; an application-level, transactional password backfill then handles legacy users with no hash. The backfill never overwrites an existing hash, rolls back on a missing/invalid `SEED_INITIAL_PASSWORD`, and is safe to rerun. The migration and seed evidence required for these changes are defined in [`tests.md`](./tests.md).
 
 ## 8. API Contract
 
 The exact REST paths, payloads, error contract, status codes, authentication behavior, endpoint authorization matrix, and queue query rules are in [`api-spec.md`](./api-spec.md). The endpoint matrix in Appendix A is a compact cross-document view; `api-spec.md` is the canonical implementation contract.
 
-Every acceptance criterion is mapped to a planned test path in [`tests.md`](./tests.md), including migration, security, authorization, and Lab 2 regression coverage.
+Every acceptance criterion is mapped to a planned test path and its owning implementation issue in [`tests.md`](./tests.md), including migration, security, authorization, and Lab 2 regression coverage.
 
 ## 9. Acceptance Criteria
 
@@ -157,9 +158,10 @@ The following decisions close the implementation choices identified during the I
 - **Authentication/session:** Use an opaque, random, server-side session token in an `HttpOnly` `tt_session` cookie with an eight-hour expiry. Store only its hash and revoke it according to BR-06.
 - **Login-attempt policy:** Key attempts by normalized email and an HMAC of client IP; five failures in 15 minutes trigger a 15-minute cooldown with a non-enumerating response.
 - **Password policy:** Apply the shared 12–128 character complexity rule and asynchronous `crypto.scrypt` parameters in BR-02/BR-03.
-- **Migration and seed:** Preserve Lab 2 IDs and ownership, run a non-destructive/idempotent migration, and source the development seed password from `SEED_INITIAL_PASSWORD` in an uncommitted environment file.
+- **Migration and seed:** Preserve Lab 2 IDs and ownership, run a non-destructive/idempotent schema migration, and run a transactional application backfill for legacy users with no hash. Source the initial password from `SEED_INITIAL_PASSWORD` in an uncommitted environment file, hash it with the shared scrypt policy, set `mustChangePassword=true` only for users receiving the backfilled password, and never overwrite an existing hash.
 - **Requester identity:** Derive identity only from the authenticated session; remove the Development Requester selector and reject or ignore client-supplied `requesterId`.
 - **Staff queue:** Use the API contract’s server-side search, filters, sorting, pagination, and safe empty/no-results behavior as the single query rule for the full ticket queue.
+- **Queue pagination:** Use offset metadata (`page`, `pageSize`, `totalItems`, `totalPages`, `hasNextPage`, and `hasPreviousPage`), return an empty page for an out-of-range request, and apply `id desc` as the deterministic secondary sort key.
 - **Status and resolution:** Implement only the BR-13 transition matrix. “Problem Appears Resolved” is an idempotent nullable timestamp, does not change formal status, and is cleared on Reopened.
 - **Attachment access:** Use the selected metadata-only Administrator policy: Requester owners have full attachment operations, IT Staff can read metadata/download, and Administrators can read metadata but cannot download or mutate.
 - **Role separation:** Administrators have read-only ticket oversight and never inherit IT Staff mutations; backend authorization remains authoritative over UI guards.

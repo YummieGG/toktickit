@@ -20,6 +20,7 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 ### Server
 
 - `server/tests/lab-03/auth.api.test.ts`
+- `server/tests/lab-03/migration-seed.api.test.ts`
 - `server/tests/lab-03/authorization.api.test.ts`
 - `server/tests/lab-03/staff-queue.api.test.ts`
 - `server/tests/lab-03/staff-ticket-detail.api.test.ts`
@@ -50,22 +51,26 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 
 ## 3. Acceptance-criterion traceability
 
-| AC | Planned evidence |
-|---|---|
-| AC-01 | Migration integration tests; Lab 2 API regression suites |
-| AC-02 | Seed integration/idempotency tests and database count assertions |
-| AC-03 | `auth.api.test.ts`, Login UI tests, `authentication.spec.ts` |
-| AC-04 | Auth API and Change Password UI/E2E tests |
-| AC-05 | Password policy/hash unit tests; auth API secret-redaction assertions |
-| AC-06 | Existing Lab 2 tests plus `authorization.api.test.ts`, requester E2E |
-| AC-07 | Resolution API/UI tests and Staff/Admin detail assertions |
-| AC-08 | `staff-queue.api.test.ts`, `StaffTicketQueue.test.tsx`, staff E2E/responsive screenshots |
-| AC-09 | `staff-ticket-detail.api.test.ts`, `StaffTicketDetail.test.tsx`, staff E2E |
-| AC-10 | `comments-notes.api.test.ts`, detail UI tests, requester leakage E2E |
-| AC-11 | `users-admin.api.test.ts`, `UserManagement.test.tsx`, `user-administration.spec.ts` |
-| AC-12 | Authorization API tests, route-guard UI tests, cross-role E2E |
-| AC-13 | All server/client/E2E commands and final test-result table in this file |
-| AC-14 | `visual-style.test.tsx`, Playwright 1280/768/375 checks, accessibility assertions, and screenshot paths above |
+Every AC is linked both to planned evidence and to the implementation issue(s)
+that own the behavior. Issue #43 owns cross-cutting verification; Issue #44
+owns final integration and submission evidence.
+
+| AC | Planned evidence | Implementation issue(s) |
+|---|---|---|
+| AC-01 | `migration-seed.api.test.ts` verifies schema migration, legacy-user mapping, ownership preservation, and password backfill; Lab 2 API regression suites | [#39](https://github.com/YummieGG/toktickit/issues/39), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-02 | `migration-seed.api.test.ts` verifies seed counts, idempotency, non-overwrite behavior, and secret handling | [#39](https://github.com/YummieGG/toktickit/issues/39), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-03 | `auth.api.test.ts`, Login UI tests, `authentication.spec.ts` | [#39](https://github.com/YummieGG/toktickit/issues/39), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-04 | Auth API and Change Password UI/E2E tests | [#39](https://github.com/YummieGG/toktickit/issues/39), [#40](https://github.com/YummieGG/toktickit/issues/40) |
+| AC-05 | Password policy/hash unit tests; auth API secret-redaction assertions | [#39](https://github.com/YummieGG/toktickit/issues/39), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-06 | Existing Lab 2 tests plus `authorization.api.test.ts`, requester E2E | [#40](https://github.com/YummieGG/toktickit/issues/40), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-07 | Resolution API/UI tests and Staff/Admin detail assertions | [#40](https://github.com/YummieGG/toktickit/issues/40), [#41](https://github.com/YummieGG/toktickit/issues/41), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-08 | `staff-queue.api.test.ts`, `StaffTicketQueue.test.tsx`, staff E2E/responsive screenshots | [#41](https://github.com/YummieGG/toktickit/issues/41), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-09 | `staff-ticket-detail.api.test.ts`, `StaffTicketDetail.test.tsx`, staff E2E | [#41](https://github.com/YummieGG/toktickit/issues/41), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-10 | `comments-notes.api.test.ts`, detail UI tests, requester leakage E2E | [#41](https://github.com/YummieGG/toktickit/issues/41), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-11 | `users-admin.api.test.ts`, `UserManagement.test.tsx`, `user-administration.spec.ts` | [#42](https://github.com/YummieGG/toktickit/issues/42), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-12 | Authorization API tests, route-guard UI tests, cross-role E2E | [#40](https://github.com/YummieGG/toktickit/issues/40), [#41](https://github.com/YummieGG/toktickit/issues/41), [#42](https://github.com/YummieGG/toktickit/issues/42), [#43](https://github.com/YummieGG/toktickit/issues/43) |
+| AC-13 | All server/client/E2E commands and final test-result table in this file | [#43](https://github.com/YummieGG/toktickit/issues/43), [#44](https://github.com/YummieGG/toktickit/issues/44) |
+| AC-14 | `visual-style.test.tsx`, Playwright 1280/768/375 checks, accessibility assertions, and screenshot paths above | [#40](https://github.com/YummieGG/toktickit/issues/40), [#41](https://github.com/YummieGG/toktickit/issues/41), [#42](https://github.com/YummieGG/toktickit/issues/42), [#43](https://github.com/YummieGG/toktickit/issues/43) |
 
 ## 4. Minimum case matrix
 
@@ -74,6 +79,13 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 - Valid active login; invalid password; unknown email; inactive account; five failures/cooldown boundary; cooldown expiry; logout; expired/revoked session; refresh bootstrap; mandatory password change; invalid password; secret redaction; invalid Origin; safe 401/403/404.
 - Multiple sessions; current-session logout only; password change/reset/deactivation revokes all sessions; role/email changes are transactional.
 
+### Migration and seed
+
+- Start from a Lab 2 database containing Requester rows without password hashes; run the schema migration and application backfill with `SEED_INITIAL_PASSWORD`, then assert IDs, ticket/attachment ownership, active state, scrypt-formatted hashes, and `mustChangePassword=true` for backfilled users.
+- Authenticate an active migrated Requester with the environment password, require Change Password, and verify the new password clears `mustChangePassword`; an inactive migrated Requester remains blocked with the safe inactive-account response.
+- Rerun migration/backfill and seed to prove idempotency: no duplicate users/reference data are created, and existing non-null password hashes are unchanged.
+- Run with a missing or policy-invalid `SEED_INITIAL_PASSWORD` and assert the operation fails before committing user changes; logs, responses, and persisted data contain no plaintext password.
+
 ### Authorization and Requester regression
 
 - Requester cannot supply another `requesterId`, read another ticket, download/remove another attachment, view Internal Notes, or call Staff/Admin mutations. IT Staff can read/download permitted attachments; Administrator can read metadata but cannot download or mutate attachments.
@@ -81,6 +93,13 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 - IT Staff can read queue/detail and write allowed workflow/comments/notes but cannot manage users.
 - Administrator can read tickets/comments/notes/resolution but receives 403 for Staff mutations.
 - Existing Lab 2 create/list/detail/attachment tests pass with session identity.
+
+### Queue query and pagination
+
+- Requester My Tickets and the Staff Queue default to `page=1` and `pageSize=10`, accept only page sizes 5/10/20, and reject non-integer or less-than-one page values with `400 INVALID_QUERY`.
+- Collection responses expose `page`, `pageSize`, `totalItems`, `totalPages`, `hasNextPage`, and `hasPreviousPage`; zero records produce `totalPages=0` and both navigation flags false.
+- A page beyond `totalPages` returns `200` with an empty `data` array and the requested page in the metadata.
+- Every sort applies `id desc` as a deterministic secondary key so adjacent pages do not duplicate or skip records when sort values tie.
 
 ### Workflow and collaboration
 
