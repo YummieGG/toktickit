@@ -4,6 +4,19 @@
 **Baseline:** Lab 2 requester ticketing MVP
 **Source of truth:** This document, [`api-spec.md`](./api-spec.md), [`ui-spec.md`](./ui-spec.md), and [`tests.md`](./tests.md)
 
+### Issue #39 implementation boundary
+
+Issue #39 delivers only the authentication foundation: the `User`, session,
+and login-attempt data model; non-destructive migration; transactional
+password backfill; idempotent local seed; password policy and scrypt helpers;
+the four `/api/auth` endpoints; and the Login and Change Password screens.
+The requester identity migration, removal of the Lab 2 selector, authenticated
+application shell, backend authorization of existing ticket/attachment routes,
+and role-specific workflows remain owned by the subsequent Lab 3 issues. The
+legacy Lab 2 route behavior therefore remains contract-compatible in this
+issue so that its existing regression tests continue to provide a stable
+baseline.
+
 ## 1. Sprint Goal
 
 Replace the Lab 2 development requester selector with authenticated users and deliver a role-aware IT support workflow. Requesters retain the Lab 2 ticket and attachment experience, IT Staff can process tickets collaboratively, and Administrators can manage user accounts with safe, read-only ticket oversight.

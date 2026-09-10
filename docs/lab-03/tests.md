@@ -1,5 +1,19 @@
 # Lab 3 Test Plan and Traceability
 
+## Issue #39 focused verification boundary
+
+The focused implementation for Issue #39 is limited to password policy and
+hashing, auth session/cooldown APIs, migration/seed behavior, and Login/
+Change Password UI behavior. The remaining planned Lab 3 tests below stay
+`Pending` until their owning issues implement authorization, requester
+migration, staff workflow, or administrator management; they are not evidence
+that those later features are complete.
+
+The Issue #39 migration/seed test path currently verifies the SQL/source
+contract without claiming a PostgreSQL integration run. A clean-database
+migration and seed run still requires the local PostgreSQL service and must be
+recorded separately when that environment is available.
+
 This is the pre-implementation test contract for Issue 1. Feature issues may add focused tests, but the final repository must keep the paths and coverage below (or document an equivalent path). No test may be skipped, disabled, focused-only, flaky, or a placeholder at completion.
 
 ## 1. Test strategy

@@ -24,6 +24,15 @@ content headers. Errors always use:
 
 `fields` is optional. Never return password hashes, initial passwords, session tokens, or whether an unowned protected ticket exists.
 
+### Issue #39 delivery boundary
+
+This issue implements the Authentication section below and its CSRF-Origin
+rule. The ticket, attachment, requester-identity, and role-authorization
+rows describe the target contract for later Lab 3 issues; Issue #39 does not
+change those existing Lab 2 endpoints yet. In particular, it does not claim
+that the current Lab 2 `requesterId` parameter has already been replaced by a
+session identity.
+
 The following names are response-shape aliases used by the endpoint sections:
 
 - `UserProjection`: `{ id, name, email, role, isActive, mustChangePassword }` (used for the authenticated user and Administrator user-management responses).

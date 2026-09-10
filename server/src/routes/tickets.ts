@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { prisma } from '../lib/prisma';
+import { getUserDelegate } from '../lib/user-delegate';
 import { Prisma } from '../../generated/prisma';
 import { generateTicketNumber } from '../lib/ticket-number';
 import {
@@ -413,7 +414,7 @@ ticketsRouter.post('/', handleMultipartUpload, async (req: Request, res: Respons
 
     // Foreign Key existence and isActive checks (BR-05, BR-24, BR-25)
     const [requester, category, system] = await Promise.all([
-      requesterIdInt !== undefined ? prisma.requesterUser.findUnique({ where: { id: requesterIdInt } }) : null,
+      requesterIdInt !== undefined ? getUserDelegate().findUnique({ where: { id: requesterIdInt } }) : null,
       categoryIdInt !== undefined ? prisma.category.findUnique({ where: { id: categoryIdInt } }) : null,
       relatedSystemIdInt !== null ? prisma.relatedSystem.findUnique({ where: { id: relatedSystemIdInt } }) : null
     ]);

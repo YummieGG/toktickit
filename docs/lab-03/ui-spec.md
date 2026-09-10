@@ -1,5 +1,14 @@
 # Lab 3 UI Specification — Zen Green Role-Aware Portal
 
+## Issue #39 delivery boundary
+
+This issue implements the Login and Change Password screens, including
+validation, busy state, safe failure feedback, refresh bootstrap for the
+Change Password route, and mandatory-change routing. The authenticated shell,
+removal of the Lab 2 Development Requester selector, role navigation, and
+protected requester/staff/admin screens are subsequent-issue work and are not
+implemented or claimed here.
+
 ## 1. Shared visual and interaction rules
 
 Keep the Lab 2 Zen Green tokens: primary `#006B3C`, secondary `#0B7A46`, pale green `#EAF6EF`, page background `#F5F7F6`, white surface, dark green text, and red `#C62828` errors. Preserve the existing labels, button hierarchy, required-field asterisks, inline validation placement, focus ring, and attachment rules.

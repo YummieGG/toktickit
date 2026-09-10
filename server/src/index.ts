@@ -6,13 +6,17 @@ import { categoriesRouter } from './routes/categories';
 import { relatedSystemsRouter } from './routes/related-systems';
 import { ticketsRouter } from './routes/tickets';
 import { attachmentsRouter, ticketAttachmentsRouter } from './routes/attachments';
+import { authRouter } from './routes/auth';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.APP_ORIGIN ?? 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -33,6 +37,7 @@ app.use('/api/related-systems', relatedSystemsRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/tickets/:ticketId/attachments', ticketAttachmentsRouter);
 app.use('/api/attachments', attachmentsRouter);
+app.use('/api/auth', authRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
