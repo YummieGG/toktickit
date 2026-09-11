@@ -20,6 +20,16 @@ import { requireTrustedOrigin } from '../middleware/csrf';
 
 export const authRouter = Router();
 
+const authUserSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  isActive: true,
+  mustChangePassword: true,
+  passwordHash: true,
+} as const;
+
 function apiError(
   response: Response,
   status: number,
@@ -60,18 +70,7 @@ authRouter.post('/login', requireTrustedOrigin, async (request: Request, respons
       });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        mustChangePassword: true,
-        passwordHash: true,
-      },
-    });
+    const user = await prisma.user.findUnique({ where: { email }, select: authUserSelect });
 
     const valid = Boolean(
       user?.isActive
@@ -79,7 +78,14 @@ authRouter.post('/login', requireTrustedOrigin, async (request: Request, respons
       && await verifyPassword(password, user.passwordHash),
     );
     if (!valid || !user) {
-      await recordFailedLogin(email, ipHash);
+      const failedLogin = await recordFailedLogin(email, ipHash);
+      if (failedLogin.cooldownUntil && failedLogin.cooldownUntil.getTime() > Date.now()) {
+        const retryAfterSeconds = Math.max(1, Math.ceil((failedLogin.cooldownUntil.getTime() - Date.now()) / 1000));
+        response.setHeader('Retry-After', String(retryAfterSeconds));
+        return apiError(response, 429, 'LOGIN_COOLDOWN', 'Too many attempts. Try again later', {
+          retryAfterSeconds: String(retryAfterSeconds),
+        });
+      }
       return apiError(response, 401, 'INVALID_CREDENTIALS', AUTH_ERROR_MESSAGES.invalidCredentials);
     }
 
@@ -129,18 +135,26 @@ authRouter.post('/change-password', requireTrustedOrigin, requireAuth, async (re
   try {
     const currentUser = await prisma.user.findUnique({
       where: { id: request.auth!.user.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isActive: true,
-        mustChangePassword: true,
-        passwordHash: true,
-      },
+      select: authUserSelect,
     });
     if (!currentUser || !await verifyPassword(currentPassword, currentUser.passwordHash)) {
       return apiError(response, 401, 'CURRENT_PASSWORD_INVALID', 'Current password is incorrect');
+    }
+
+    if (typeof request.body?.confirmPassword !== 'string') {
+      return apiError(response, 400, 'INVALID_PASSWORD', 'Password confirmation is required', {
+        confirmPassword: 'Confirm your new password',
+      });
+    }
+    if (newPassword !== request.body.confirmPassword) {
+      return apiError(response, 400, 'INVALID_PASSWORD', 'New passwords do not match', {
+        confirmPassword: 'Passwords do not match',
+      });
+    }
+    if (await verifyPassword(newPassword, currentUser.passwordHash)) {
+      return apiError(response, 400, 'INVALID_PASSWORD', 'New password must be different from the current password', {
+        newPassword: 'Choose a different password',
+      });
     }
 
     const newHash = await hashPassword(newPassword as string);

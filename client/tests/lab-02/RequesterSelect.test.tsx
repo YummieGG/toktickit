@@ -2,14 +2,16 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from '../../src/App';
 import React from 'react';
+import { authenticatedFetchMock } from '../setup';
 
 // Mock fetch globally
-global.fetch = vi.fn();
+global.fetch = authenticatedFetchMock();
 
 describe('Requester Context Feature', () => {
       
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.restoreAllMocks();
+    global.fetch = authenticatedFetchMock();
     sessionStorage.clear();
     window.history.pushState({}, "", "/");
   });
@@ -21,7 +23,7 @@ describe('Requester Context Feature', () => {
     });
 
     render(<App />);
-    expect(screen.getByText('⚠️ This is for testing only, not actual authentication')).toBeInTheDocument();
+    expect(await screen.findByText('⚠️ This is for testing only, not actual authentication')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByText('Loading requesters...')).not.toBeInTheDocument();
     });
@@ -32,11 +34,15 @@ describe('Requester Context Feature', () => {
       { id: 1, name: 'Somchai Prasert', email: 'somchai@example.com' },
       { id: 2, name: 'Suda Srisawat', email: 'suda@example.com' },
     ];
+    let resolveRequesters: (value: unknown) => void = () => undefined;
+    const requesterPromise = new Promise(resolve => {
+      resolveRequesters = resolve;
+    });
 
     (global.fetch as any).mockImplementation((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/requesters') {
-        return Promise.resolve({ ok: true, json: async () => ({ data: mockRequesters }) });
+        return requesterPromise;
       }
       if (url === '/api/categories') {
         return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
@@ -53,7 +59,9 @@ describe('Requester Context Feature', () => {
     render(<App />);
 
     // Initially loading
-    expect(screen.getByText('Loading requesters...')).toBeInTheDocument();
+    expect(await screen.findByText('Loading requesters...')).toBeInTheDocument();
+
+    resolveRequesters({ ok: true, json: async () => ({ data: mockRequesters }) });
 
     // Wait for fetch to complete and dropdown to appear
     await waitFor(() => {

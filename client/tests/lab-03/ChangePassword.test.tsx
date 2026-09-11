@@ -49,10 +49,35 @@ describe('Issue #39 Change Password screen', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/change-password', expect.objectContaining({
       method: 'POST',
       credentials: 'include',
-      body: JSON.stringify({ currentPassword: 'OldPass#1234', newPassword: 'NewValid#1234' }),
+      body: JSON.stringify({ currentPassword: 'OldPass#1234', newPassword: 'NewValid#1234', confirmPassword: 'NewValid#1234' }),
     })));
     expect(await screen.findByText('Password changed. Please sign in again.')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('OldPass#1234');
     expect(document.body).not.toHaveTextContent('NewValid#1234');
+  });
+
+  it('redirects an unauthenticated direct visit to Login', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required' } }),
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+  });
+
+  it('routes a must-change user away from the legacy root on refresh', async () => {
+    window.history.pushState({}, '', '/');
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: firstLoginUser }),
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Change your password' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/change-password');
   });
 });

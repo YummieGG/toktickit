@@ -7,6 +7,7 @@ export const SESSION_TTL_SECONDS = 8 * 60 * 60;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 export const LOGIN_COOLDOWN_MS = 15 * 60 * 1000;
 export const LOGIN_FAILURE_LIMIT = 5;
+export const AUTH_CLEANUP_BATCH_SIZE = 100;
 
 export const AUTH_ERROR_MESSAGES = {
   invalidCredentials: 'Email or password is incorrect',
@@ -33,7 +34,7 @@ export function userProjection(user: {
   return {
     id: user.id,
     name: user.name,
-    email: user.email,
+    email: canonicalizeEmail(user.email),
     role: user.role,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
@@ -45,12 +46,9 @@ export function sessionTokenHash(token: string): string {
 }
 
 function getIpHmacSecret(): string {
-  const configured = process.env.AUTH_IP_HMAC_SECRET ?? process.env.AUTH_SECRET;
+  const configured = process.env.AUTH_IP_PEPPER;
   if (configured) return configured;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('AUTH_IP_HMAC_SECRET or AUTH_SECRET must be configured in production');
-  }
-  return 'toktickit-local-ip-hmac-secret';
+  throw new Error('AUTH_IP_PEPPER must be configured');
 }
 
 export function privacyPreservingIpKey(ip: string): string {
@@ -100,7 +98,49 @@ export async function createSession(userId: number): Promise<{ token: string; ex
   return { token, expiresAt };
 }
 
+let cleanupPromise: Promise<void> | undefined;
+
+async function cleanupExpiredAuthData(): Promise<void> {
+  const now = new Date();
+  await prisma.$executeRaw`
+    WITH stale_sessions AS (
+      SELECT "id"
+      FROM "UserSession"
+      WHERE "expiresAt" <= ${now} OR "revokedAt" IS NOT NULL
+      ORDER BY "id"
+      LIMIT ${AUTH_CLEANUP_BATCH_SIZE}
+    )
+    DELETE FROM "UserSession"
+    WHERE "id" IN (SELECT "id" FROM stale_sessions)
+  `;
+
+  await prisma.$executeRaw`
+    WITH stale_attempts AS (
+      SELECT "id"
+      FROM "LoginAttempt"
+      WHERE "cooldownUntil" <= ${now}
+         OR ("cooldownUntil" IS NULL AND "windowStartedAt" <= ${new Date(now.getTime() - LOGIN_WINDOW_MS)})
+      ORDER BY "id"
+      LIMIT ${AUTH_CLEANUP_BATCH_SIZE}
+    )
+    DELETE FROM "LoginAttempt"
+    WHERE "id" IN (SELECT "id" FROM stale_attempts)
+  `;
+}
+
+/** Cleanup is best effort and never blocks authentication. */
+export function scheduleAuthCleanup(): void {
+  if (cleanupPromise) return;
+
+  cleanupPromise = cleanupExpiredAuthData()
+    .catch(() => undefined)
+    .finally(() => {
+      cleanupPromise = undefined;
+    });
+}
+
 export async function findSession(request: Request) {
+  scheduleAuthCleanup();
   const token = getCookie(request, SESSION_COOKIE_NAME);
   if (!token) return null;
 
@@ -137,6 +177,7 @@ function loginAttemptWhere(normalizedEmail: string, ipHash: string) {
 }
 
 export async function getLoginCooldownSeconds(normalizedEmail: string, ipHash: string): Promise<number> {
+  scheduleAuthCleanup();
   const attempt = await prisma.loginAttempt.findUnique({
     where: loginAttemptWhere(normalizedEmail, ipHash),
     select: { cooldownUntil: true },
@@ -145,44 +186,63 @@ export async function getLoginCooldownSeconds(normalizedEmail: string, ipHash: s
   return Math.max(0, Math.ceil((attempt.cooldownUntil.getTime() - Date.now()) / 1000));
 }
 
-export async function recordFailedLogin(normalizedEmail: string, ipHash: string): Promise<void> {
-  const now = new Date();
-  const existing = await prisma.loginAttempt.findUnique({
-    where: loginAttemptWhere(normalizedEmail, ipHash),
-    select: { failureCount: true, windowStartedAt: true },
-  });
-  const currentWindow = existing !== null
-    && now.getTime() - existing.windowStartedAt.getTime() < LOGIN_WINDOW_MS;
-  const failureCount = currentWindow ? existing.failureCount + 1 : 1;
-  const cooldownUntil = failureCount >= LOGIN_FAILURE_LIMIT
-    ? new Date(now.getTime() + LOGIN_COOLDOWN_MS)
-    : null;
+export interface FailedLoginState {
+  failureCount: number;
+  cooldownUntil: Date | null;
+}
 
-  await prisma.loginAttempt.upsert({
-    where: loginAttemptWhere(normalizedEmail, ipHash),
-    create: {
-      normalizedEmail,
-      ipHash,
-      failureCount,
-      windowStartedAt: currentWindow ? existing.windowStartedAt : now,
-      cooldownUntil,
-    },
-    update: {
-      failureCount,
-      windowStartedAt: currentWindow ? existing.windowStartedAt : now,
-      cooldownUntil,
-    },
-  });
+export async function recordFailedLogin(normalizedEmail: string, ipHash: string): Promise<FailedLoginState> {
+  const now = new Date();
+  const rows = await prisma.$queryRaw<FailedLoginState[]>`
+    INSERT INTO "LoginAttempt" (
+      "normalizedEmail", "ipHash", "failureCount", "windowStartedAt", "cooldownUntil", "updatedAt"
+    )
+    VALUES (${normalizedEmail}, ${ipHash}, 1, ${now}, NULL, ${now})
+    ON CONFLICT ("normalizedEmail", "ipHash") DO UPDATE
+    SET
+      "failureCount" = CASE
+        WHEN "LoginAttempt"."cooldownUntil" IS NOT NULL
+          AND "LoginAttempt"."cooldownUntil" > EXCLUDED."updatedAt"
+          THEN "LoginAttempt"."failureCount"
+        WHEN EXCLUDED."updatedAt" - "LoginAttempt"."windowStartedAt"
+          < (${LOGIN_WINDOW_MS} * INTERVAL '1 millisecond')
+          THEN "LoginAttempt"."failureCount" + 1
+        ELSE 1
+      END,
+      "windowStartedAt" = CASE
+        WHEN "LoginAttempt"."cooldownUntil" IS NOT NULL
+          AND "LoginAttempt"."cooldownUntil" > EXCLUDED."updatedAt"
+          THEN "LoginAttempt"."windowStartedAt"
+        WHEN EXCLUDED."updatedAt" - "LoginAttempt"."windowStartedAt"
+          < (${LOGIN_WINDOW_MS} * INTERVAL '1 millisecond')
+          THEN "LoginAttempt"."windowStartedAt"
+        ELSE EXCLUDED."windowStartedAt"
+      END,
+      "cooldownUntil" = CASE
+        WHEN "LoginAttempt"."cooldownUntil" IS NOT NULL
+          AND "LoginAttempt"."cooldownUntil" > EXCLUDED."updatedAt"
+          THEN "LoginAttempt"."cooldownUntil"
+        WHEN (
+          CASE
+            WHEN EXCLUDED."updatedAt" - "LoginAttempt"."windowStartedAt"
+              < (${LOGIN_WINDOW_MS} * INTERVAL '1 millisecond')
+              THEN "LoginAttempt"."failureCount" + 1
+            ELSE 1
+          END
+        ) >= ${LOGIN_FAILURE_LIMIT}
+          THEN EXCLUDED."updatedAt" + (${LOGIN_COOLDOWN_MS} * INTERVAL '1 millisecond')
+        ELSE NULL
+      END,
+      "updatedAt" = EXCLUDED."updatedAt"
+    RETURNING "failureCount", "cooldownUntil"
+  `;
+
+  return rows[0] ?? { failureCount: 1, cooldownUntil: null };
 }
 
 export async function clearLoginFailures(normalizedEmail: string, ipHash: string): Promise<void> {
-  const existing = await prisma.loginAttempt.findUnique({
-    where: loginAttemptWhere(normalizedEmail, ipHash),
-    select: { id: true },
-  });
-  if (!existing) return;
-  await prisma.loginAttempt.update({
-    where: { id: existing.id },
+  await prisma.loginAttempt.updateMany({
+    where: { normalizedEmail, ipHash },
     data: { failureCount: 0, windowStartedAt: new Date(), cooldownUntil: null },
   });
 }

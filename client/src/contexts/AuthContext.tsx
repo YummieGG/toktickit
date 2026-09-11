@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 export type UserRole = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
 
@@ -32,7 +32,7 @@ interface AuthContextValue {
   refresh: () => Promise<AuthUser | null>;
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthUser>;
+  changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<AuthUser>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -59,11 +59,9 @@ async function readUser(response: Response): Promise<AuthUser> {
 }
 
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const shouldBootstrap = location.pathname === '/change-password';
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(shouldBootstrap);
+  const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async (): Promise<AuthUser | null> => {
     try {
@@ -82,11 +80,6 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (!shouldBootstrap) {
-      setIsLoading(false);
-      return;
-    }
-
     let cancelled = false;
     setIsLoading(true);
     void refresh().then((nextUser) => {
@@ -97,7 +90,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [navigate, refresh, shouldBootstrap]);
+  }, [navigate, refresh]);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     let response: Response;
@@ -129,14 +122,14 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   }, [navigate]);
 
-  const changePassword = useCallback(async (currentPassword: string, newPassword: string): Promise<AuthUser> => {
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string, confirmPassword: string): Promise<AuthUser> => {
     let response: Response;
     try {
       response = await fetch('/api/auth/change-password', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
       });
     } catch {
       throw new ApiError('NETWORK_ERROR', 'Unable to connect to the server', 0);

@@ -3,15 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { ApiError, useAuth } from '../contexts/AuthContext';
-
-function validateNewPassword(value: string): string | undefined {
-  if (value.length < 12 || value.length > 128) return 'Password must be between 12 and 128 characters';
-  if (/\s|\p{Cc}/u.test(value)) return 'Password must not contain whitespace or control characters';
-  if ([/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((pattern) => pattern.test(value)).length < 3) {
-    return 'Password must contain at least three character classes';
-  }
-  return undefined;
-}
+import { validatePasswordInput } from '../utils/password';
 
 export const ChangePassword: React.FC = () => {
   const { user, isLoading, changePassword } = useAuth();
@@ -34,7 +26,7 @@ export const ChangePassword: React.FC = () => {
 
     const nextErrors: Record<string, string> = {};
     if (!currentPassword) nextErrors.currentPassword = 'Enter your current password';
-    const newPasswordError = validateNewPassword(newPassword);
+    const newPasswordError = validatePasswordInput(newPassword);
     if (newPasswordError) nextErrors.newPassword = newPasswordError;
     if (newPassword !== confirmPassword) nextErrors.confirmPassword = 'Passwords do not match';
     setErrors(nextErrors);
@@ -44,7 +36,7 @@ export const ChangePassword: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await changePassword(currentPassword, newPassword);
+      await changePassword(currentPassword, newPassword, confirmPassword);
       setSuccess(true);
       window.setTimeout(() => navigate('/login', { replace: true }), 700);
     } catch (error) {

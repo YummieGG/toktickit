@@ -62,8 +62,8 @@ npm install
 # 2. Copy the environment variables template
 cp .env.example .env
 
-# 3. Set SEED_INITIAL_PASSWORD in .env to your own local password.
-#    Do not use or commit a shared/example credential.
+# 3. Set SEED_INITIAL_PASSWORD and AUTH_IP_PEPPER in .env to your own
+#    local secret values. Do not use or commit shared/example credentials.
 
 # 4. Apply database migrations and seed initial data
 npx prisma migrate dev

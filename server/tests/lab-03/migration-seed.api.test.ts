@@ -7,6 +7,10 @@ const migrationPath = resolve(
   'prisma/migrations/20260910000000_lab3_auth_foundation/migration.sql',
 );
 const seedPath = resolve(process.cwd(), 'prisma/seed.ts');
+const correctiveMigrationPath = resolve(
+  process.cwd(),
+  'prisma/migrations/20260910010000_canonical_user_email/migration.sql',
+);
 
 describe('Lab 3-2 migration and seed contract', () => {
   it('uses a non-destructive, repeatable migration shape', () => {
@@ -29,5 +33,13 @@ describe('Lab 3-2 migration and seed contract', () => {
     expect(seed).toContain('where: { id, passwordHash: null }');
     expect(seed).toContain('await prisma.$transaction');
     expect(seed).not.toContain('ValidPass#12');
+  });
+
+  it('keeps the historical migration intact and applies canonical email correction separately', () => {
+    const correctiveMigration = readFileSync(correctiveMigrationPath, 'utf8');
+
+    expect(correctiveMigration).toContain('UPDATE "User"');
+    expect(correctiveMigration).toContain('legacy canonical collisions exist');
+    expect(correctiveMigration).toContain('User_email_canonical_check');
   });
 });

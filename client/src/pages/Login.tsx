@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { ApiError, useAuth } from '../contexts/AuthContext';
+import { validatePasswordInput } from '../utils/password';
 
 function validateEmail(value: string): string | undefined {
   if (!value) return 'Enter your email address';
@@ -10,17 +11,8 @@ function validateEmail(value: string): string | undefined {
   return undefined;
 }
 
-function validatePassword(value: string): string | undefined {
-  if (value.length < 12 || value.length > 128) return 'Password must be between 12 and 128 characters';
-  if (/\s|\p{Cc}/u.test(value)) return 'Password must not contain whitespace or control characters';
-  if ([/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((pattern) => pattern.test(value)).length < 3) {
-    return 'Password must contain at least three character classes';
-  }
-  return undefined;
-}
-
 export const Login: React.FC = () => {
-  const { user, login } = useAuth();
+  const { user, isLoading, login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +22,8 @@ export const Login: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user?.mustChangePassword) navigate('/change-password', { replace: true });
+    if (!user) return;
+    navigate(user.mustChangePassword ? '/change-password' : '/', { replace: true });
   }, [navigate, user]);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -40,7 +33,7 @@ export const Login: React.FC = () => {
     const normalizedEmail = email.trim().toLowerCase();
     const nextErrors: Record<string, string> = {};
     const emailError = validateEmail(normalizedEmail);
-    const passwordError = validatePassword(password);
+    const passwordError = validatePasswordInput(password);
     if (emailError) nextErrors.email = emailError;
     if (passwordError) nextErrors.password = passwordError;
     setErrors(nextErrors);
@@ -52,7 +45,7 @@ export const Login: React.FC = () => {
     try {
       const loggedInUser = await login(normalizedEmail, password);
       if (loggedInUser.mustChangePassword) navigate('/change-password', { replace: true });
-      else setSuccess(true);
+      else navigate('/', { replace: true });
     } catch (error) {
       if (error instanceof ApiError && error.code === 'LOGIN_COOLDOWN') {
         setApiError('Too many attempts. Please try again later.');
@@ -104,7 +97,7 @@ export const Login: React.FC = () => {
               {errors.password && <div className="invalid-feedback-custom mt-1" role="alert">{errors.password}</div>}
             </div>
             <div className="d-grid">
-              <Button type="submit" isLoading={isSubmitting}>Sign in</Button>
+              <Button type="submit" isLoading={isSubmitting} disabled={isLoading}>Sign in</Button>
             </div>
           </form>
         </div>

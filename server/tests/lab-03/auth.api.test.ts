@@ -3,6 +3,12 @@ import request from 'supertest';
 import app from '../../src/index';
 import { hashPassword } from '../../src/lib/password';
 import { prisma } from '../../src/lib/prisma';
+import {
+  clearLoginFailures,
+  getLoginCooldownSeconds,
+  privacyPreservingIpKey,
+  recordFailedLogin,
+} from '../../src/lib/auth';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: {
@@ -20,7 +26,10 @@ vi.mock('../../src/lib/prisma', () => ({
       findUnique: vi.fn(),
       upsert: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
+    $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
     $transaction: vi.fn(),
   },
 }));
@@ -45,6 +54,7 @@ describe('Authentication API', () => {
     vi.resetAllMocks();
     vi.mocked(prisma.loginAttempt.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.loginAttempt.upsert).mockResolvedValue({} as never);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ failureCount: 1, cooldownUntil: null }] as never);
     vi.mocked(prisma.userSession.create).mockResolvedValue({ id: 10 } as never);
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => callback(prisma));
   });
@@ -96,8 +106,18 @@ describe('Authentication API', () => {
 
   it('starts a cooldown after five failures and does not enumerate the account', async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null as never);
+    let failureCount = 0;
+    vi.mocked(prisma.$queryRaw).mockImplementation(async () => [{
+      failureCount: ++failureCount,
+      cooldownUntil: failureCount >= 5 ? new Date(Date.now() + 60_000) : null,
+    }] as never);
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      await request(app).post('/api/auth/login').set('Origin', ORIGIN).send({ email: 'unknown@example.com', password });
+      const failed = await request(app)
+        .post('/api/auth/login')
+        .set('Origin', ORIGIN)
+        .send({ email: 'unknown@example.com', password });
+      if (attempt < 4) expect(failed.status).toBe(401);
+      else expect(failed.status).toBe(429);
     }
 
     vi.mocked(prisma.loginAttempt.findUnique).mockResolvedValue({ cooldownUntil: new Date(Date.now() + 60_000) } as never);
@@ -106,6 +126,28 @@ describe('Authentication API', () => {
     expect(response.status).toBe(429);
     expect(response.body.error.code).toBe('LOGIN_COOLDOWN');
     expect(response.body.error.message).not.toContain('unknown@example.com');
+  });
+
+  it.each([
+    ['expired', new Date(Date.now() - 1_000), null],
+    ['revoked', new Date(Date.now() + 60_000), new Date()],
+  ])('rejects an %s session with the safe unauthenticated response', async (_label, expiresAt, revokedAt) => {
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue({
+      id: 10,
+      tokenHash: 'server-only-token-hash',
+      expiresAt,
+      revokedAt,
+      user: activeUser(null),
+    } as never);
+
+    const response = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', 'tt_session=test-session-token');
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({
+      error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' },
+    });
   });
 
   it('returns only the current-user projection from /me and revokes the current session on logout', async () => {
@@ -129,6 +171,7 @@ describe('Authentication API', () => {
       .set('Cookie', 'tt_session=test-session-token');
     expect(logout.status).toBe(204);
     expect(prisma.userSession.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 10 } }));
+    expect(prisma.userSession.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 1 } }));
     expect(logout.headers['set-cookie'][0]).toMatch(/tt_session=; Max-Age=0/);
   });
 
@@ -147,7 +190,7 @@ describe('Authentication API', () => {
       .post('/api/auth/change-password')
       .set('Origin', ORIGIN)
       .set('Cookie', 'tt_session=test-session-token')
-      .send({ currentPassword: password, newPassword: 'NewValid#1234' });
+      .send({ currentPassword: password, newPassword: 'NewValid#1234', confirmPassword: 'NewValid#1234' });
 
     expect(response.status).toBe(200);
     expect(response.body.data.mustChangePassword).toBe(false);
@@ -156,5 +199,73 @@ describe('Authentication API', () => {
       where: { userId: 1, revokedAt: null },
     }));
     expect(response.headers['set-cookie'][0]).toMatch(/tt_session=; Max-Age=0/);
+  });
+
+  it('requires confirmation and rejects reuse of the current password at the API boundary', async () => {
+    const currentHash = await hashPassword(password);
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue({
+      id: 10,
+      tokenHash: 'ignored',
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+      user: activeUser(currentHash),
+    } as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(activeUser(currentHash) as never);
+
+    const missingConfirmation = await request(app)
+      .post('/api/auth/change-password')
+      .set('Origin', ORIGIN)
+      .set('Cookie', 'tt_session=test-session-token')
+      .send({ currentPassword: password, newPassword: 'NewValid#1234' });
+    expect(missingConfirmation.status).toBe(400);
+    expect(missingConfirmation.body.error.fields.confirmPassword).toBeDefined();
+
+    const reused = await request(app)
+      .post('/api/auth/change-password')
+      .set('Origin', ORIGIN)
+      .set('Cookie', 'tt_session=test-session-token')
+      .send({ currentPassword: password, newPassword: password, confirmPassword: password });
+    expect(reused.status).toBe(400);
+    expect(reused.body.error.fields.newPassword).toBe('Choose a different password');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('uses an atomic PostgreSQL upsert and resets only the requested login-attempt key', async () => {
+    const cooldownUntil = new Date(Date.now() + 60_000);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ failureCount: 5, cooldownUntil }] as never);
+
+    const state = await recordFailedLogin('user@example.com', 'hmac-ip-key');
+    expect(state).toEqual({ failureCount: 5, cooldownUntil });
+    const sqlTemplate = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as unknown as string[];
+    expect(sqlTemplate.join('')).toContain('ON CONFLICT ("normalizedEmail", "ipHash") DO UPDATE');
+    expect(sqlTemplate.join('')).toContain('RETURNING "failureCount", "cooldownUntil"');
+
+    await clearLoginFailures('user@example.com', 'hmac-ip-key');
+    expect(prisma.loginAttempt.updateMany).toHaveBeenCalledWith({
+      where: { normalizedEmail: 'user@example.com', ipHash: 'hmac-ip-key' },
+      data: expect.objectContaining({ failureCount: 0, cooldownUntil: null }),
+    });
+  });
+
+  it('distinguishes expired cooldowns and keeps different rate-limit keys independent', async () => {
+    vi.mocked(prisma.loginAttempt.findUnique)
+      .mockResolvedValueOnce({ cooldownUntil: new Date(Date.now() - 1_000) } as never)
+      .mockResolvedValueOnce({ cooldownUntil: new Date(Date.now() + 60_000) } as never);
+
+    expect(await getLoginCooldownSeconds('user@example.com', 'ip-one')).toBe(0);
+    expect(await getLoginCooldownSeconds('user@example.com', 'ip-two')).toBeGreaterThan(0);
+    expect(prisma.loginAttempt.findUnique).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { normalizedEmail_ipHash: { normalizedEmail: 'user@example.com', ipHash: 'ip-one' } },
+    }));
+    expect(prisma.loginAttempt.findUnique).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: { normalizedEmail_ipHash: { normalizedEmail: 'user@example.com', ipHash: 'ip-two' } },
+    }));
+  });
+
+  it('requires the SEC-01 environment pepper instead of using a runtime fallback', () => {
+    const configured = process.env.AUTH_IP_PEPPER;
+    delete process.env.AUTH_IP_PEPPER;
+    expect(() => privacyPreservingIpKey('127.0.0.1')).toThrow('AUTH_IP_PEPPER must be configured');
+    process.env.AUTH_IP_PEPPER = configured;
   });
 });
