@@ -13,6 +13,8 @@ export const SCRYPT_R = 8;
 export const SCRYPT_P = 1;
 export const SCRYPT_SALT_BYTES = 16;
 export const SCRYPT_KEY_BYTES = 32;
+export const DUMMY_PASSWORD_HASH =
+  'scrypt$32768$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 const SCRYPT_MAX_MEMORY = 64 * 1024 * 1024;
 const scryptAsync = promisify(scrypt) as (

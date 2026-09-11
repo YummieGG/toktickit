@@ -17,8 +17,8 @@ export const ChangePassword: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !user) navigate('/login', { replace: true });
-  }, [isLoading, navigate, user]);
+    if (!isLoading && !user && !success) navigate('/login', { replace: true });
+  }, [isLoading, navigate, user, success]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -53,7 +53,7 @@ export const ChangePassword: React.FC = () => {
   };
 
   if (isLoading) return <main className="container py-5 text-center"><h1>Loading...</h1></main>;
-  if (!user) return null;
+  if (!user && !success) return null;
 
   return (
     <main className="container py-5" style={{ maxWidth: '640px' }}>

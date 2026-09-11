@@ -135,7 +135,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       throw new ApiError('NETWORK_ERROR', 'Unable to connect to the server', 0);
     }
     const nextUser = await readUser(response);
-    setUser(nextUser);
+    setUser(null);
     return nextUser;
   }, []);
 

@@ -54,6 +54,7 @@ describe('Issue #39 Change Password screen', () => {
     expect(await screen.findByText('Password changed. Please sign in again.')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('OldPass#1234');
     expect(document.body).not.toHaveTextContent('NewValid#1234');
+    await waitFor(() => expect(window.location.pathname).toBe('/login'), { timeout: 1500 });
   });
 
   it('redirects an unauthenticated direct visit to Login', async () => {

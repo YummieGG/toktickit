@@ -41,6 +41,21 @@ export function userProjection(user: {
   };
 }
 
+export const AUTH_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  isActive: true,
+  mustChangePassword: true,
+  passwordHash: true,
+} as const;
+
+export interface LoginAttemptKey {
+  normalizedEmail: string;
+  ipHash: string;
+}
+
 export function sessionTokenHash(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
 }
@@ -153,15 +168,7 @@ export async function findSession(request: Request) {
       expiresAt: true,
       revokedAt: true,
       user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-          mustChangePassword: true,
-          passwordHash: true,
-        },
+        select: AUTH_USER_SELECT,
       },
     },
   });

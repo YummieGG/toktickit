@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma';
 import {
   AUTH_ERROR_MESSAGES,
+  AUTH_USER_SELECT,
   canonicalizeEmail,
   clearLoginFailures,
   clearSessionCookie,
@@ -14,21 +15,16 @@ import {
   setSessionCookie,
   userProjection,
 } from '../lib/auth';
-import { hashPassword, validatePassword, verifyPassword } from '../lib/password';
+import {
+  DUMMY_PASSWORD_HASH,
+  hashPassword,
+  validatePassword,
+  verifyPassword,
+} from '../lib/password';
 import { requireAuth } from '../middleware/auth';
 import { requireTrustedOrigin } from '../middleware/csrf';
 
 export const authRouter = Router();
-
-const authUserSelect = {
-  id: true,
-  name: true,
-  email: true,
-  role: true,
-  isActive: true,
-  mustChangePassword: true,
-  passwordHash: true,
-} as const;
 
 function apiError(
   response: Response,
@@ -70,13 +66,11 @@ authRouter.post('/login', requireTrustedOrigin, async (request: Request, respons
       });
     }
 
-    const user = await prisma.user.findUnique({ where: { email }, select: authUserSelect });
+    const user = await prisma.user.findUnique({ where: { email }, select: AUTH_USER_SELECT });
 
-    const valid = Boolean(
-      user?.isActive
-      && user.passwordHash
-      && await verifyPassword(password, user.passwordHash),
-    );
+    const targetHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const passwordValid = await verifyPassword(password, targetHash);
+    const valid = Boolean(user && user.isActive && user.passwordHash && passwordValid);
     if (!valid || !user) {
       const failedLogin = await recordFailedLogin(email, ipHash);
       if (failedLogin.cooldownUntil && failedLogin.cooldownUntil.getTime() > Date.now()) {
@@ -135,7 +129,7 @@ authRouter.post('/change-password', requireTrustedOrigin, requireAuth, async (re
   try {
     const currentUser = await prisma.user.findUnique({
       where: { id: request.auth!.user.id },
-      select: authUserSelect,
+      select: AUTH_USER_SELECT,
     });
     if (!currentUser || !await verifyPassword(currentPassword, currentUser.passwordHash)) {
       return apiError(response, 401, 'CURRENT_PASSWORD_INVALID', 'Current password is incorrect');
