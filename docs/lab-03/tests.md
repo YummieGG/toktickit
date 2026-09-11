@@ -41,6 +41,7 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 - `server/tests/lab-03/comments-notes.api.test.ts`
 - `server/tests/lab-03/users-admin.api.test.ts`
 - `server/tests/lab-03/password-policy.unit.test.ts`
+- `server/tests/lab-03/canonical-email.unit.test.ts`
 - `server/tests/lab-03/status-transition.unit.test.ts`
 - `server/tests/lab-03/queue-query.unit.test.ts`
 

@@ -1,21 +1,19 @@
 # Lab 3 — AI Use and Reflection
 
-**LLM/agent used:** OpenAI Codex coding agent (GPT-5-based)
+**LLM/agent used:** OpenAI Codex coding agent (GPT-5-based), with a requested Luna xhigh implementation pass.
 
-## Selected key prompts (6–10)
+## Key prompts used
 
-| # | Prompt (summarised) | What I did with the result |
-|---|---------------------|----------------------------|
-| 1 | Read `PlanLab/PLAN.md` and the related Lab 3 specifications | Used the plan and specifications to identify the required implementation boundary. |
-| 2 | Read and implement GitHub Issue #39 without changing the issue or creating a PR | Used the issue acceptance criteria to guide the User schema, migration, seed, and authentication foundation. |
-| 3 | Add and commit the implementation without pushing | Reviewed the resulting commits and recorded the commit names for the repository owner. |
-| 4 | Cancel the commits and reset when the implementation exceeded Issue #39 scope | Reset to the engineering-contract baseline before reimplementing only the Issue #39 scope. |
-| 5 | Compare the local code with every Issue #39 acceptance criterion | Used the review to identify missing PostgreSQL integration evidence, test boundaries, and deferred follow-up work. |
-| 6 | Fix incomplete or missing Lab 3 specifications | Updated the specification, API, UI, and test documents to distinguish Issue #39 from later Lab 3 issues. |
-| 7 | Implement the authentication foundation and focused tests | Added the User/session/login-attempt schema, migration, seed/backfill, password hashing, auth APIs, Login UI, Change Password UI, and tests. |
-| 8 | Verify the implementation with tests, builds, Prisma checks, and lint | Used the results as evidence while explicitly recording that the configured PostgreSQL integration could not be executed. |
-| 9 | Review the code against the Issue #39 criteria and document the review | Added the reviewer record and listed the remaining findings without claiming full completion. |
+| # | Prompt used | Result / use of the result |
+|---|---|---|
+| 1 | Read `labsheet/md/Lab_03_labsheet.md` and `PlanLab/PLAN.md`, then prepare for the next instruction. | Established the Lab 3 requirements, engineering constraints, and implementation boundary. |
+| 2 | Compare GitHub Issues #38–#44 with `PlanLab/PLAN.md` in detail; use subagents if useful. | Built traceability between the issue sequence, the plan, and the Lab 3 delivery scope. |
+| 3 | Issue #1 is already implemented; determine whether work can continue with Issue #39 using the Lab 3 labsheet. | Confirmed that the existing work could be treated as a dependency and that Issue #39 should continue from the documented baseline. |
+| 4 | Review the local TokTickIT code against Issue #39 from fixed point `lab3-staging`; prepare review-ready changes, with no PR or merge. | Compared standards and acceptance criteria, identified missing auth/test evidence, and recorded the review boundary. |
+| 5 | Read `issue-39-code-review.md`, `PlanLab/PLAN.md`, `specification.md`, `api-spec.md`, and `ui-spec.md`; fix the findings and use Luna at xhigh, without pushing or merging. | Implemented/remediated the User/session/login-attempt foundation, password handling, auth API/UI behavior, migration safeguards, and focused tests while keeping later-issue work separate. |
+| 6 | Teach how to test all work for Issue #39 step by step, including the expected results, and write it as Markdown in `docs/lab-03`. | Produced the testing guides covering unit/API/UI tests, build/lint, migration, seed idempotency, concurrency, cleanup, canonical email, and collision protection. |
+| 7 | Validate the real test outputs and troubleshoot PostgreSQL, Docker, Prisma Studio, login, hash comparison, migration paths, and shell commands; update the guide when a command is wrong. | Verified passing test/build results, corrected documentation mistakes such as the missing `FROM "User"`, wrong migration names, missing `updatedAt`, and incorrect database targets. |
 
 ## Reflection
 
-Using the issue acceptance criteria together with the Lab 3 specifications helped keep the implementation focused on the authentication foundation. Resetting the earlier commits was necessary after the review identified work belonging to later issues. The most important limitation was the unavailable PostgreSQL credentials, so the migration and seed were verified through source-level checks and automated tests but not through a clean database execution. Human review is still required before committing or integrating the changes.
+AI accelerated the review, implementation, and test-documentation work by turning the Lab plan and issue criteria into executable steps. Iterative human verification was essential: real command output exposed documentation and environment mistakes that unit tests alone did not catch. The final scope still requires human judgment, especially for deferred Admin reset/deactivation work and any push or merge decision.

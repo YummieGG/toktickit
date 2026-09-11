@@ -70,6 +70,12 @@ as a deterministic secondary key after the requested sort fields.
 
 State-changing requests must include the configured application `Origin`. A mismatched/missing Origin returns `403 CSRF_ORIGIN_INVALID`; `GET`/`HEAD` are not subject to this check. Production runs with an explicit trusted-proxy configuration; local development does not trust forwarded IP headers.
 
+The server requires `AUTH_IP_PEPPER` to HMAC client IP values before persisting
+login-attempt keys. Failed-attempt increments use one atomic PostgreSQL upsert
+per normalized email/HMAC-IP pair. Auth requests may schedule bounded,
+best-effort cleanup of stale login attempts and expired/revoked sessions;
+cleanup failure must not change the authentication response.
+
 ## 1.1 Endpoint authorization matrix
 
 This table is the canonical method/path-level authorization contract. `Own` means the authenticated Requester owns the referenced Ticket; `All` means all tickets; `Read` means no mutation; `Write` includes the operation described in the endpoint section. Unauthenticated requests receive `401`. An authenticated user with the wrong role receives `403`. For Requester-owned resources, a different owner's resource returns a safe `404`.
@@ -119,7 +125,7 @@ Requires a valid session. Returns `200` with `{ "data": UserProjection }`; never
 
 ### `POST /api/auth/change-password`
 
-Requires a valid session. Body: `{ "currentPassword": string, "newPassword": string }`. Enforces the shared password policy, updates the scrypt hash, clears `mustChangePassword`, and revokes every existing session for that user, including the current session. Returns `200` with `{ "data": UserProjection }`; the client must sign in again to establish a new session. Errors: `400 INVALID_PASSWORD` or `401 CURRENT_PASSWORD_INVALID`.
+Requires a valid session. Body: `{ "currentPassword": string, "newPassword": string, "confirmPassword": string }`. The server requires `newPassword` and `confirmPassword` to match, rejects reuse of the current password, enforces the shared password policy, updates the scrypt hash, clears `mustChangePassword`, and revokes every existing session for that user, including the current session. Returns `200` with `{ "data": UserProjection }`; the client must sign in again to establish a new session. Confirmation mismatch, missing confirmation, policy failure, and password reuse return safe `400 INVALID_PASSWORD` field errors; an incorrect current password returns `401 CURRENT_PASSWORD_INVALID`.
 
 ### Legacy Requester password backfill
 

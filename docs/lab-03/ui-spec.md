@@ -3,11 +3,12 @@
 ## Issue #39 delivery boundary
 
 This issue implements the Login and Change Password screens, including
-validation, busy state, safe failure feedback, refresh bootstrap for the
-Change Password route, and mandatory-change routing. The authenticated shell,
-removal of the Lab 2 Development Requester selector, role navigation, and
-protected requester/staff/admin screens are subsequent-issue work and are not
-implemented or claimed here.
+validation, busy state, safe failure feedback, session bootstrap on refresh,
+ordinary-login continuation, and the minimum route gate required for mandatory
+password change. The role-aware authenticated shell, removal of the Lab 2
+Development Requester selector, role navigation, and role authorization for
+requester/staff/admin screens are subsequent-issue work and are not implemented
+or claimed here.
 
 ## 1. Shared visual and interaction rules
 
@@ -60,7 +61,7 @@ state and the corresponding API request must be rejected by the backend.
 
 | Screen | Initial/loading | Valid/normal | Empty/no-results | Validation | Saving/success | Failure/forbidden |
 |---|---|---|---|---|---|---|
-| Login | Empty fields; submit enabled | Email/password fields | N/A | Inline email/password messages | Busy submit; route to shell or Change Password | Generic invalid-credentials/cooldown banner; preserve fields; retry |
+| Login | Empty fields; session bootstrap; submit disabled only while checking an existing session | Email/password fields | N/A | Inline email/password messages | Busy submit; route to shell or Change Password | Generic invalid-credentials/cooldown banner; preserve fields; retry |
 | Change Password | Password guidance visible | Current/new/confirm fields | N/A | Shared complexity and mismatch messages | Busy submit; success notice then Login for a new session | Safe current-password/API error; preserve non-secret field state appropriately |
 | Shell/bootstrap | App spinner | Role-specific nav and identity | N/A | N/A | Logout busy state | Session expiry redirects to Login with safe notice |
 | Requester Create Ticket | Lab 2 form with active references | Editable fields and attachments | Reference-data empty state | Inline field/file errors | Busy submit; Ticket Number confirmation | Top safe API error; preserve form |

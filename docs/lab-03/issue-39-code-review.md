@@ -9,21 +9,35 @@
 - Review date: 2026-09-10
 - Scope: Git diff `lab3-staging...HEAD`, compared with GitHub Issue #39 and the Lab 3 contract in `docs/lab-03/`
 
-## Verdict
+## Original review verdict
 
-Issue #39 is **partially implemented and is not ready to be marked complete**. The main auth foundation exists: the `User`/session/login-attempt schema, scrypt hashing, cookie session, login/logout/me/change-password endpoints, seed users, and focused tests are present. However, several acceptance criteria are only partial, and the current implementation has security/correctness gaps around concurrent login throttling, canonical-email invariants, first-login enforcement, password-change invariants, and test coverage.
+At reviewed commit `2040fcb`, Issue #39 was **partially implemented and was not ready to be marked complete**. The main auth foundation existed, but several acceptance criteria were only partial and the implementation had security/correctness gaps around concurrent login throttling, canonical-email invariants, first-login enforcement, password-change invariants, and test coverage.
 
 The review intentionally does **not** require Issue #40+ work such as removing the legacy requester selector, implementing the full role matrix, or building Staff/Admin workflows.
 
+## Remediation status (2026-09-11)
+
+R1–R6 have been implemented in the working tree. The minimum Issue #39 route
+gate is intentionally limited to session bootstrap and mandatory-password
+change; role-aware navigation and backend authorization of the legacy Ticket
+routes remain Issue #40 work. No Admin workflow was pulled into this branch.
+
 ## Evidence already verified
 
-- Server tests: `13` files, `121` tests passed.
+- Server tests: `14` files, `130` tests passed.
 - Server build: passed.
-- Client tests: `9` files, `64` tests passed.
+- Client tests: `9` files, `67` tests passed.
 - Client build: passed.
 - Client lint: exit `0`; only existing `react(only-export-components)` warnings were reported.
 - `git diff --check lab3-staging...HEAD`: clean.
-- A clean PostgreSQL migration/seed run was **not verified** because Docker could not start the compose database: the existing stopped container already owns `/toktickit-postgres`. Do not claim clean-DB verification until it has actually been run.
+- Prisma schema validation: passed.
+- Disposable PostgreSQL 15 verification: all four migrations applied from a clean database and a second deploy reported no pending migrations.
+- Seed verification: repeated runs retained exactly 10 users (Requester active 4/inactive 1, IT Staff active 3/inactive 1, Administrator active 1) and the aggregate of stored password hashes did not change.
+- Real PostgreSQL concurrency verification: five parallel failed-login writes returned counts `1,2,3,4,5`; the stored count was `5` and cooldown was set.
+- Real PostgreSQL cleanup verification: bounded cleanup removed the inserted stale login attempt and expired/revoked sessions.
+- Canonical-email verification: PostgreSQL rejected both a noncanonical stored email and a duplicate canonical email.
+- Collision verification: the corrective migration rejected two legacy case-variant emails with its explicit `23505` error and left both user rows unchanged.
+- Working-tree `git diff --check`: clean.
 
 ## Standards
 
@@ -131,13 +145,13 @@ These items are relevant to the wider Lab 3 plan but belong to later issue bound
 
 ## Completion checklist
 
-- [ ] R1 concurrency-safe throttling implemented and tested.
-- [ ] R2 canonical-email invariant and collision behavior implemented and tested.
-- [ ] R3 ordinary-login navigation and mandatory-change gate verified.
-- [ ] R4 server-side password confirmation and no-reuse implemented and tested.
-- [ ] R5 session/security boundary tests added.
-- [ ] R6 secret fallback/cleanup reviewed without leaking sensitive data.
-- [ ] Contract docs match the implementation.
-- [ ] Server/client tests and builds pass.
-- [ ] Real PostgreSQL migration/seed verification is recorded, or explicitly marked blocked.
-- [ ] No Issue #40+ implementation was pulled into this branch.
+- [x] R1 concurrency-safe throttling implemented and tested.
+- [x] R2 canonical-email invariant and collision behavior implemented and tested.
+- [x] R3 ordinary-login navigation and mandatory-change gate verified within the Issue #39 UI boundary.
+- [x] R4 server-side password confirmation and no-reuse implemented and tested.
+- [x] R5 session/security boundary tests added.
+- [x] R6 secret fallback/cleanup reviewed without leaking sensitive data.
+- [x] Contract docs match the implementation.
+- [x] Server/client tests and builds pass.
+- [x] Real PostgreSQL migration/seed verification is recorded above.
+- [x] No Issue #40+ implementation was pulled into this branch.
