@@ -4,6 +4,21 @@
 **Baseline:** Lab 2 requester ticketing MVP
 **Source of truth:** This document, [`api-spec.md`](./api-spec.md), [`ui-spec.md`](./ui-spec.md), and [`tests.md`](./tests.md)
 
+### Issue #39 implementation boundary
+
+Issue #39 delivers only the authentication foundation: the `User`, session,
+and login-attempt data model; non-destructive migration; transactional
+password backfill; idempotent local seed; password policy and scrypt helpers;
+the four `/api/auth` endpoints; and the Login and Change Password screens.
+Issue #39 also adds the minimum session bootstrap and route gate needed to keep
+unauthenticated and `mustChangePassword` users out of the existing legacy
+screens. The requester identity migration, removal of the Lab 2 selector,
+role-aware application shell, backend authorization of existing
+ticket/attachment routes, and role-specific workflows remain owned by the
+subsequent Lab 3 issues. The legacy Lab 2 route behavior therefore remains
+contract-compatible in this issue so that its existing regression tests
+continue to provide a stable baseline.
+
 ## 1. Sprint Goal
 
 Replace the Lab 2 development requester selector with authenticated users and deliver a role-aware IT support workflow. Requesters retain the Lab 2 ticket and attachment experience, IT Staff can process tickets collaboratively, and Administrators can manage user accounts with safe, read-only ticket oversight.
@@ -69,6 +84,7 @@ Self-registration, password recovery email/MFA/SSO, account deletion, bulk impor
 - **BR-03:** Passwords use Node `crypto.scrypt` with `N=32768`, `r=8`, `p=1`, a random 16-byte salt, a 32-byte derived key, an encoded stored value, asynchronous execution, and constant-time comparison.
 - **BR-04:** A session uses an opaque random token stored only as a hash server-side and is sent as `tt_session` with `HttpOnly`, `SameSite=Lax`, `Secure` in production, and an eight-hour expiry. It is never stored in localStorage.
 - **BR-05:** Login attempts are keyed by normalized email plus a privacy-preserving HMAC of client IP. Five failures in 15 minutes start a 15-minute cooldown. Invalid credentials and inactive accounts use the same safe response.
+- **BR-05a:** Failed-attempt increments are atomic for each normalized email/IP-HMAC pair. `AUTH_IP_PEPPER` is required from the server environment, and bounded cleanup of stale login attempts plus expired/revoked sessions runs opportunistically without blocking authentication when cleanup fails.
 - **BR-06:** Logout invalidates only the current session. Password change, Administrator reset, and deactivation revoke all sessions for that user.
 - **BR-07:** An authenticated user is identified only by the session. The client cannot select or override a requester identity.
 

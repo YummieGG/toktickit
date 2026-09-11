@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { prisma } from './prisma';
+import { getUserDelegate, hasUserModelDelegate } from './user-delegate';
 
 export interface ValidationErrorDetail {
   field: string;
@@ -47,12 +47,16 @@ export async function validateActiveRequester(
   requesterId: number,
   res: Response
 ): Promise<boolean> {
-  const requester = await prisma.requesterUser.findUnique({
+  const requester = await getUserDelegate().findUnique({
     where: { id: requesterId },
-    select: { id: true, isActive: true },
+    select: {
+      id: true,
+      isActive: true,
+      ...(hasUserModelDelegate() ? { role: true } : {}),
+    },
   });
 
-  if (!requester || !requester.isActive) {
+  if (!requester || !requester.isActive || (hasUserModelDelegate() && requester.role !== 'REQUESTER')) {
     validationError(res, [{ field: 'requesterId', message: 'Requester not found or is inactive' }]);
     return false;
   }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import App from '../../src/App';
+import { authenticatedFetchMock } from '../setup';
 
 const requester = { id: 7, name: 'Somchai Prasert', email: 'somchai@example.com' };
 const ticket = {
@@ -19,7 +20,7 @@ function jsonResponse(body: unknown, ok = true) {
 }
 
 function mockSuccessfulRequests(totalItems = 12) {
-  global.fetch = vi.fn((input: RequestInfo | URL) => {
+  global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/api/categories') {
       return jsonResponse({ data: [{ id: 2, name: 'Network' }] }) as Promise<Response>;
@@ -44,6 +45,7 @@ describe('My Tickets screen', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
+    await screen.findAllByText('TK-0012');
     expect(screen.getAllByText('TK-0012')).toHaveLength(2);
     expect(screen.getAllByText('VPN access unavailable')).toHaveLength(2);
     expect(screen.getAllByText('Network')).toHaveLength(3);
@@ -96,7 +98,7 @@ describe('My Tickets screen', () => {
       summary: 'Email client setup',
       category: { id: 3, name: 'Software' },
     };
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/categories') {
         return jsonResponse({ data: [ticket.category, softwareTicket.category] }) as Promise<Response>;
@@ -128,7 +130,7 @@ describe('My Tickets screen', () => {
       summary: 'Resolved printer issue',
       currentStatus: 'RESOLVED',
     };
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/categories') {
         return jsonResponse({ data: [ticket.category] }) as Promise<Response>;
@@ -187,7 +189,7 @@ describe('My Tickets screen', () => {
   });
 
   it('moves to the last available page when the requested page disappears', async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/categories') return jsonResponse({ data: [ticket.category] }) as Promise<Response>;
       if (url.includes('page=3')) {
@@ -226,7 +228,7 @@ describe('My Tickets screen', () => {
     const alphaTicket = { ...ticket, id: 20, ticketNumber: 'TK-0020', summary: 'Alpha issue' };
     const zuluTicket = { ...ticket, id: 21, ticketNumber: 'TK-0021', summary: 'Zulu issue', requestedPriority: 'LOW' };
     const pageTwoTicket = { ...ticket, id: 22, ticketNumber: 'TK-0022', summary: 'Page two issue' };
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/categories') return jsonResponse({ data: [{ id: 2, name: 'Network' }] }) as Promise<Response>;
       if (url.includes('search=Alpha')) {
@@ -289,7 +291,7 @@ describe('My Tickets screen', () => {
   });
 
   it('distinguishes empty requester data from filtered no-results', async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       if (String(input) === '/api/categories') return jsonResponse({ data: [] }) as Promise<Response>;
       return jsonResponse({ data: [], pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0 } }) as Promise<Response>;
     });
@@ -307,7 +309,7 @@ describe('My Tickets screen', () => {
 
   it('shows an API failure with a working retry action', async () => {
     let ticketRequests = 0;
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       if (String(input) === '/api/categories') return jsonResponse({ data: [] }) as Promise<Response>;
       ticketRequests += 1;
       if (ticketRequests === 1) return jsonResponse({}, false) as Promise<Response>;
@@ -319,6 +321,9 @@ describe('My Tickets screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findAllByText('TK-0012')).toHaveLength(2);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...', { selector: 'p' })).not.toBeInTheDocument();
+    });
     expect(ticketRequests).toBe(2);
   });
 
@@ -332,7 +337,7 @@ describe('My Tickets screen', () => {
       requestedPriority: 'LOW',
     };
 
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/requesters') {
         return jsonResponse({ data: [requester, requesterB] }) as Promise<Response>;
@@ -359,7 +364,7 @@ describe('My Tickets screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change Requester' }));
     expect(await screen.findByRole('heading', { name: 'Development Login' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/Select Test Requester/), { target: { value: '8' } });
+    fireEvent.change(await screen.findByLabelText(/Select Test Requester/), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(await screen.findByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
@@ -377,7 +382,7 @@ describe('My Tickets screen', () => {
   });
 
   it('preserves user-selected pageSize when clear filters is clicked', async () => {
-    global.fetch = vi.fn((input: RequestInfo | URL) => {
+    global.fetch = authenticatedFetchMock((input: RequestInfo | URL) => {
       const url = String(input);
       if (url === '/api/categories') return jsonResponse({ data: [] }) as Promise<Response>;
       return jsonResponse({

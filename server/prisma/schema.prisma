@@ -18,15 +18,52 @@ enum RequestedPriority {
   CRITICAL
 }
 
-model RequesterUser {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
 
-  tickets   Ticket[]
+model User {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  email              String   @unique
+  isActive           Boolean  @default(true)
+  passwordHash       String?
+  mustChangePassword Boolean  @default(false)
+  role               UserRole @default(REQUESTER)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tickets  Ticket[]
+  sessions UserSession[]
+}
+
+model UserSession {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id              Int       @id @default(autoincrement())
+  normalizedEmail String
+  ipHash          String
+  failureCount    Int       @default(0)
+  windowStartedAt DateTime
+  cooldownUntil   DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([normalizedEmail, ipHash])
+  @@index([cooldownUntil])
 }
 
 model Category {
@@ -35,7 +72,7 @@ model Category {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tickets   Ticket[]
+  tickets Ticket[]
 }
 
 model RelatedSystem {
@@ -44,7 +81,7 @@ model RelatedSystem {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tickets   Ticket[]
+  tickets Ticket[]
 }
 
 model Ticket {
@@ -58,16 +95,16 @@ model Ticket {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  requesterId       Int
-  requester         RequesterUser     @relation(fields: [requesterId], references: [id])
+  requesterId Int
+  requester   User @relation(fields: [requesterId], references: [id])
 
-  categoryId        Int
-  category          Category          @relation(fields: [categoryId], references: [id])
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
 
-  relatedSystemId   Int?
-  relatedSystem     RelatedSystem?    @relation(fields: [relatedSystemId], references: [id])
+  relatedSystemId Int?
+  relatedSystem   RelatedSystem? @relation(fields: [relatedSystemId], references: [id])
 
-  attachments       Attachment[]
+  attachments Attachment[]
 
   @@index([requesterId])
   @@index([currentStatus])
@@ -85,8 +122,8 @@ model Attachment {
   removedAt     DateTime?
   createdAt     DateTime  @default(now())
 
-  ticketId      Int
-  ticket        Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
 }

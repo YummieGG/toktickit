@@ -2,6 +2,7 @@ import { PrismaClient } from '../generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { hashPassword, validatePassword } from '../src/lib/password';
 
 dotenv.config();
 
@@ -10,73 +11,99 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-async function main() {
-  console.log('Start seeding database for Lab 2...');
+const initialUsers = [
+  { name: 'Somchai Prasert', email: 'somchai.p@toktickit.local', role: 'REQUESTER', isActive: true },
+  { name: 'Suda Srisawat', email: 'suda.s@toktickit.local', role: 'REQUESTER', isActive: true },
+  { name: 'Anan Sukjai', email: 'anan.s@toktickit.local', role: 'REQUESTER', isActive: true },
+  { name: 'Kanda Meechai', email: 'kanda.m@toktickit.local', role: 'REQUESTER', isActive: true },
+  { name: 'Wichai Retired', email: 'wichai.r@toktickit.local', role: 'REQUESTER', isActive: false },
+  { name: 'Narin Support', email: 'narin.staff@toktickit.local', role: 'IT_STAFF', isActive: true },
+  { name: 'Pimchanok Support', email: 'pimchanok.staff@toktickit.local', role: 'IT_STAFF', isActive: true },
+  { name: 'Chaiwat Support', email: 'chaiwat.staff@toktickit.local', role: 'IT_STAFF', isActive: true },
+  { name: 'Somsak Former Support', email: 'somsak.staff@toktickit.local', role: 'IT_STAFF', isActive: false },
+  { name: 'Araya Administrator', email: 'araya.admin@toktickit.local', role: 'ADMINISTRATOR', isActive: true },
+] as const;
 
-  // 1. Seed Categories (4 categories)
-  const categories = [
-    'Account and Access',
-    'Hardware',
-    'Software',
-    'Network'
-  ];
+const categories = ['Account and Access', 'Hardware', 'Software', 'Network'];
+const relatedSystems = ['Email', 'Campus Wi-Fi', 'VPN', 'LEB2 App', 'Grade Submission App', 'Printer'];
 
-  console.log('Seeding categories...');
-  for (const categoryName of categories) {
-    const category = await prisma.category.upsert({
-      where: { name: categoryName },
-      update: { isActive: true },
-      create: { name: categoryName, isActive: true },
-    });
-    console.log(`Upserted Category: ${category.name} (id: ${category.id})`);
+async function getInitialPassword(): Promise<string> {
+  const value = process.env.SEED_INITIAL_PASSWORD;
+  if (!value || validatePassword(value)) {
+    throw new Error('SEED_INITIAL_PASSWORD is missing or does not meet the password policy');
+  }
+  return value;
+}
+
+export async function main(): Promise<void> {
+  // Validate and derive every password before opening the write transaction.
+  // Each account gets a fresh salt, including legacy rows being backfilled.
+  const initialPassword = await getInitialPassword();
+  const legacyUsers = await prisma.user.findMany({
+    where: { passwordHash: null },
+    select: { id: true },
+  });
+  const legacyHashes = new Map<number, string>();
+  for (const user of legacyUsers) {
+    legacyHashes.set(user.id, await hashPassword(initialPassword));
   }
 
-  // 2. Seed Related Systems (6 systems from specification.md)
-  const relatedSystems = [
-    'Email',
-    'Campus Wi-Fi',
-    'VPN',
-    'LEB2 App',
-    'Grade Submission App',
-    'Printer'
-  ];
-
-  console.log('Seeding related systems...');
-  for (const systemName of relatedSystems) {
-    const system = await prisma.relatedSystem.upsert({
-      where: { name: systemName },
-      update: { isActive: true },
-      create: { name: systemName, isActive: true },
-    });
-    console.log(`Upserted Related System: ${system.name} (id: ${system.id})`);
+  const initialHashes = new Map<string, string>();
+  for (const user of initialUsers) {
+    initialHashes.set(user.email, await hashPassword(initialPassword));
   }
 
-  // 3. Seed Requester Users (4 active, 1 inactive)
-  const requesters = [
-    { name: 'Somchai Prasert', email: 'somchai.p@toktickit.local', isActive: true },
-    { name: 'Suda Srisawat', email: 'suda.s@toktickit.local', isActive: true },
-    { name: 'Anan Sukjai', email: 'anan.s@toktickit.local', isActive: true },
-    { name: 'Kanda Meechai', email: 'kanda.m@toktickit.local', isActive: true },
-    { name: 'Wichai Retired', email: 'wichai.r@toktickit.local', isActive: false },
-  ];
+  await prisma.$transaction(async (transaction: any) => {
+    for (const categoryName of categories) {
+      await transaction.category.upsert({
+        where: { name: categoryName },
+        update: { isActive: true },
+        create: { name: categoryName, isActive: true },
+      });
+    }
 
-  console.log('Seeding requesters...');
-  for (const req of requesters) {
-    const requester = await prisma.requesterUser.upsert({
-      where: { email: req.email },
-      update: { name: req.name, isActive: req.isActive },
-      create: { name: req.name, email: req.email, isActive: req.isActive },
-    });
-    console.log(`Upserted Requester: ${requester.name} (${requester.isActive ? 'Active' : 'Inactive'}, id: ${requester.id})`);
-  }
+    for (const systemName of relatedSystems) {
+      await transaction.relatedSystem.upsert({
+        where: { name: systemName },
+        update: { isActive: true },
+        create: { name: systemName, isActive: true },
+      });
+    }
 
-  console.log('Seeding finished successfully.');
+    for (const user of initialUsers) {
+      await transaction.user.upsert({
+        where: { email: user.email },
+        update: {
+          name: user.name,
+          role: user.role,
+          isActive: user.isActive,
+        },
+        create: {
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          isActive: user.isActive,
+          passwordHash: initialHashes.get(user.email)!,
+          mustChangePassword: true,
+        },
+      });
+    }
+
+    for (const [id, passwordHash] of legacyHashes) {
+      await transaction.user.updateMany({
+        where: { id, passwordHash: null },
+        data: { passwordHash, mustChangePassword: true },
+      });
+    }
+  });
+
+  console.log(`Seeded ${initialUsers.length} deterministic users and preserved existing password hashes.`);
 }
 
 main()
-  .catch((e) => {
-    console.error('Seeding error:', e);
-    process.exit(1);
+  .catch((error) => {
+    console.error('Seeding failed:', error instanceof Error ? error.message : 'Unexpected error');
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

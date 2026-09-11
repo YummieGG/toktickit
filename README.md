@@ -62,18 +62,33 @@ npm install
 # 2. Copy the environment variables template
 cp .env.example .env
 
-# 3. Apply database migrations and seed initial data
+# 3. Set SEED_INITIAL_PASSWORD and AUTH_IP_PEPPER in .env to your own
+#    local secret values. Do not use or commit shared/example credentials.
+
+# 4. Apply database migrations and seed initial data
 npx prisma migrate dev
 
-# 4. Verify the seed is idempotent (safe to run more than once)
+# 5. Verify the seed is idempotent (safe to run more than once)
 npx prisma db seed
 npx prisma db seed
 
-# 5. Start the backend development server
+# 6. Start the backend development server
 npm run dev
 ```
 
 The backend server will run at `http://localhost:3000`.
+
+The local seed creates deterministic Requester, IT Staff, and Administrator
+accounts. Their initial password is the value you set in the uncommitted
+`server/.env` as `SEED_INITIAL_PASSWORD`; the repository intentionally does
+not publish a usable credential. The seeded sign-in emails are:
+
+- Requesters: `somchai.p@toktickit.local`, `suda.s@toktickit.local`,
+  `anan.s@toktickit.local`, `kanda.m@toktickit.local`, and inactive
+  `wichai.r@toktickit.local`.
+- IT Staff: `narin.staff@toktickit.local`, `pimchanok.staff@toktickit.local`,
+  `chaiwat.staff@toktickit.local`, and inactive `somsak.staff@toktickit.local`.
+- Administrator: `araya.admin@toktickit.local`.
 
 ---
 
