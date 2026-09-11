@@ -24,6 +24,17 @@ describe('Lab 3-2 migration and seed contract', () => {
     expect(migration).not.toMatch(/DROP\s+(TABLE|COLUMN|TYPE)\s+/i);
   });
 
+  it('rejects canonical email collisions before changing legacy rows', () => {
+    const migration = readFileSync(migrationPath, 'utf8');
+    const collisionGuard = migration.indexOf('legacy canonical collisions exist');
+    const canonicalization = migration.indexOf('UPDATE "User"');
+
+    expect(collisionGuard).toBeGreaterThanOrEqual(0);
+    expect(canonicalization).toBeGreaterThan(collisionGuard);
+    expect(migration).toContain('GROUP BY lower(btrim("email"))');
+    expect(migration).toContain("ERRCODE = '23505'");
+  });
+
   it('sources seed credentials from the environment and preserves existing hashes', () => {
     const seed = readFileSync(seedPath, 'utf8');
 

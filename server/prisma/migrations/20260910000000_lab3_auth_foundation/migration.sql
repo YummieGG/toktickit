@@ -31,7 +31,25 @@ BEGIN
 END
 $$;
 
--- Canonicalization is deliberately before any new lookup index is created.
+-- Refuse ambiguous legacy data before touching rows. The historical unique
+-- index may still exist at this point, so an UPDATE alone would fail with a
+-- generic duplicate-key error before the corrective migration can explain
+-- the required manual resolution.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT lower(btrim("email"))
+    FROM "User"
+    GROUP BY lower(btrim("email"))
+    HAVING COUNT(*) > 1
+  ) THEN
+    RAISE EXCEPTION USING
+      ERRCODE = '23505',
+      MESSAGE = 'Cannot canonicalize User.email because legacy canonical collisions exist';
+  END IF;
+END
+$$;
+
 UPDATE "User"
 SET "email" = lower(btrim("email"))
 WHERE "email" <> lower(btrim("email"));
