@@ -17,7 +17,15 @@ export const ChangePassword: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !user && !success) navigate('/login', { replace: true });
+    if (!isLoading && !user && !success) {
+      navigate('/login', {
+        replace: true,
+        state: {
+          from: '/change-password',
+          notice: 'Your session has expired. Please sign in again.',
+        },
+      });
+    }
   }, [isLoading, navigate, user, success]);
 
   const handleSubmit = async (event: React.FormEvent) => {

@@ -21,7 +21,18 @@ function AuthenticatedLegacyRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (isLoading) return <GuardLoading />;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: location.pathname,
+          notice: 'Your session has expired. Please sign in again.',
+        }}
+      />
+    );
+  }
   if (user.mustChangePassword) return <Navigate to="/change-password" replace />;
   return <>{children}</>;
 }

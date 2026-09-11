@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { ApiError, useAuth } from '../contexts/AuthContext';
@@ -14,12 +14,23 @@ function validateEmail(value: string): string | undefined {
 export const Login: React.FC = () => {
   const { user, isLoading, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationNotice =
+    (location.state as { notice?: string } | null)?.notice ??
+    (typeof window !== 'undefined' ? (window.history.state as { notice?: string } | null)?.notice ?? null : null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(locationNotice);
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (locationNotice) {
+      setSessionNotice(locationNotice);
+    }
+  }, [locationNotice]);
 
   useEffect(() => {
     if (!user) return;
@@ -39,6 +50,7 @@ export const Login: React.FC = () => {
     setErrors(nextErrors);
     setApiError(null);
     setSuccess(false);
+    setSessionNotice(null);
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
@@ -63,6 +75,7 @@ export const Login: React.FC = () => {
         <div className="card-body p-4 p-md-5">
           <h1 className="text-center mb-2 text-success fw-bold">TokTickIT</h1>
           <p className="text-center text-muted mb-4">Sign in to your support portal</p>
+          {sessionNotice && !apiError && <Alert variant="warning" role="alert">{sessionNotice}</Alert>}
           {apiError && <Alert>{apiError}</Alert>}
           {success && <Alert variant="success" aria-live="polite">Signed in successfully.</Alert>}
           <form onSubmit={handleSubmit} noValidate>

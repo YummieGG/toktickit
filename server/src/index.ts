@@ -13,6 +13,37 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+export function configureTrustProxy(targetApp: express.Express, env: NodeJS.ProcessEnv = process.env): void {
+  const isProduction = env.NODE_ENV === 'production';
+  const trustProxyConfig = env.TRUST_PROXY;
+
+  if (isProduction) {
+    if (trustProxyConfig !== undefined && trustProxyConfig !== '') {
+      if (trustProxyConfig === 'true') {
+        targetApp.set('trust proxy', true);
+      } else if (trustProxyConfig === 'false') {
+        targetApp.set('trust proxy', false);
+      } else {
+        const numeric = Number(trustProxyConfig);
+        targetApp.set('trust proxy', Number.isNaN(numeric) ? trustProxyConfig : numeric);
+      }
+    } else {
+      targetApp.set('trust proxy', 1);
+    }
+  } else if (trustProxyConfig !== undefined && trustProxyConfig !== '') {
+    if (trustProxyConfig === 'true') {
+      targetApp.set('trust proxy', true);
+    } else if (trustProxyConfig === 'false') {
+      targetApp.set('trust proxy', false);
+    } else {
+      const numeric = Number(trustProxyConfig);
+      targetApp.set('trust proxy', Number.isNaN(numeric) ? trustProxyConfig : numeric);
+    }
+  }
+}
+
+configureTrustProxy(app);
+
 app.use(cors({
   origin: process.env.APP_ORIGIN ?? 'http://localhost:5173',
   credentials: true,

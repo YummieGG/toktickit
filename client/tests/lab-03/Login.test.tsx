@@ -111,4 +111,23 @@ describe('Issue #39 Login screen', () => {
     expect(await screen.findByRole('heading', { name: 'Development Login' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/');
   });
+
+  it('displays a safe notice when navigated to Login with session expiry state', async () => {
+    window.history.pushState({ notice: 'Your session has expired. Please sign in again.' }, '', '/login');
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+
+    render(<App />);
+
+    expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
+  });
+
+  it('redirects an unauthenticated user from protected routes with a safe expiry notice', async () => {
+    window.history.pushState({}, '', '/tickets');
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+
+    render(<App />);
+
+    expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+  });
 });

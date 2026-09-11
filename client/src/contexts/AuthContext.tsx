@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export type UserRole = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
 
@@ -60,6 +60,7 @@ async function readUser(response: Response): Promise<AuthUser> {
 
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -85,12 +86,20 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     void refresh().then((nextUser) => {
       if (cancelled) return;
       setIsLoading(false);
-      if (!nextUser) navigate('/login', { replace: true });
+      if (!nextUser && location.pathname !== '/login') {
+        navigate('/login', {
+          replace: true,
+          state: {
+            from: location.pathname,
+            notice: 'Your session has expired. Please sign in again.',
+          },
+        });
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [navigate, refresh]);
+  }, [location.pathname, navigate, refresh]);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     let response: Response;
