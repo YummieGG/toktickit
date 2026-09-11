@@ -321,6 +321,9 @@ describe('My Tickets screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findAllByText('TK-0012')).toHaveLength(2);
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...', { selector: 'p' })).not.toBeInTheDocument();
+    });
     expect(ticketRequests).toBe(2);
   });
 
@@ -361,7 +364,7 @@ describe('My Tickets screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change Requester' }));
     expect(await screen.findByRole('heading', { name: 'Development Login' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/Select Test Requester/), { target: { value: '8' } });
+    fireEvent.change(await screen.findByLabelText(/Select Test Requester/), { target: { value: '8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(await screen.findByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();

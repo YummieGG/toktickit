@@ -88,7 +88,14 @@ describe('Issue #39 Login screen', () => {
     fireEvent.change(screen.getByLabelText(/Password/), { target: { value: 'ValidPass#12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('heading', { name: 'Change your password' })).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe('/change-password'), { timeout: 5000 });
+    // The full jsdom suite can be under worker load; wait for the route and
+    // rendered screen rather than using the default one-second query timeout.
+    expect(await screen.findByRole(
+      'heading',
+      { name: 'Change your password' },
+      { timeout: 5000 },
+    )).toBeInTheDocument();
   });
 
   it('redirects an already-authenticated user away from Login after refresh bootstrap', async () => {
