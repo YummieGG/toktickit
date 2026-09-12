@@ -286,6 +286,20 @@ describe('Lab 3 requester authorization, comments, and resolution (API-05)', () 
     expect(response.body.error.code).toBe('FORBIDDEN');
     expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
   });
+
+  it('fails closed and returns 403 on GET /api/tickets/:ticketId/comments for unknown or disallowed role', async () => {
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue({
+      ...session(),
+      user: { ...session().user, role: 'UNKNOWN_ROLE' as any },
+    } as never);
+
+    const response = await request(app).get('/api/tickets/8/comments').set('Cookie', cookie);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+    expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
+    expect(prisma.publicComment.findMany).not.toHaveBeenCalled();
+  });
 });
 
 describe('Attachment authorization and metadata-only policy (API-06)', () => {

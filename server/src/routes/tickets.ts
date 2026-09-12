@@ -436,7 +436,10 @@ function normalizeCommentContent(value: unknown): string | null {
 }
 
 // Public comments are part of the shared ticket surface in Issue #40.
-ticketsRouter.get('/:ticketId/comments', async (request: Request, response: Response) => {
+ticketsRouter.get(
+  '/:ticketId/comments',
+  requireRole('REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'),
+  async (request: Request, response: Response) => {
   const details: ValidationErrorDetail[] = [];
   const ticketId = parsePositiveIntegerField(request.params.ticketId, 'ticketId', details, true);
   if (details.length > 0 || ticketId === undefined || ticketId === null) return validationError(response, details);
