@@ -35,8 +35,10 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  tickets  Ticket[]
-  sessions UserSession[]
+  tickets      Ticket[]        @relation("RequesterTickets")
+  ownedTickets Ticket[]        @relation("OwnedTickets")
+  comments     PublicComment[]
+  sessions     UserSession[]
 }
 
 model UserSession {
@@ -85,18 +87,23 @@ model RelatedSystem {
 }
 
 model Ticket {
-  id                Int               @id @default(autoincrement())
-  ticketNumber      String            @unique
-  summary           String
-  description       String
-  requestedPriority RequestedPriority
-  currentStatus     TicketStatus      @default(NEW)
-  ticketDate        DateTime          @default(now())
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id                       Int               @id @default(autoincrement())
+  ticketNumber             String            @unique
+  summary                  String
+  description              String
+  requestedPriority        RequestedPriority
+  itPriority               RequestedPriority
+  currentStatus            TicketStatus      @default(NEW)
+  ticketDate               DateTime          @default(now())
+  problemAppearsResolvedAt DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
 
   requesterId Int
-  requester   User @relation(fields: [requesterId], references: [id])
+  requester   User @relation("RequesterTickets", fields: [requesterId], references: [id])
+
+  ownerId Int?
+  owner   User? @relation("OwnedTickets", fields: [ownerId], references: [id], onDelete: SetNull)
 
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
@@ -105,8 +112,10 @@ model Ticket {
   relatedSystem   RelatedSystem? @relation(fields: [relatedSystemId], references: [id])
 
   attachments Attachment[]
+  comments    PublicComment[]
 
   @@index([requesterId])
+  @@index([ownerId])
   @@index([currentStatus])
   @@index([categoryId])
 }
@@ -126,4 +135,19 @@ model Attachment {
   ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
+}
+
+model PublicComment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
 }

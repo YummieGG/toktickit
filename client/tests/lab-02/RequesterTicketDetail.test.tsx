@@ -54,7 +54,6 @@ describe('Requester Ticket Detail screen', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
-    sessionStorage.setItem('toktickit_requester', JSON.stringify(requester));
     window.history.pushState({}, '', '/tickets/8');
   });
 
@@ -64,8 +63,8 @@ describe('Requester Ticket Detail screen', () => {
 
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/tickets/8?requesterId=7',
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      '/api/tickets/8',
+      expect.objectContaining({ credentials: 'include', signal: expect.any(AbortSignal) })
     );
     expect(screen.getByText('HIGH')).toBeInTheDocument();
     expect(screen.getByText('NEW')).toBeInTheDocument();
@@ -76,7 +75,8 @@ describe('Requester Ticket Detail screen', () => {
     expect(screen.getByText('VPN access unavailable')).toHaveClass('ticket-detail-summary');
     expect(screen.getByText('Somchai Prasert')).toBeInTheDocument();
     expect(screen.getByText('somchai@example.com')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Add a public comment' })).toBeInTheDocument();
+    expect(document.querySelector('.ticket-detail-readonly input')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
 
     const description = document.querySelector('.ticket-detail-description');
@@ -253,7 +253,10 @@ describe('Requester Ticket Detail screen', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
-    await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith('/api/attachments/11/download?requesterId=7'));
+    await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/attachments/11/download',
+      { credentials: 'include' },
+    ));
     expect(createObjectUrl).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download');
@@ -287,6 +290,8 @@ describe('Requester Ticket Detail screen', () => {
       }));
     render(<App />);
 
+    const activeItem = (await screen.findByText(/vpn error screenshot/)).closest('li');
+    expect(activeItem).not.toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
     const dialog = screen.getByRole('dialog', { name: /Remove vpn error screenshot/ });
     expect(dialog).toBeInTheDocument();
@@ -302,12 +307,33 @@ describe('Requester Ticket Detail screen', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith('/api/attachments/11/remove', expect.objectContaining({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requesterId: 7, removalReason: 'Uploaded the wrong screenshot' }),
+      credentials: 'include',
+      body: JSON.stringify({ removalReason: 'Uploaded the wrong screenshot' }),
     })));
-    const removedItem = screen.getByText(/vpn error screenshot/).closest('li');
-    expect(await within(removedItem!).findByText('Removed')).toBeInTheDocument();
-    expect(within(removedItem!).getByText(/Uploaded the wrong screenshot/)).toBeInTheDocument();
-    expect(within(removedItem!).queryByRole('button')).not.toBeInTheDocument();
+    expect(await within(activeItem!).findByText('Removed')).toBeInTheDocument();
+    expect(within(activeItem!).getByText(/Uploaded the wrong screenshot/)).toBeInTheDocument();
+    expect(within(activeItem!).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('does not fabricate a removal timestamp when the server returns 204', async () => {
+    global.fetch = authenticatedFetchMock()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => jsonResponse({}, 204));
+    render(<App />);
+
+    const activeItem = (await screen.findByText(/vpn error screenshot/)).closest('li');
+    expect(activeItem).not.toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    const dialog = screen.getByRole('dialog', { name: /Remove vpn error screenshot/ });
+    fireEvent.change(within(dialog).getByLabelText(/Removal reason/), {
+      target: { value: 'Duplicate screenshot' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Attachment' }));
+
+    expect(await within(activeItem!).findByText('Removed')).toBeInTheDocument();
+    expect(within(activeItem!).getByText('Removed at:').closest('div')).toHaveTextContent(
+      'Removal time unavailable',
+    );
   });
 
   it('represents a missing related system and empty attachments clearly', async () => {
@@ -326,16 +352,6 @@ describe('Requester Ticket Detail screen', () => {
 
     expect(await screen.findByText('Loading...', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-
-  it('returns to requester selection without fetching when requester context is missing', async () => {
-    sessionStorage.clear();
-    global.fetch = authenticatedFetchMock();
-    render(<App />);
-
-    expect(await screen.findByRole('heading', { name: 'Development Login' })).toBeInTheDocument();
-    const requestedUrls = vi.mocked(global.fetch).mock.calls.map(call => String(call[0]));
-    expect(requestedUrls.some(url => url.startsWith('/api/tickets/'))).toBe(false);
   });
 
   it('shows a not-found state without rendering ticket content', async () => {
@@ -370,5 +386,57 @@ describe('Requester Ticket Detail screen', () => {
 
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+  });
+
+  it('submits a public comment and adds it to the comments list', async () => {
+    const newComment = {
+      id: 101,
+      ticketId: 8,
+      content: 'I have tested again and it works.',
+      createdAt: '2026-09-12T10:00:00.000Z',
+      author: { id: 7, name: 'Somchai Prasert', role: 'REQUESTER' },
+    };
+
+    global.fetch = authenticatedFetchMock()
+      .mockImplementationOnce(() => jsonResponse({ data: { ...ticket, comments: [] } }))
+      .mockImplementationOnce(() => jsonResponse({ data: newComment }, 201));
+    render(<App />);
+
+    expect(await screen.findByText('No public comments yet.')).toBeInTheDocument();
+
+    const textarea = screen.getByLabelText('Add a public comment');
+    fireEvent.change(textarea, { target: { value: '  I have tested again and it works.  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }));
+
+    await waitFor(() => expect(screen.getByText('I have tested again and it works.')).toBeInTheDocument());
+    expect(global.fetch).toHaveBeenLastCalledWith('/api/tickets/8/comments', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'I have tested again and it works.' }),
+    }));
+    expect(screen.queryByText('No public comments yet.')).not.toBeInTheDocument();
+  });
+
+  it('submits Problem Appears Resolved and disables the button with reported status', async () => {
+    const resolvedTimestamp = '2026-09-12T10:30:00.000Z';
+    global.fetch = authenticatedFetchMock()
+      .mockImplementationOnce(() => jsonResponse({ data: { ...ticket, problemAppearsResolvedAt: null } }))
+      .mockImplementationOnce(() => jsonResponse({
+        data: { ticketId: 8, problemAppearsResolvedAt: resolvedTimestamp },
+      }));
+    render(<App />);
+
+    const button = await screen.findByRole('button', { name: 'Problem Appears Resolved' });
+    expect(button).toBeEnabled();
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Problem Appears Resolved \(reported\)/ })).toBeDisabled());
+    expect(screen.getByText(/Reported on/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenLastCalledWith('/api/tickets/8/problem-appears-resolved', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+    }));
   });
 });

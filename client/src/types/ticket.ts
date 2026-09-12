@@ -23,6 +23,18 @@ export interface TicketAttachment {
   createdAt: string;
 }
 
+export interface TicketComment {
+  id: number;
+  ticketId: number;
+  content: string;
+  author: {
+    id: number;
+    name: string;
+    role: string;
+  };
+  createdAt: string;
+}
+
 export interface TicketDetail {
   id: number;
   ticketNumber: string;
@@ -35,6 +47,8 @@ export interface TicketDetail {
   relatedSystem: NamedReference | null;
   requester: TicketRequester;
   attachments: TicketAttachment[];
+  comments: TicketComment[];
+  problemAppearsResolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { requestersRouter } from './routes/requesters';
 import { categoriesRouter } from './routes/categories';
 import { relatedSystemsRouter } from './routes/related-systems';
 import { ticketsRouter } from './routes/tickets';
@@ -63,7 +62,6 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/categories', categoriesRouter);
-app.use('/api/requesters', requestersRouter);
 app.use('/api/related-systems', relatedSystemsRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/tickets/:ticketId/attachments', ticketAttachmentsRouter);

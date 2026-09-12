@@ -11,7 +11,6 @@ describe('Create Ticket Feature', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     global.fetch = authenticatedFetchMock();
-    sessionStorage.setItem('toktickit_requester', JSON.stringify({ id: 1, name: 'Somchai Prasert', email: 'somchai@example.com' }));
     window.history.pushState({}, "", "/tickets/create");
   });
 
@@ -375,7 +374,7 @@ describe('Create Ticket Feature', () => {
     expect(formData.get('description')).toBe('Detailed description with padding');
   });
 
-  it('surfaces non-form backend validation errors in danger banner (ui-spec.md §7.6)', async () => {
+  it('renders a structured API error message instead of coercing the error object', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
@@ -383,8 +382,10 @@ describe('Create Ticket Feature', () => {
         ok: false,
         status: 400,
         json: async () => ({
-          error: 'Validation failed',
-          details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }]
+          error: {
+            code: 'REQUESTER_INACTIVE',
+            message: 'Your requester account is inactive',
+          },
         })
       });
 
@@ -403,7 +404,8 @@ describe('Create Ticket Feature', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Requester not found or is inactive/)).toBeInTheDocument();
+      expect(screen.getByText('Your requester account is inactive')).toBeInTheDocument();
+      expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
     });
   });
 });

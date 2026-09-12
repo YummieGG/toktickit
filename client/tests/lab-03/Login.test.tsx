@@ -18,11 +18,11 @@ describe('Issue #39 Login screen', () => {
   });
 
   it('validates fields without sending an incomplete form', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
     render(<App />);
 
-    const submit = screen.getByRole('button', { name: 'Sign in' });
-    await waitFor(() => expect(submit).toBeEnabled());
+    const submit = await screen.findByRole('button', { name: 'Sign in' });
+    expect(submit).toBeEnabled();
     fireEvent.click(submit);
 
     expect(await screen.findByText('Enter your email address')).toBeInTheDocument();
@@ -45,9 +45,6 @@ describe('Issue #39 Login screen', () => {
         authenticated = true;
         return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: activeUser }) });
       }
-      if (url === '/api/requesters') {
-        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) });
-      }
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) });
     });
     render(<App />);
@@ -62,7 +59,7 @@ describe('Issue #39 Login screen', () => {
       credentials: 'include',
       body: JSON.stringify({ email: 'somchai.p@example.com', password: 'ValidPass#12' }),
     })));
-    await waitFor(() => expect(window.location.pathname).toBe('/'));
+    await waitFor(() => expect(window.location.pathname).toBe('/tickets'));
   });
 
   it('routes a first-login user to Change Password', async () => {
@@ -108,8 +105,8 @@ describe('Issue #39 Login screen', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Development Login' })).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/');
+    expect(await screen.findByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/tickets');
   });
 
   it('displays a safe notice when navigated to Login with session expiry state', async () => {
