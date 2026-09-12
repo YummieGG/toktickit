@@ -1,5 +1,13 @@
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type TicketStatus = 'NEW';
+export type TicketStatus =
+  | 'NEW'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'PENDING_REQUESTER'
+  | 'PENDING_VENDOR'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'CANCELLED';
 
 export interface NamedReference {
   id: number;
@@ -23,6 +31,18 @@ export interface TicketAttachment {
   createdAt: string;
 }
 
+export interface TicketComment {
+  id: number;
+  ticketId: number;
+  content: string;
+  author: {
+    id: number;
+    name: string;
+    role: string;
+  };
+  createdAt: string;
+}
+
 export interface TicketDetail {
   id: number;
   ticketNumber: string;
@@ -35,6 +55,8 @@ export interface TicketDetail {
   relatedSystem: NamedReference | null;
   requester: TicketRequester;
   attachments: TicketAttachment[];
+  comments: TicketComment[];
+  problemAppearsResolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

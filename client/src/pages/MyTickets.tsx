@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { useRequester } from '../contexts/RequesterContext';
+import { useAuth } from '../contexts/auth';
 import type { TicketPriority, TicketStatus } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
 
@@ -102,35 +102,25 @@ function getPaginationItems(currentPage: number, totalPages: number): Pagination
 }
 
 async function fetchJson<T>(url: string, signal: AbortSignal, fallbackMessage: string): Promise<T> {
-  const response = await fetch(url, { signal });
+  const response = await fetch(url, { signal, credentials: 'include' });
   if (!response.ok) throw new Error(fallbackMessage);
   return response.json();
 }
 
 export function MyTickets() {
-  const { requester } = useRequester();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
   const [filters, setFilters] = useState<TicketFilterState>(DEFAULT_FILTERS);
   const [searchInput, setSearchInput] = useState('');
-  const [previousRequesterId, setPreviousRequesterId] = useState(requester?.id);
   const [isLoading, setIsLoading] = useState(true);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [ticketError, setTicketError] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
-  const [loadedRequesterId, setLoadedRequesterId] = useState<string | null>(null);
-
-  // Synchronously reset filters and tickets on requester change to prevent stale queries
-  if (requester && requester.id !== previousRequesterId) {
-    setPreviousRequesterId(requester.id);
-    setFilters(DEFAULT_FILTERS);
-    setSearchInput('');
-    setTickets([]);
-    setLoadedRequesterId(null);
-  }
+  const [loadedUserId, setLoadedUserId] = useState<number | null>(null);
 
   const hasCommittedCriteria = Boolean(
     filters.search ||
@@ -141,12 +131,10 @@ export function MyTickets() {
   const hasActiveFilterOrDraft = Boolean(
     hasCommittedCriteria || searchInput.trim()
   );
-  const isCurrentRequesterData = loadedRequesterId === String(requester?.id ?? '');
+  const isCurrentUserData = loadedUserId === user?.id;
 
   const queryString = useMemo(() => {
-    if (!requester) return '';
     const params = new URLSearchParams({
-      requesterId: String(requester.id),
       sortBy: filters.sortBy,
       sortOrder: filters.sortOrder,
       page: String(filters.page),
@@ -157,24 +145,17 @@ export function MyTickets() {
     if (filters.status) params.set('status', filters.status);
     if (filters.priority) params.set('priority', filters.priority);
     return params.toString();
-  }, [requester, filters]);
+  }, [filters]);
 
   useEffect(() => {
-    if (!requester) {
-      navigate('/');
-      return;
-    }
-  }, [requester, navigate]);
-
-  useEffect(() => {
-    if (!requester || !queryString) return;
+    if (!user || !queryString) return;
 
     const controller = new AbortController();
-    const requestRequesterId = String(requester.id);
+    const requestUserId = user.id;
     const loadTickets = async () => {
       setIsLoading(true);
       setTicketError(null);
-      setLoadedRequesterId(null);
+      setLoadedUserId(null);
       try {
         const payload = await fetchJson<{ data: TicketListItem[]; pagination: Pagination }>(
           `/api/tickets?${queryString}`,
@@ -188,12 +169,12 @@ export function MyTickets() {
         }
         setTickets(payload.data ?? []);
         setPagination(nextPagination);
-        setLoadedRequesterId(requestRequesterId);
+        setLoadedUserId(requestUserId);
       } catch (requestError) {
         if ((requestError as Error).name !== 'AbortError') {
           setTickets([]);
           setTicketError((requestError as Error).message || 'Unable to load tickets');
-          setLoadedRequesterId(requestRequesterId);
+          setLoadedUserId(requestUserId);
         }
       } finally {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -202,7 +183,7 @@ export function MyTickets() {
 
     void loadTickets();
     return () => controller.abort();
-  }, [requester, queryString, retryTrigger]);
+  }, [queryString, retryTrigger, user]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -226,7 +207,7 @@ export function MyTickets() {
     };
     void loadCategories();
     return () => controller.abort();
-  }, [requester?.id, retryTrigger]);
+  }, [retryTrigger, user?.id]);
 
   const clearFilters = () => {
     setSearchInput('');
@@ -262,10 +243,10 @@ export function MyTickets() {
         <div>
           <h1 id="my-tickets-title" className="h2 mb-1" style={{ color: 'var(--text-primary)' }}>My Tickets</h1>
           <p className="mb-0" style={{ color: 'var(--text-secondary)' }}>
-            Support requests submitted by {requester?.name}
+            Support requests submitted by {user?.name}
           </p>
         </div>
-        <Link className="btn btn-zen-primary text-white align-self-stretch align-self-md-auto text-center" style={{ minHeight: 44 }} to="/tickets/create">
+        <Link className="btn btn-zen-primary text-white align-self-stretch align-self-md-auto text-center" style={{ minHeight: 44 }} to="/tickets/new">
           Create Ticket
         </Link>
       </div>
@@ -340,21 +321,21 @@ export function MyTickets() {
         </div>
       </div>
 
-      {isCurrentRequesterData && ticketError && (
+      {isCurrentUserData && ticketError && (
         <Alert variant="danger" className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-4">
           <span>{ticketError}</span>
           <Button variant="secondary" type="button" onClick={() => setRetryTrigger(value => value + 1)}>Retry</Button>
         </Alert>
       )}
 
-      {isCurrentRequesterData && categoryError && !ticketError && (
+      {isCurrentUserData && categoryError && !ticketError && (
         <Alert variant="warning" className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-4">
           <span>Failed to load categories. Category filter may be unavailable.</span>
           <Button variant="secondary" type="button" onClick={() => setRetryTrigger(value => value + 1)}>Retry</Button>
         </Alert>
       )}
 
-      {(!isCurrentRequesterData || isLoading) && !ticketError && (
+      {(!isCurrentUserData || isLoading) && !ticketError && (
         <div className="card shadow-sm text-center p-5" aria-live="polite">
           <div className="spinner-border mx-auto mb-3" role="status" style={{ color: 'var(--primary-green)' }}>
             <span className="visually-hidden">Loading...</span>
@@ -363,16 +344,16 @@ export function MyTickets() {
         </div>
       )}
 
-      {isCurrentRequesterData && !isLoading && !ticketError && pagination.totalItems === 0 && !hasCommittedCriteria && (
+      {isCurrentUserData && !isLoading && !ticketError && pagination.totalItems === 0 && !hasCommittedCriteria && (
         <div className="card shadow-sm text-center p-4 p-md-5">
           <div className="empty-state-icon mb-3" aria-hidden="true">📋</div>
           <h2>No Tickets Submitted Yet</h2>
           <p style={{ color: 'var(--text-secondary)' }}>You have not created any IT support requests under this account.</p>
-          <Link className="btn btn-zen-primary text-white align-self-center px-4 w-100 w-md-auto" style={{ minHeight: 44 }} to="/tickets/create">Create Ticket</Link>
+          <Link className="btn btn-zen-primary text-white align-self-center px-4 w-100 w-md-auto" style={{ minHeight: 44 }} to="/tickets/new">Create Ticket</Link>
         </div>
       )}
 
-      {isCurrentRequesterData && !isLoading && !ticketError && pagination.totalItems === 0 && hasCommittedCriteria && (
+      {isCurrentUserData && !isLoading && !ticketError && pagination.totalItems === 0 && hasCommittedCriteria && (
         <div className="card shadow-sm text-center p-4 p-md-5">
           <div className="empty-state-icon mb-3" aria-hidden="true">🔍</div>
           <h2>No Matching Tickets Found</h2>
@@ -381,7 +362,7 @@ export function MyTickets() {
         </div>
       )}
 
-      {isCurrentRequesterData && !isLoading && !ticketError && pagination.totalItems > 0 && (
+      {isCurrentUserData && !isLoading && !ticketError && pagination.totalItems > 0 && (
         <>
           <div className="d-none d-md-block card shadow-sm overflow-hidden" style={{ borderColor: 'var(--surface-border)' }}>
             <div className="table-responsive">

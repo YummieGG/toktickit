@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
-import { ApiError, useAuth } from '../contexts/AuthContext';
+import { ApiError, useAuth } from '../contexts/auth';
 import { validatePasswordInput } from '../utils/password';
 
 function validateEmail(value: string): string | undefined {

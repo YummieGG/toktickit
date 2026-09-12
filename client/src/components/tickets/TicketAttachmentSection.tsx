@@ -14,17 +14,17 @@ interface AttachmentError {
 interface TicketAttachmentSectionProps {
   ticketId: number;
   attachments: TicketAttachment[];
-  requesterId: string | number;
   onUpdateAttachments: (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => void;
 }
 
 const parseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
   try {
     const payload = await response.json() as {
-      error?: string;
+      error?: string | { message?: string };
       details?: Array<{ message?: string }>;
     };
-    return payload.details?.find(detail => detail.message)?.message || payload.error || fallback;
+    const errorMessage = typeof payload.error === 'string' ? payload.error : payload.error?.message;
+    return payload.details?.find(detail => detail.message)?.message || errorMessage || fallback;
   } catch {
     return fallback;
   }
@@ -33,7 +33,6 @@ const parseErrorMessage = async (response: Response, fallback: string): Promise<
 export function TicketAttachmentSection({
   ticketId,
   attachments,
-  requesterId,
   onUpdateAttachments,
 }: TicketAttachmentSectionProps) {
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
@@ -61,10 +60,10 @@ export function TicketAttachmentSection({
     setUploadingFileName(file.name);
     try {
       const formData = new FormData();
-      formData.append('requesterId', String(requesterId));
       formData.append('file', file);
       const response = await fetch(`/api/tickets/${ticketId}/attachments`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       if (!response.ok) {
@@ -89,7 +88,8 @@ export function TicketAttachmentSection({
     setDownloadingAttachmentId(attachment.id);
     try {
       const response = await fetch(
-        `/api/attachments/${attachment.id}/download?requesterId=${encodeURIComponent(String(requesterId))}`
+        `/api/attachments/${attachment.id}/download`,
+        { credentials: 'include' },
       );
       if (!response.ok) throw new Error('File unavailable');
       const blob = await response.blob();
@@ -134,19 +134,30 @@ export function TicketAttachmentSection({
     try {
       const response = await fetch(`/api/attachments/${removalTarget.id}/remove`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requesterId, removalReason: trimmedReason }),
+        body: JSON.stringify({ removalReason: trimmedReason }),
       });
       if (!response.ok) {
         setRemovalError(await parseErrorMessage(response, 'Unable to remove attachment'));
         return;
       }
-      const payload = await response.json() as {
-        data: Pick<TicketAttachment, 'id' | 'isRemoved' | 'removalReason' | 'removedAt'>;
-      };
-      onUpdateAttachments(current => current.map(attachment =>
-        attachment.id === payload.data.id ? { ...attachment, ...payload.data } : attachment
-      ));
+      if (response.status === 204) {
+        onUpdateAttachments(current => current.map(attachment =>
+          attachment.id === removalTarget.id
+            ? { ...attachment, isRemoved: true, removalReason: trimmedReason, removedAt: null }
+            : attachment
+        ));
+      } else {
+        const payload = await response.json() as {
+          data?: Pick<TicketAttachment, 'id' | 'isRemoved' | 'removalReason' | 'removedAt'>;
+        };
+        if (payload.data) {
+          onUpdateAttachments(current => current.map(attachment =>
+            attachment.id === payload.data!.id ? { ...attachment, ...payload.data } : attachment
+          ));
+        }
+      }
       setRemovalTarget(null);
       setRemovalReason('');
     } catch {

@@ -1,5 +1,4 @@
 import type { Response } from 'express';
-import { getUserDelegate, hasUserModelDelegate } from './user-delegate';
 
 export interface ValidationErrorDetail {
   field: string;
@@ -39,27 +38,28 @@ export function validatePositiveIntegerParam(
   return Number(normalized);
 }
 
-export function validationError(res: Response, details: ValidationErrorDetail[]) {
-  return res.status(400).json({ error: 'Validation failed', details });
+export function validationError(
+  res: Response,
+  details: ValidationErrorDetail[],
+  code: 'VALIDATION_ERROR' | 'INVALID_QUERY' | 'INVALID_STATUS_TRANSITION' = 'VALIDATION_ERROR',
+) {
+  return res.status(400).json({
+    error: {
+      code,
+      message: code === 'INVALID_QUERY'
+        ? 'Query is invalid'
+        : code === 'INVALID_STATUS_TRANSITION'
+          ? 'Invalid status transition'
+          : 'Request is invalid',
+      fields: Object.fromEntries(details.map(({ field, message }) => [field, message])),
+    },
+    // Retained for backward compatibility with Lab 2 clients.
+    details,
+  });
 }
 
-export async function validateActiveRequester(
-  requesterId: number,
-  res: Response
-): Promise<boolean> {
-  const requester = await getUserDelegate().findUnique({
-    where: { id: requesterId },
-    select: {
-      id: true,
-      isActive: true,
-      ...(hasUserModelDelegate() ? { role: true } : {}),
-    },
+export function internalError(res: Response) {
+  return res.status(500).json({
+    error: { code: 'INTERNAL_ERROR', message: 'Unable to process the request' },
   });
-
-  if (!requester || !requester.isActive || (hasUserModelDelegate() && requester.role !== 'REQUESTER')) {
-    validationError(res, [{ field: 'requesterId', message: 'Requester not found or is inactive' }]);
-    return false;
-  }
-
-  return true;
 }

@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
-import { ApiError, useAuth } from '../contexts/AuthContext';
+import { ApiError, useAuth } from '../contexts/auth';
 import { validatePasswordInput } from '../utils/password';
 
 export const ChangePassword: React.FC = () => {
-  const { user, isLoading, changePassword } = useAuth();
+  const { user, isLoading, changePassword, logout } = useAuth();
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -15,6 +15,7 @@ export const ChangePassword: React.FC = () => {
   const [apiError, setApiError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user && !success) {
@@ -46,7 +47,11 @@ export const ChangePassword: React.FC = () => {
     try {
       await changePassword(currentPassword, newPassword, confirmPassword);
       setSuccess(true);
-      window.setTimeout(() => navigate('/login', { replace: true }), 700);
+      window.setTimeout(() => {
+        void logout().catch(() => undefined).finally(() => {
+          navigate('/login', { replace: true });
+        });
+      }, 700);
     } catch (error) {
       if (error instanceof ApiError && error.code === 'CURRENT_PASSWORD_INVALID') {
         setApiError('Current password is incorrect.');
@@ -60,6 +65,16 @@ export const ChangePassword: React.FC = () => {
     }
   };
 
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  };
+
   if (isLoading) return <main className="container py-5 text-center"><h1>Loading...</h1></main>;
   if (!user && !success) return null;
 
@@ -67,7 +82,12 @@ export const ChangePassword: React.FC = () => {
     <main className="container py-5" style={{ maxWidth: '640px' }}>
       <div className="card shadow-sm border-0">
         <div className="card-body p-4 p-md-5">
-          <h1 className="mb-2">Change your password</h1>
+          <div className="d-flex flex-column flex-sm-row justify-content-between align-items-sm-start gap-3 mb-2">
+            <h1 className="mb-0">Change your password</h1>
+            <Button variant="tertiary" type="button" isLoading={isLoggingOut} onClick={() => void handleLogout()}>
+              Logout
+            </Button>
+          </div>
           <p className="text-muted">A new password is required before you can use TokTickIT.</p>
           <p className="form-text mb-4">12–128 characters, at least three of lowercase, uppercase, digit, and special characters, with no whitespace.</p>
           {apiError && <Alert>{apiError}</Alert>}

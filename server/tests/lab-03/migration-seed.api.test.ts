@@ -11,6 +11,10 @@ const correctiveMigrationPath = resolve(
   process.cwd(),
   'prisma/migrations/20260910010000_canonical_user_email/migration.sql',
 );
+const authorizationMigrationPath = resolve(
+  process.cwd(),
+  'prisma/migrations/20260912000000_lab3_authorization_requester/migration.sql',
+);
 
 describe('Lab 3-2 migration and seed contract', () => {
   it('uses a non-destructive, repeatable migration shape', () => {
@@ -52,5 +56,18 @@ describe('Lab 3-2 migration and seed contract', () => {
     expect(correctiveMigration).toContain('UPDATE "User"');
     expect(correctiveMigration).toContain('legacy canonical collisions exist');
     expect(correctiveMigration).toContain('User_email_canonical_check');
+  });
+
+  it('adds requester authorization data without replacing Lab 2 records', () => {
+    const migration = readFileSync(authorizationMigrationPath, 'utf8');
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "ownerId"');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "itPriority"');
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "problemAppearsResolvedAt"');
+    expect(migration).toContain('SET "itPriority" = "requestedPriority"');
+    expect(migration).toContain('CREATE TABLE IF NOT EXISTS "PublicComment"');
+    expect(migration).toContain('ON DELETE CASCADE ON UPDATE CASCADE');
+    expect(migration).not.toMatch(/DROP\s+(TABLE|COLUMN|TYPE)\s+/i);
+    expect(migration).not.toMatch(/DELETE\s+FROM\s+"(?:Ticket|Attachment|User)"/i);
   });
 });
