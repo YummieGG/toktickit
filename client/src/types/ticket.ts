@@ -1,5 +1,13 @@
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type TicketStatus = 'NEW';
+export type TicketStatus =
+  | 'NEW'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'PENDING_REQUESTER'
+  | 'PENDING_VENDOR'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'CANCELLED';
 
 export interface NamedReference {
   id: number;

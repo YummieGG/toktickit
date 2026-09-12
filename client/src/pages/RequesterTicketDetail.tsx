@@ -350,11 +350,16 @@ export function RequesterTicketDetail() {
                   Reported on {formatTicketDateTime(ticket.problemAppearsResolvedAt)}. The support team has been notified.
                 </p>
               )}
+              {(ticket.currentStatus === 'CLOSED' || ticket.currentStatus === 'CANCELLED') && !ticket.problemAppearsResolvedAt && (
+                <p className="alert alert-secondary mb-3" role="status">
+                  This ticket is {ticket.currentStatus.toLowerCase()} and can no longer be marked as resolved.
+                </p>
+              )}
               <Button
                 type="button"
                 variant="secondary"
                 isLoading={isSubmittingResolution}
-                disabled={Boolean(ticket.problemAppearsResolvedAt)}
+                disabled={Boolean(ticket.problemAppearsResolvedAt) || ticket.currentStatus === 'CLOSED' || ticket.currentStatus === 'CANCELLED'}
                 onClick={() => void handleResolutionIndication()}
               >
                 {ticket.problemAppearsResolvedAt ? 'Problem Appears Resolved (reported)' : 'Problem Appears Resolved'}

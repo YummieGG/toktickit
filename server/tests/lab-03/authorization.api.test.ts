@@ -360,6 +360,19 @@ describe('Attachment authorization and metadata-only policy (API-06)', () => {
     expect(response.body).toEqual({ error: { code: 'NOT_FOUND', message: 'Resource not found' } });
   });
 
+  it('fails closed and returns 403 on GET /api/attachments/:id for unknown or disallowed role', async () => {
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue({
+      ...session(),
+      user: { ...session().user, role: 'UNKNOWN_ROLE' as any },
+    } as never);
+
+    const response = await request(app).get('/api/attachments/11').set('Cookie', cookie);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+    expect(prisma.attachment.findFirst).not.toHaveBeenCalled();
+  });
+
   it('allows Requester owner and Staff to download active file, but forbids Administrator with 403', async () => {
     fs.writeFileSync(path.join(uploadsDirectory, sampleAttachment.storedName), Buffer.from('png-bytes'));
 

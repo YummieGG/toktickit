@@ -439,4 +439,20 @@ describe('Requester Ticket Detail screen', () => {
       credentials: 'include',
     }));
   });
+
+  it.each(['CLOSED', 'CANCELLED'] as const)(
+    'disables Problem Appears Resolved button and shows status notice when ticket is %s',
+    async status => {
+      global.fetch = authenticatedFetchMock().mockImplementationOnce(() =>
+        jsonResponse({ data: { ...ticket, currentStatus: status, problemAppearsResolvedAt: null } }),
+      );
+      render(<App />);
+
+      const button = await screen.findByRole('button', { name: 'Problem Appears Resolved' });
+      expect(button).toBeDisabled();
+      expect(
+        screen.getByText(new RegExp(`This ticket is ${status.toLowerCase()} and can no longer be marked as resolved`, 'i')),
+      ).toBeInTheDocument();
+    },
+  );
 });

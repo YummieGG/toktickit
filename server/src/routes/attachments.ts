@@ -188,7 +188,10 @@ ticketAttachmentsRouter.post(
 );
 
 // GET /api/attachments/:id — Requester owner, IT Staff, and Administrator.
-attachmentsRouter.get('/:id', async (request: Request, response: Response) => {
+attachmentsRouter.get(
+  '/:id',
+  requireRole('REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'),
+  async (request: Request, response: Response) => {
   const details: ValidationErrorDetail[] = [];
   const attachmentId = parseId(request.params.id, 'id', details);
   if (details.length > 0 || attachmentId === undefined) return validationError(response, details);
