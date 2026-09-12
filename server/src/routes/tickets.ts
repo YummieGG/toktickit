@@ -4,6 +4,7 @@ import { Prisma } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
 import { generateTicketNumber } from '../lib/ticket-number';
 import {
+  ensureTicketAccessible,
   findTicketForUser,
   getAuthenticatedUser,
   sendNotFound,
@@ -33,7 +34,9 @@ export const ticketsRouter = Router();
 
 ticketsRouter.use(requireAuth, requirePasswordChanged);
 
-const TICKET_STATUSES = ['NEW'] as const;
+const REQUESTER_FILTERABLE_STATUSES = ['NEW'] as const;
+const TICKET_STATUSES = REQUESTER_FILTERABLE_STATUSES;
+
 const REQUESTED_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 const TICKET_SORT_FIELDS = [
   'ticketDate',
@@ -290,7 +293,11 @@ ticketsRouter.get('/', requireRole('REQUESTER'), async (request: Request, respon
 });
 
 // GET /api/tickets/:id — Requester owner, IT Staff, and Administrator read.
-ticketsRouter.get('/:id', async (request: Request, response: Response) => {
+ticketsRouter.get(
+  '/:id',
+  requireRole('REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'),
+  async (request: Request, response: Response) => {
+
   const details: ValidationErrorDetail[] = [];
   const ticketId = parsePositiveIntegerField(request.params.id, 'id', details, true);
   if (details.length > 0 || ticketId === undefined || ticketId === null) return validationError(response, details);
@@ -422,15 +429,6 @@ ticketsRouter.post(
   },
 );
 
-async function findAccessibleTicket(user: AuthenticatedUser, ticketId: number, response: Response): Promise<boolean> {
-  const ticket = await findTicketForUser(user, ticketId, { id: true });
-  if (!ticket) {
-    sendNotFound(response);
-    return false;
-  }
-  return true;
-}
-
 function normalizeCommentContent(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().replace(/\r\n?/g, '\n');
@@ -445,7 +443,7 @@ ticketsRouter.get('/:ticketId/comments', async (request: Request, response: Resp
 
   try {
     const user = getAuthenticatedUser(request);
-    if (!(await findAccessibleTicket(user, ticketId, response))) return;
+    if (!(await ensureTicketAccessible(user, ticketId, response))) return;
     const comments = await prisma.publicComment.findMany({
       where: { ticketId },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -479,7 +477,7 @@ ticketsRouter.post(
 
     try {
       const user = getAuthenticatedUser(request);
-      if (!(await findAccessibleTicket(user, ticketId, response))) return;
+      if (!(await ensureTicketAccessible(user, ticketId, response))) return;
       const comment = await prisma.publicComment.create({
         data: { ticketId, content, authorId: user.id },
         select: {
@@ -513,11 +511,19 @@ ticketsRouter.post(
       const user = getAuthenticatedUser(request);
       const ticket = await findTicketForUser(user, ticketId, {
         id: true,
+        currentStatus: true,
         problemAppearsResolvedAt: true,
       });
       if (!ticket) {
         sendNotFound(response);
         return;
+      }
+      if ((ticket.currentStatus as string) === 'CLOSED' || (ticket.currentStatus as string) === 'CANCELLED') {
+        return validationError(
+          response,
+          [{ field: 'status', message: 'Cannot mark a closed or cancelled ticket as resolved' }],
+          'INVALID_STATUS_TRANSITION',
+        );
       }
       if (ticket.problemAppearsResolvedAt) {
         return response.status(200).json({

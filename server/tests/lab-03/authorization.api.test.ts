@@ -229,6 +229,63 @@ describe('Lab 3 requester authorization, comments, and resolution (API-05)', () 
     expect(response.body.error.code).toBe('NOT_FOUND');
     expect(prisma.ticket.updateMany).not.toHaveBeenCalled();
   });
+
+  it.each(['CLOSED', 'CANCELLED'] as const)(
+    'rejects problem-appears-resolved when ticket is already %s',
+    async status => {
+      vi.mocked(prisma.ticket.findFirst).mockResolvedValue({
+        id: 8,
+        currentStatus: status,
+        problemAppearsResolvedAt: null,
+      } as never);
+
+      const response = await request(app)
+        .post('/api/tickets/8/problem-appears-resolved')
+        .set('Cookie', cookie)
+        .set('Origin', origin);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('INVALID_STATUS_TRANSITION');
+      expect(prisma.ticket.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['IT_STAFF', 'ADMINISTRATOR'] as const)(
+    'forbids %s from creating or listing tickets on requester endpoints',
+    async role => {
+      vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session(role, 30) as never);
+
+      const postRes = await request(app)
+        .post('/api/tickets')
+        .set('Cookie', cookie)
+        .set('Origin', origin)
+        .send({
+          categoryId: 1,
+          requestedPriority: 'HIGH',
+          summary: 'Admin cannot create requester ticket',
+          description: 'This operation must return 403 forbidden.',
+        });
+      const getRes = await request(app).get('/api/tickets').set('Cookie', cookie);
+
+      expect(postRes.status).toBe(403);
+      expect(postRes.body.error.code).toBe('FORBIDDEN');
+      expect(getRes.status).toBe(403);
+      expect(getRes.body.error.code).toBe('FORBIDDEN');
+    },
+  );
+
+  it('fails closed and returns 403 on GET /api/tickets/:id for unknown or disallowed role', async () => {
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue({
+      ...session(),
+      user: { ...session().user, role: 'UNKNOWN_ROLE' as any },
+    } as never);
+
+    const response = await request(app).get('/api/tickets/8').set('Cookie', cookie);
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+    expect(prisma.ticket.findFirst).not.toHaveBeenCalled();
+  });
 });
 
 describe('Attachment authorization and metadata-only policy (API-06)', () => {

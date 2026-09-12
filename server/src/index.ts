@@ -12,32 +12,21 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function parseTrustProxyValue(config: string): boolean | number | string {
+  if (config === 'true') return true;
+  if (config === 'false') return false;
+  const numeric = Number(config);
+  return Number.isNaN(numeric) ? config : numeric;
+}
+
 export function configureTrustProxy(targetApp: express.Express, env: NodeJS.ProcessEnv = process.env): void {
   const isProduction = env.NODE_ENV === 'production';
   const trustProxyConfig = env.TRUST_PROXY;
 
-  if (isProduction) {
-    if (trustProxyConfig !== undefined && trustProxyConfig !== '') {
-      if (trustProxyConfig === 'true') {
-        targetApp.set('trust proxy', true);
-      } else if (trustProxyConfig === 'false') {
-        targetApp.set('trust proxy', false);
-      } else {
-        const numeric = Number(trustProxyConfig);
-        targetApp.set('trust proxy', Number.isNaN(numeric) ? trustProxyConfig : numeric);
-      }
-    } else {
-      targetApp.set('trust proxy', 1);
-    }
-  } else if (trustProxyConfig !== undefined && trustProxyConfig !== '') {
-    if (trustProxyConfig === 'true') {
-      targetApp.set('trust proxy', true);
-    } else if (trustProxyConfig === 'false') {
-      targetApp.set('trust proxy', false);
-    } else {
-      const numeric = Number(trustProxyConfig);
-      targetApp.set('trust proxy', Number.isNaN(numeric) ? trustProxyConfig : numeric);
-    }
+  if (trustProxyConfig !== undefined && trustProxyConfig !== '') {
+    targetApp.set('trust proxy', parseTrustProxyValue(trustProxyConfig));
+  } else if (isProduction) {
+    targetApp.set('trust proxy', 1);
   }
 }
 

@@ -91,7 +91,9 @@ function App() {
         <Routes>
           <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
           <Route path="/change-password" element={<PasswordChangeAccess />} />
-          <Route path="/app" element={<ProtectedShell />} />
+          <Route path="/app" element={<ProtectedShell />}>
+            <Route index element={<HomeRedirect />} />
+          </Route>
           <Route path="/" element={<ProtectedShell />}>
             <Route index element={<HomeRedirect />} />
 

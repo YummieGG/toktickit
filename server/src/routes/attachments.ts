@@ -4,8 +4,8 @@ import path from 'path';
 import multer from 'multer';
 import { prisma } from '../lib/prisma';
 import {
+  ensureTicketAccessible,
   findAttachmentForUser,
-  findTicketForUser,
   getAuthenticatedUser,
   sendNotFound,
 } from '../lib/authorization';
@@ -72,15 +72,6 @@ function handleSingleFileUpload(request: Request, response: Response, next: Next
   });
 }
 
-async function hasOwnedTicket(ticketId: number, request: Request, response: Response): Promise<boolean> {
-  const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, { id: true });
-  if (!ticket) {
-    sendNotFound(response);
-    return false;
-  }
-  return true;
-}
-
 async function getAuthorizedAttachment(attachmentId: number, request: Request, response: Response) {
   const attachment = await findAttachmentForUser(getAuthenticatedUser(request), attachmentId, {
     id: true,
@@ -130,7 +121,8 @@ ticketAttachmentsRouter.post(
     if (details.length > 0 || ticketId === undefined) return validationError(response, details);
 
     try {
-      if (!(await hasOwnedTicket(ticketId, request, response))) return;
+      if (!(await ensureTicketAccessible(getAuthenticatedUser(request), ticketId, response))) return;
+
       if (!request.file) return validationError(response, [{ field: 'file', message: 'File is required' }]);
       const fileError = validateAttachmentFile(request.file);
       if (fileError) return validationError(response, [{ field: 'file', message: fileError }]);

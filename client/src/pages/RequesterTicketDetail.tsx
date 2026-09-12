@@ -25,7 +25,17 @@ class TicketDetailRequestError extends Error {
   }
 }
 
+async function extractErrorMessage(response: Response, defaultMessage: string): Promise<string> {
+  try {
+    const payload = await response.json() as { error?: string | { message?: string } };
+    return typeof payload.error === 'string' ? payload.error : payload.error?.message || defaultMessage;
+  } catch {
+    return defaultMessage;
+  }
+}
+
 function ReadOnlyField({ label, children, className = '' }: {
+
   label: string;
   children: ReactNode;
   className?: string;
@@ -67,13 +77,7 @@ export function RequesterTicketDetail() {
           { signal: controller.signal, credentials: 'include' }
         );
         if (!response.ok) {
-          let message = 'Unable to load ticket details';
-          try {
-            const payload = await response.json() as { error?: string | { message?: string } };
-            message = typeof payload.error === 'string' ? payload.error : payload.error?.message || message;
-          } catch {
-            // Keep the safe fallback when the server does not return JSON.
-          }
+          const message = await extractErrorMessage(response, 'Unable to load ticket details');
           throw new TicketDetailRequestError(response.status, message);
         }
 
@@ -131,13 +135,7 @@ export function RequesterTicketDetail() {
           });
           return;
         }
-        let message = 'Unable to report that the problem appears resolved.';
-        try {
-          const payload = await response.json() as { error?: string | { message?: string } };
-          message = typeof payload.error === 'string' ? payload.error : payload.error?.message || message;
-        } catch {
-          // Keep the safe fallback for an empty or non-JSON response.
-        }
+        const message = await extractErrorMessage(response, 'Unable to report that the problem appears resolved.');
         setResolutionError(message);
         return;
       }
@@ -174,13 +172,7 @@ export function RequesterTicketDetail() {
         body: JSON.stringify({ content }),
       });
       if (!response.ok) {
-        let message = 'Unable to add comment.';
-        try {
-          const payload = await response.json() as { error?: string | { message?: string } };
-          message = typeof payload.error === 'string' ? payload.error : payload.error?.message || message;
-        } catch {
-          // Keep the safe fallback for an empty or non-JSON response.
-        }
+        const message = await extractErrorMessage(response, 'Unable to add comment.');
         setCommentError(message);
         return;
       }

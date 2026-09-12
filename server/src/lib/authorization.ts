@@ -27,19 +27,19 @@ export function sendForbidden(response: Response): void {
   response.status(403).json(FORBIDDEN_ERROR);
 }
 
-export function isRole(user: AuthenticatedUser, ...roles: UserRole[]): boolean {
-  return roles.includes(user.role);
-}
-
 /**
  * Build a ticket predicate which hides ownership differences from Requesters.
  * Staff/Admin are intentionally allowed to resolve any ticket for read-only
  * operations in this slice; their mutation workflow belongs to Issue #41.
  */
 export function ticketAccessWhere(user: AuthenticatedUser, ticketId: number): Prisma.TicketWhereInput {
-  return user.role === 'REQUESTER'
-    ? { id: ticketId, requesterId: user.id }
-    : { id: ticketId };
+  if (user.role === 'REQUESTER') {
+    return { id: ticketId, requesterId: user.id };
+  }
+  if (user.role === 'IT_STAFF' || user.role === 'ADMINISTRATOR') {
+    return { id: ticketId };
+  }
+  return { id: -1 };
 }
 
 export async function findTicketForUser<T extends Prisma.TicketSelect>(
@@ -53,10 +53,27 @@ export async function findTicketForUser<T extends Prisma.TicketSelect>(
   }) as Promise<Prisma.TicketGetPayload<{ select: T }> | null>;
 }
 
+export async function ensureTicketAccessible(
+  user: AuthenticatedUser,
+  ticketId: number,
+  response: Response,
+): Promise<boolean> {
+  const ticket = await findTicketForUser(user, ticketId, { id: true });
+  if (!ticket) {
+    sendNotFound(response);
+    return false;
+  }
+  return true;
+}
+
 export function attachmentAccessWhere(user: AuthenticatedUser, attachmentId: number): Prisma.AttachmentWhereInput {
-  return user.role === 'REQUESTER'
-    ? { id: attachmentId, ticket: { requesterId: user.id } }
-    : { id: attachmentId };
+  if (user.role === 'REQUESTER') {
+    return { id: attachmentId, ticket: { requesterId: user.id } };
+  }
+  if (user.role === 'IT_STAFF' || user.role === 'ADMINISTRATOR') {
+    return { id: attachmentId };
+  }
+  return { id: -1 };
 }
 
 export async function findAttachmentForUser<T extends Prisma.AttachmentSelect>(
