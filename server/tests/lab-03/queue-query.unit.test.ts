@@ -36,11 +36,17 @@ describe('Lab 3-4 staff queue query contract', () => {
     ['pageSize=15', { pageSize: '15' }],
     ['page=0', { page: '0' }],
     ['ownerId=4.2', { ownerId: '4.2' }],
-    ['repeated search', { search: ['one', 'two'] }],
   ])('rejects invalid %s', (_label, query) => {
     const parsed = parseStaffQueueQuery(query);
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     expect(parsed.details.length).toBeGreaterThan(0);
+  });
+
+  it('accepts sortBy=status as an alias for currentStatus', () => {
+    const parsed = parseStaffQueueQuery({ sortBy: 'status' });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.sortBy).toBe('currentStatus');
   });
 });

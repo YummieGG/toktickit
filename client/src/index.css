@@ -476,7 +476,6 @@ textarea.form-control[readonly] {
 .staff-queue-table th:nth-child(10) { width: 8%; }
 .staff-queue-table th:nth-child(11) { width: 9%; }
 .staff-queue-table th:nth-child(12) { width: 8%; }
-.staff-queue-table th:nth-child(13) { width: 5%; }
 .staff-sort-button { background: transparent; border: 0; color: inherit; font: inherit; font-weight: 600; padding: 0; text-align: left; }
 .staff-sort-button:hover, .staff-sort-button:focus-visible { color: var(--primary-green); text-decoration: underline; }
 .staff-queue-cards { display: none; }

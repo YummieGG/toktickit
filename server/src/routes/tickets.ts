@@ -4,6 +4,11 @@ import { Prisma } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
 import { requesterTicketDetailSelect, staffTicketDetailSelect, ticketSummarySelect } from '../lib/ticket-selects';
 import { STAFF_PRIORITIES, STAFF_STATUSES } from '../lib/staff-queue';
+import {
+  CONFIRMATION_REQUIRED_STATUSES,
+  isAllowedTransition,
+  STATUS_TRANSITIONS,
+} from '../lib/status-transition';
 import { generateTicketNumber } from '../lib/ticket-number';
 import {
   ensureTicketAccessible,
@@ -51,20 +56,6 @@ const SORT_ORDERS = ['asc', 'desc'] as const;
 const PAGE_SIZES = [5, 10, 20] as const;
 
 const ticketDetailSelect = requesterTicketDetailSelect;
-
-const STATUS_TRANSITIONS: Record<(typeof STAFF_STATUSES)[number], readonly (typeof STAFF_STATUSES)[number][]> = {
-  NEW: ['OPEN', 'CANCELLED'],
-  OPEN: ['IN_PROGRESS', 'WAITING_FOR_REQUESTER', 'CANCELLED'],
-  IN_PROGRESS: ['WAITING_FOR_REQUESTER', 'RESOLVED', 'CANCELLED'],
-  WAITING_FOR_REQUESTER: ['IN_PROGRESS', 'CANCELLED'],
-  RESOLVED: ['CLOSED', 'REOPENED'],
-  CLOSED: ['REOPENED'],
-  REOPENED: ['IN_PROGRESS', 'CANCELLED'],
-  CANCELLED: ['REOPENED'],
-};
-const CONFIRMATION_REQUIRED_STATUSES = new Set<(typeof STAFF_STATUSES)[number]>([
-  'CANCELLED', 'RESOLVED', 'CLOSED', 'REOPENED',
-]);
 
 function parsePositiveIntegerField(
   value: unknown,
@@ -660,18 +651,24 @@ ticketsRouter.patch(
         return;
       }
       const target = nextStatus as (typeof STAFF_STATUSES)[number];
-      if (!STATUS_TRANSITIONS[current.currentStatus].includes(target)) {
+      if (!isAllowedTransition(current.currentStatus, target)) {
         return validationError(response, [{ field: 'status', message: `Cannot transition from ${current.currentStatus} to ${target}` }], 'INVALID_STATUS_TRANSITION');
       }
       if (CONFIRMATION_REQUIRED_STATUSES.has(target) && body.confirmed !== true) {
         return validationError(response, [{ field: 'confirmed', message: `${target} requires explicit confirmation` }], 'INVALID_STATUS_TRANSITION');
       }
-      const ticket = await prisma.ticket.update({
-        where: { id: ticketId },
+      const updateResult = await prisma.ticket.updateMany({
+        where: { id: ticketId, currentStatus: current.currentStatus },
         data: {
           currentStatus: target,
           ...(target === 'REOPENED' ? { problemAppearsResolvedAt: null } : {}),
         },
+      });
+      if (updateResult.count === 0) {
+        return validationError(response, [{ field: 'status', message: 'Ticket status was modified concurrently' }], 'INVALID_STATUS_TRANSITION');
+      }
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
         select: staffTicketDetailSelect,
       });
       return response.status(200).json({ data: ticket });

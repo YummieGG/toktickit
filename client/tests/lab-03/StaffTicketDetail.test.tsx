@@ -72,6 +72,18 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
     expect(window.confirm).toHaveBeenCalled();
   });
 
+  it('resets status dropdown when confirmation is cancelled', async () => {
+    const fetchMock = installFetch(staff, 'OPEN');
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<App />);
+    await screen.findByRole('heading', { name: 'TK-0008' });
+    const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
+    fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
+    expect(window.confirm).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/tickets/8/status', expect.anything());
+    expect(statusSelect.value).toBe('OPEN');
+  });
+
   it('renders Administrator detail as read-only while keeping notes and attachment metadata visible', async () => {
     installFetch(admin);
     render(<App />);

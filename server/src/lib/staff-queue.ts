@@ -81,10 +81,12 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): StaffQueue
   const status = parseEnum(query, 'status', STAFF_STATUSES, details);
   const requestedPriority = parseEnum(query, 'requestedPriority', STAFF_PRIORITIES, details);
   const itPriority = parseEnum(query, 'itPriority', STAFF_PRIORITIES, details);
-  const sortBy = (query.sortBy === undefined ? 'updatedAt' : getSingleStringParam(query.sortBy)) as string | undefined;
+  let rawSortBy = (query.sortBy === undefined ? 'updatedAt' : getSingleStringParam(query.sortBy)) as string | undefined;
+  if (rawSortBy === 'status') rawSortBy = 'currentStatus';
+  const sortBy = rawSortBy;
   const sortOrder = (query.sortOrder === undefined ? 'desc' : getSingleStringParam(query.sortOrder)) as string | undefined;
 
-  if (query.sortBy !== undefined && sortBy === undefined) details.push({ field: 'sortBy', message: 'sortBy must be a string' });
+  if (query.sortBy !== undefined && getSingleStringParam(query.sortBy) === undefined) details.push({ field: 'sortBy', message: 'sortBy must be a string' });
   if (!sortBy || !STAFF_SORT_FIELDS.includes(sortBy as StaffQueueSortField)) {
     details.push({ field: 'sortBy', message: `sortBy must be one of ${STAFF_SORT_FIELDS.join(', ')}` });
   }
