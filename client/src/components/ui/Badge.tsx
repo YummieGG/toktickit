@@ -16,12 +16,12 @@ const PRIORITY_STYLES: Record<TicketPriority, React.CSSProperties> = {
 
 const STATUS_STYLES: Partial<Record<TicketStatus, React.CSSProperties>> = {
   NEW: { backgroundColor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7' },
-  ASSIGNED: { backgroundColor: '#E3F2FD', color: '#0D47A1' },
+  OPEN: { backgroundColor: '#E3F2FD', color: '#0D47A1' },
   IN_PROGRESS: { backgroundColor: '#FFF9C4', color: '#F57F17' },
-  PENDING_REQUESTER: { backgroundColor: '#FFF3E0', color: '#E65100' },
-  PENDING_VENDOR: { backgroundColor: '#F3E5F5', color: '#4A148C' },
+  WAITING_FOR_REQUESTER: { backgroundColor: '#FFF3E0', color: '#E65100' },
   RESOLVED: { backgroundColor: '#E8F5E9', color: '#2E7D32' },
   CLOSED: { backgroundColor: '#ECEFF1', color: '#37474F' },
+  REOPENED: { backgroundColor: '#EDE7F6', color: '#4527A0' },
   CANCELLED: { backgroundColor: '#FFEBEE', color: '#C62828' },
 };
 

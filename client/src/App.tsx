@@ -9,6 +9,8 @@ import { MyTickets } from './pages/MyTickets';
 import { RequesterTicketDetail } from './pages/RequesterTicketDetail';
 import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
+import { StaffTicketQueue } from './pages/StaffTicketQueue';
+import { StaffTicketDetail } from './pages/StaffTicketDetail';
 import { FeaturePlaceholder, ForbiddenPage, NotFoundPage } from './pages/RouteStates';
 import './App.css';
 
@@ -103,16 +105,10 @@ function App() {
             <Route path="tickets/:id" element={<RoleGuard roles={['REQUESTER']}><RequesterTicketDetail /></RoleGuard>} />
 
             <Route path="staff/tickets" element={<RoleGuard roles={['IT_STAFF', 'ADMINISTRATOR']}>
-              <FeaturePlaceholder
-                title="Staff Queue"
-                description="Staff ticket workflow is available in the next Lab 3 issue."
-              />
+              <StaffTicketQueue />
             </RoleGuard>} />
             <Route path="staff/tickets/:id" element={<RoleGuard roles={['IT_STAFF', 'ADMINISTRATOR']}>
-              <FeaturePlaceholder
-                title="Staff Ticket Detail"
-                description="Staff ticket detail is available in the next Lab 3 issue."
-              />
+              <StaffTicketDetail />
             </RoleGuard>} />
             <Route path="admin/users" element={<RoleGuard roles={['ADMINISTRATOR']}>
               <FeaturePlaceholder

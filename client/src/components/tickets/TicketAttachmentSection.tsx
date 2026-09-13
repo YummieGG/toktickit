@@ -14,7 +14,8 @@ interface AttachmentError {
 interface TicketAttachmentSectionProps {
   ticketId: number;
   attachments: TicketAttachment[];
-  onUpdateAttachments: (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => void;
+  onUpdateAttachments?: (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => void;
+  mode?: 'requester' | 'staff' | 'administrator';
 }
 
 const parseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
@@ -34,7 +35,10 @@ export function TicketAttachmentSection({
   ticketId,
   attachments,
   onUpdateAttachments,
+  mode = 'requester',
 }: TicketAttachmentSectionProps) {
+  const isRequester = mode === 'requester';
+  const canDownload = mode !== 'administrator';
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<AttachmentError | null>(null);
   const [unavailableAttachmentIds, setUnavailableAttachmentIds] = useState<Set<number>>(new Set());
@@ -72,7 +76,7 @@ export function TicketAttachmentSection({
         return;
       }
       const payload = await response.json() as { data: TicketAttachment };
-      onUpdateAttachments(current => [
+      onUpdateAttachments?.(current => [
         ...current,
         { ...payload.data, removalReason: null, removedAt: null },
       ]);
@@ -143,7 +147,7 @@ export function TicketAttachmentSection({
         return;
       }
       if (response.status === 204) {
-        onUpdateAttachments(current => current.map(attachment =>
+        onUpdateAttachments?.(current => current.map(attachment =>
           attachment.id === removalTarget.id
             ? { ...attachment, isRemoved: true, removalReason: trimmedReason, removedAt: null }
             : attachment
@@ -153,7 +157,7 @@ export function TicketAttachmentSection({
           data?: Pick<TicketAttachment, 'id' | 'isRemoved' | 'removalReason' | 'removedAt'>;
         };
         if (payload.data) {
-          onUpdateAttachments(current => current.map(attachment =>
+          onUpdateAttachments?.(current => current.map(attachment =>
             attachment.id === payload.data!.id ? { ...attachment, ...payload.data } : attachment
           ));
         }
@@ -171,7 +175,7 @@ export function TicketAttachmentSection({
     <div className="card shadow-sm mb-4">
       <div className="card-body p-3 p-md-4">
         <h2 className="h3 mb-3">Attachments</h2>
-        <div className="attachment-picker mb-3">
+        {isRequester && <div className="attachment-picker mb-3">
           <label htmlFor="ticket-attachment" className="form-label">Add attachment</label>
           <input
             id="ticket-attachment"
@@ -187,7 +191,7 @@ export function TicketAttachmentSection({
           <div id="ticket-attachment-help" className="form-text">
             JPG, PNG, WEBP, or PDF. Maximum 5 MB per file and 5 active attachments.
           </div>
-        </div>
+        </div>}
 
         {attachmentError && (
           <div id="ticket-attachment-error" className="ticket-attachment ticket-attachment-invalid mb-3" role="alert">
@@ -241,7 +245,7 @@ export function TicketAttachmentSection({
                       <div className="d-flex flex-column align-items-start align-items-lg-end gap-2">
                         <span className="attachment-state-badge is-active">Active</span>
                         <div className="ticket-attachment-actions d-flex flex-column flex-sm-row gap-2">
-                          <Button
+                          {canDownload && <Button
                             variant="secondary"
                             type="button"
                             isLoading={downloadingAttachmentId === attachment.id}
@@ -249,15 +253,15 @@ export function TicketAttachmentSection({
                             onClick={() => void handleDownload(attachment)}
                           >
                             Download
-                          </Button>
-                          <Button
+                          </Button>}
+                          {isRequester && <Button
                             variant="destructive"
                             type="button"
                             disabled={uploadingFileName !== null || isRemoving || downloadingAttachmentId !== null}
                             onClick={() => openRemovalConfirmation(attachment)}
                           >
                             Remove
-                          </Button>
+                          </Button>}
                         </div>
                       </div>
                     )}

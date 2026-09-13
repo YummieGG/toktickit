@@ -6,6 +6,7 @@ import { relatedSystemsRouter } from './routes/related-systems';
 import { ticketsRouter } from './routes/tickets';
 import { attachmentsRouter, ticketAttachmentsRouter } from './routes/attachments';
 import { authRouter } from './routes/auth';
+import { staffTicketsRouter } from './routes/staff-tickets';
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ app.get('/api/health', (req, res) => {
 // API Routes
 app.use('/api/categories', categoriesRouter);
 app.use('/api/related-systems', relatedSystemsRouter);
+app.use('/api/staff/tickets', staffTicketsRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/tickets/:ticketId/attachments', ticketAttachmentsRouter);
 app.use('/api/attachments', attachmentsRouter);
