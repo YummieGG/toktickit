@@ -1,16 +1,9 @@
 import { Prisma, type TicketStatus, type RequestedPriority } from '../../generated/prisma';
 import { getSingleStringParam, isPositiveIntegerString, type ValidationErrorDetail } from './validation';
 
-export const STAFF_STATUSES = [
-  'NEW',
-  'OPEN',
-  'IN_PROGRESS',
-  'WAITING_FOR_REQUESTER',
-  'RESOLVED',
-  'CLOSED',
-  'REOPENED',
-  'CANCELLED',
-] as const satisfies readonly TicketStatus[];
+import { ALL_STATUSES } from './status-transition';
+
+export const STAFF_STATUSES = ALL_STATUSES;
 
 export const STAFF_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const satisfies readonly RequestedPriority[];
 export const STAFF_SORT_FIELDS = [

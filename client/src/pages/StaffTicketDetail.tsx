@@ -108,8 +108,9 @@ export function StaffTicketDetail() {
   };
 
   const saveOwner = () => {
-    if (ownerInput === '') { void mutate('owner', `/api/tickets/${ticket?.id}/owner`, { ownerId: null }, 'Ticket is now unassigned.'); return; }
-    const ownerId = Number(ownerInput);
+    const trimmed = ownerInput.trim();
+    if (trimmed === '') { void mutate('owner', `/api/tickets/${ticket?.id}/owner`, { ownerId: null }, 'Ticket is now unassigned.'); return; }
+    const ownerId = Number(trimmed);
     if (!Number.isSafeInteger(ownerId) || ownerId < 1) { setValidationErrors({ ownerId: 'Owner ID must be a positive integer or empty for unassigned.' }); setMutationError(null); return; }
     void mutate('owner', `/api/tickets/${ticket?.id}/owner`, { ownerId }, 'Owner updated.');
   };

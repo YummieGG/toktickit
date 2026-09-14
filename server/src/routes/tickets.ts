@@ -5,9 +5,8 @@ import { prisma } from '../lib/prisma';
 import { requesterTicketDetailSelect, staffTicketDetailSelect, ticketSummarySelect } from '../lib/ticket-selects';
 import { STAFF_PRIORITIES, STAFF_STATUSES } from '../lib/staff-queue';
 import {
-  CONFIRMATION_REQUIRED_STATUSES,
   isAllowedTransition,
-  STATUS_TRANSITIONS,
+  requiresConfirmation,
 } from '../lib/status-transition';
 import { generateTicketNumber } from '../lib/ticket-number';
 import {
@@ -655,7 +654,7 @@ ticketsRouter.patch(
       if (!isAllowedTransition(current.currentStatus, target)) {
         return validationError(response, [{ field: 'status', message: `Cannot transition from ${current.currentStatus} to ${target}` }], 'INVALID_STATUS_TRANSITION');
       }
-      if (CONFIRMATION_REQUIRED_STATUSES.has(target) && body.confirmed !== true) {
+      if (requiresConfirmation(target) && body.confirmed !== true) {
         return validationError(response, [{ field: 'confirmed', message: `${target} requires explicit confirmation` }], 'INVALID_STATUS_TRANSITION');
       }
       const updateResult = await prisma.ticket.updateMany({
