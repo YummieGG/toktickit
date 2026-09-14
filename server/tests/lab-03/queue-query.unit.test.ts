@@ -49,4 +49,11 @@ describe('Lab 3-4 staff queue query contract', () => {
     if (!parsed.success) return;
     expect(parsed.data.sortBy).toBe('currentStatus');
   });
+
+  it('accepts sortBy=lastUpdated as an alias for updatedAt', () => {
+    const parsed = parseStaffQueueQuery({ sortBy: 'lastUpdated' });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.sortBy).toBe('updatedAt');
+  });
 });

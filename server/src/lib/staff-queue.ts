@@ -76,6 +76,7 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): StaffQueue
   const itPriority = parseEnum(query, 'itPriority', STAFF_PRIORITIES, details);
   let rawSortBy = (query.sortBy === undefined ? 'updatedAt' : getSingleStringParam(query.sortBy)) as string | undefined;
   if (rawSortBy === 'status') rawSortBy = 'currentStatus';
+  if (rawSortBy === 'lastUpdated') rawSortBy = 'updatedAt';
   const sortBy = rawSortBy;
   const sortOrder = (query.sortOrder === undefined ? 'desc' : getSingleStringParam(query.sortOrder)) as string | undefined;
 

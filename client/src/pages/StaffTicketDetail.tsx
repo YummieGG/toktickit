@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
@@ -58,6 +58,17 @@ export function StaffTicketDetail() {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+  const handleExpiredSession = useCallback((requestError: unknown) => {
+    if (requestError instanceof DetailRequestError && requestError.status === 401) {
+      void refresh().finally(() => navigate('/login', {
+        replace: true,
+        state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+      }));
+      return true;
+    }
+    return false;
+  }, [id, navigate, refresh]);
+
   useEffect(() => {
     if (!user || !id) return;
     const controller = new AbortController();
@@ -74,19 +85,13 @@ export function StaffTicketDetail() {
       })
       .catch(requestError => {
         if ((requestError as Error).name !== 'AbortError') {
-          if (requestError instanceof DetailRequestError && requestError.status === 401) {
-            void refresh().finally(() => navigate('/login', {
-              replace: true,
-              state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
-            }));
-            return;
-          }
+          if (handleExpiredSession(requestError)) return;
           setError(requestError instanceof DetailRequestError ? requestError : new DetailRequestError(0, 'Unable to load ticket detail.'));
         }
       })
       .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
     return () => controller.abort();
-  }, [id, navigate, refresh, retry, user]);
+  }, [handleExpiredSession, id, retry, user]);
 
   const mutate = async (key: string, url: string, body: unknown, success: string) => {
     if (!ticket || saving) return;
@@ -95,11 +100,11 @@ export function StaffTicketDetail() {
       const payload = await requestJson<{ data: TicketDetail }>(url, { method: 'PATCH', body: JSON.stringify(body) });
       setTicket(payload.data); setOwnerInput(payload.data.owner ? String(payload.data.owner.id) : ''); setFeedback(success);
     } catch (requestError) {
-      if (requestError instanceof DetailRequestError && requestError.status === 401) {
-        void refresh().finally(() => navigate('/login', {
-          replace: true,
-          state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
-        }));
+      if (handleExpiredSession(requestError)) return;
+      if (requestError instanceof DetailRequestError && requestError.status === 409) {
+        setValidationErrors(requestError.fields);
+        setMutationError(requestError.message);
+        setRetry(value => value + 1);
         return;
       }
       setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {});
@@ -124,29 +129,48 @@ export function StaffTicketDetail() {
     void mutate('status', `/api/tickets/${ticket.id}/status`, { status, confirmed: CONFIRM_STATUSES.has(status) }, 'Ticket status updated.');
   };
 
-  const postEntry = async (kind: 'comment' | 'note', event: FormEvent) => {
+  const postComment = async (event: FormEvent) => {
     event.preventDefault();
     if (!ticket || saving) return;
-    const text = (kind === 'comment' ? commentText : noteText).replace(/\r\n?/g, '\n').trim();
-    if (!text || text.length > 2000) { setValidationErrors({ [kind === 'comment' ? 'comment' : 'internalNote']: `${kind === 'comment' ? 'Comment' : 'Internal note'} must be between 1 and 2000 characters.` }); setMutationError(null); return; }
-    setSaving(kind); setFeedback(null); setMutationError(null); setValidationErrors({});
+    const text = commentText.replace(/\r\n?/g, '\n').trim();
+    if (!text || text.length > 2000) {
+      setValidationErrors({ comment: 'Comment must be between 1 and 2000 characters.' });
+      setMutationError(null);
+      return;
+    }
+    setSaving('comment'); setFeedback(null); setMutationError(null); setValidationErrors({});
     try {
-      const payload = await requestJson<{ data: TicketComment | TicketInternalNote }>(`/api/tickets/${ticket.id}/${kind === 'comment' ? 'comments' : 'internal-notes'}`, { method: 'POST', body: JSON.stringify({ content: text }) });
-      setTicket(previous => previous ? kind === 'comment' ? { ...previous, comments: [...previous.comments, payload.data as TicketComment] } : { ...previous, internalNotes: [...(previous.internalNotes ?? []), payload.data as TicketInternalNote] } : previous);
-      if (kind === 'comment') setCommentText(''); else setNoteText('');
-      setFeedback(`${kind === 'comment' ? 'Public comment' : 'Internal note'} added.`);
+      const payload = await requestJson<{ data: TicketComment }>(`/api/tickets/${ticket.id}/comments`, { method: 'POST', body: JSON.stringify({ content: text }) });
+      setTicket(previous => previous ? { ...previous, comments: [...previous.comments, payload.data] } : previous);
+      setCommentText('');
+      setFeedback('Public comment added.');
     } catch (requestError) {
-      if (requestError instanceof DetailRequestError && requestError.status === 401) {
-        void refresh().finally(() => navigate('/login', {
-          replace: true,
-          state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
-        }));
-        return;
-      }
+      if (handleExpiredSession(requestError)) return;
       setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {});
       setMutationError(requestError instanceof Error ? requestError.message : 'Unable to add entry.');
+    } finally { setSaving(null); }
+  };
+
+  const postInternalNote = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!ticket || saving) return;
+    const text = noteText.replace(/\r\n?/g, '\n').trim();
+    if (!text || text.length > 2000) {
+      setValidationErrors({ internalNote: 'Internal note must be between 1 and 2000 characters.' });
+      setMutationError(null);
+      return;
     }
-    finally { setSaving(null); }
+    setSaving('note'); setFeedback(null); setMutationError(null); setValidationErrors({});
+    try {
+      const payload = await requestJson<{ data: TicketInternalNote }>(`/api/tickets/${ticket.id}/internal-notes`, { method: 'POST', body: JSON.stringify({ content: text }) });
+      setTicket(previous => previous ? { ...previous, internalNotes: [...(previous.internalNotes ?? []), payload.data] } : previous);
+      setNoteText('');
+      setFeedback('Internal note added.');
+    } catch (requestError) {
+      if (handleExpiredSession(requestError)) return;
+      setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {});
+      setMutationError(requestError instanceof Error ? requestError.message : 'Unable to add entry.');
+    } finally { setSaving(null); }
   };
 
   if (isLoading) return <section className="card shadow-sm p-5 text-center" role="status"><div className="spinner-border mx-auto mb-3" /><p className="mb-0">Loading ticket detail...</p></section>;
@@ -164,8 +188,8 @@ export function StaffTicketDetail() {
       {!isAdministrator && <section className="card shadow-sm mb-4" aria-labelledby="workflow-controls-title"><div className="card-body p-3 p-md-4"><h2 id="workflow-controls-title" className="h3">Workflow controls</h2><div className="row g-3"><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-owner">Owner ID</label><div className="input-group"><input id="ticket-owner" list="ticket-owner-suggestions" className={`form-control ${validationErrors.ownerId ? 'is-invalid' : ''}`} inputMode="numeric" value={ownerInput} onChange={event => { setOwnerInput(event.target.value); setValidationErrors({}); }} placeholder="Empty = unassigned" aria-invalid={validationErrors.ownerId ? true : undefined} /><datalist id="ticket-owner-suggestions">{user && <option value={String(user.id)}>{user.name} (You)</option>}{ticket.owner && ticket.owner.id !== user?.id && <option value={String(ticket.owner.id)}>{ticket.owner.name} (Current Owner)</option>}</datalist><Button type="button" onClick={saveOwner} isLoading={saving === 'owner'}>Save</Button></div>{validationErrors.ownerId && <div className="invalid-feedback-custom" role="alert">{validationErrors.ownerId}</div>}<div className="form-text">Use your ID to claim; only active Staff/Admin targets are accepted.</div><div className="d-flex gap-2 mt-2"><Button type="button" variant="secondary" onClick={() => { setOwnerInput(String(user?.id ?? '')); }} disabled={saving !== null}>Assign to me</Button><Button type="button" variant="tertiary" onClick={() => { setOwnerInput(''); }} disabled={saving !== null || ownerInput === ''}>Clear</Button></div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-it-priority">IT Priority</label><select id="ticket-it-priority" className={`form-select ${validationErrors.itPriority ? 'is-invalid' : ''}`} value={ticket.itPriority} disabled={saving !== null} aria-invalid={validationErrors.itPriority ? true : undefined} onChange={event => void mutate('it-priority', `/api/tickets/${ticket.id}/it-priority`, { itPriority: event.target.value }, 'IT Priority updated.')}>{PRIORITIES.map(priority => <option key={priority} value={priority}>{priority}</option>)}</select>{validationErrors.itPriority && <div className="invalid-feedback-custom" role="alert">{validationErrors.itPriority}</div>}<div className="form-text">Requested Priority remains {ticket.requestedPriority}.</div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-status">Status</label><select id="ticket-status" className={`form-select ${validationErrors.status || validationErrors.confirmed ? 'is-invalid' : ''}`} value={ticket.currentStatus} disabled={saving !== null || allowedStatuses.length === 0} aria-invalid={validationErrors.status || validationErrors.confirmed ? true : undefined} onChange={event => saveStatus(event.target.value as TicketStatus, event.currentTarget)}><option value={ticket.currentStatus}>{displayStatus(ticket.currentStatus)} (current)</option>{allowedStatuses.map(status => <option key={status} value={status}>{displayStatus(status)}</option>)}</select>{(validationErrors.status || validationErrors.confirmed) && <div className="invalid-feedback-custom" role="alert">{validationErrors.status ?? validationErrors.confirmed}</div>}<div className="form-text">Allowed next states: {allowedStatuses.length ? allowedStatuses.map(displayStatus).join(', ') : 'None'}.</div></div></div></div></section>}
 
       <TicketAttachmentSection ticketId={ticket.id} attachments={ticket.attachments} mode={isAdministrator ? 'administrator' : 'staff'} />
-      <section className="card shadow-sm mb-4" aria-labelledby="staff-public-comments-title"><div className="card-body p-3 p-md-4"><h2 id="staff-public-comments-title" className="h3">Public Comments</h2>{ticket.comments.length === 0 ? <p className="text-muted">No public comments yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.comments.map(comment => <article className="border rounded p-3" key={comment.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p><small className="text-muted">{comment.author.name} · {formatTicketDateTime(comment.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postEntry('comment', event)}><label className="form-label" htmlFor="staff-public-comment">Add a public comment</label><textarea id="staff-public-comment" className={`form-control ${validationErrors.comment ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={commentText} onChange={event => { setCommentText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.comment ? true : undefined} />{validationErrors.comment && <div className="invalid-feedback-custom" role="alert">{validationErrors.comment}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{commentText.length}/2000</span><Button type="submit" isLoading={saving === 'comment'}>Add public comment</Button></div></form>}</div></section>
-      <section className="card shadow-sm mb-4 internal-notes-panel" aria-labelledby="internal-notes-title"><div className="card-body p-3 p-md-4"><h2 id="internal-notes-title" className="h3">Internal Notes</h2>{(ticket.internalNotes?.length ?? 0) === 0 ? <p className="text-muted">No internal notes yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.internalNotes?.map(note => <article className="border rounded p-3" key={note.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p><small className="text-muted">{note.author.name} · {formatTicketDateTime(note.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postEntry('note', event)}><label className="form-label" htmlFor="staff-internal-note">Add an internal note</label><textarea id="staff-internal-note" className={`form-control ${validationErrors.internalNote ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={noteText} onChange={event => { setNoteText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.internalNote ? true : undefined} />{validationErrors.internalNote && <div className="invalid-feedback-custom" role="alert">{validationErrors.internalNote}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{noteText.length}/2000</span><Button type="submit" isLoading={saving === 'note'}>Add internal note</Button></div></form>}</div></section>
+      <section className="card shadow-sm mb-4" aria-labelledby="staff-public-comments-title"><div className="card-body p-3 p-md-4"><h2 id="staff-public-comments-title" className="h3">Public Comments</h2>{ticket.comments.length === 0 ? <p className="text-muted">No public comments yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.comments.map(comment => <article className="border rounded p-3" key={comment.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p><small className="text-muted">{comment.author.name} · {formatTicketDateTime(comment.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postComment(event)}><label className="form-label" htmlFor="staff-public-comment">Add a public comment</label><textarea id="staff-public-comment" className={`form-control ${validationErrors.comment ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={commentText} onChange={event => { setCommentText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.comment ? true : undefined} />{validationErrors.comment && <div className="invalid-feedback-custom" role="alert">{validationErrors.comment}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{commentText.length}/2000</span><Button type="submit" isLoading={saving === 'comment'}>Add public comment</Button></div></form>}</div></section>
+      <section className="card shadow-sm mb-4 internal-notes-panel" aria-labelledby="internal-notes-title"><div className="card-body p-3 p-md-4"><h2 id="internal-notes-title" className="h3">Internal Notes</h2>{(ticket.internalNotes?.length ?? 0) === 0 ? <p className="text-muted">No internal notes yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.internalNotes?.map(note => <article className="border rounded p-3" key={note.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p><small className="text-muted">{note.author.name} · {formatTicketDateTime(note.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postInternalNote(event)}><label className="form-label" htmlFor="staff-internal-note">Add an internal note</label><textarea id="staff-internal-note" className={`form-control ${validationErrors.internalNote ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={noteText} onChange={event => { setNoteText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.internalNote ? true : undefined} />{validationErrors.internalNote && <div className="invalid-feedback-custom" role="alert">{validationErrors.internalNote}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{noteText.length}/2000</span><Button type="submit" isLoading={saving === 'note'}>Add internal note</Button></div></form>}</div></section>
     </section>
   );
 }
