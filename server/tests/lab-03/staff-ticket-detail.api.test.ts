@@ -188,6 +188,42 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
   });
 
   describe('Status Workflow & Resolution Reset (BR-13, BR-16, AC-07)', () => {
+    const allowedTransitions = [
+      ['NEW', 'OPEN'],
+      ['NEW', 'CANCELLED'],
+      ['OPEN', 'IN_PROGRESS'],
+      ['OPEN', 'WAITING_FOR_REQUESTER'],
+      ['OPEN', 'CANCELLED'],
+      ['IN_PROGRESS', 'WAITING_FOR_REQUESTER'],
+      ['IN_PROGRESS', 'RESOLVED'],
+      ['IN_PROGRESS', 'CANCELLED'],
+      ['WAITING_FOR_REQUESTER', 'IN_PROGRESS'],
+      ['WAITING_FOR_REQUESTER', 'CANCELLED'],
+      ['RESOLVED', 'CLOSED'],
+      ['RESOLVED', 'REOPENED'],
+      ['CLOSED', 'REOPENED'],
+      ['REOPENED', 'IN_PROGRESS'],
+      ['REOPENED', 'CANCELLED'],
+      ['CANCELLED', 'REOPENED'],
+    ] as const;
+
+    it.each(allowedTransitions)('accepts every allowed API transition %s -> %s', async (from, to) => {
+      vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ id: 8, currentStatus: from } as never);
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue(staffDetail(to) as never);
+
+      const response = await request(app)
+        .patch('/api/tickets/8/status')
+        .set('Cookie', cookie)
+        .set('Origin', origin)
+        .send({ status: to, confirmed: ['CANCELLED', 'RESOLVED', 'CLOSED', 'REOPENED'].includes(to) });
+
+      expect(response.status).toBe(200);
+      expect(prisma.ticket.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 8, currentStatus: from },
+        data: expect.objectContaining({ currentStatus: to }),
+      }));
+    });
+
     it('enforces allowed status transitions and confirmation on designated states', async () => {
       vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ id: 8, currentStatus: 'NEW' } as never);
       const res = await request(app)
@@ -233,6 +269,26 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
       expect(response.status).toBe(400);
       expect(response.body.error.code).toBe('INVALID_STATUS_TRANSITION');
       expect(prisma.ticket.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 CONFLICT when the status changes after the read', async () => {
+      vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ id: 8, currentStatus: 'OPEN' } as never);
+      vi.mocked(prisma.ticket.updateMany).mockResolvedValueOnce({ count: 0 } as never);
+
+      const response = await request(app)
+        .patch('/api/tickets/8/status')
+        .set('Cookie', cookie)
+        .set('Origin', origin)
+        .send({ status: 'IN_PROGRESS', confirmed: false });
+
+      expect(response.status).toBe(409);
+      expect(response.body).toEqual({
+        error: {
+          code: 'CONFLICT',
+          message: 'The resource was modified by another user. Reload and try again.',
+        },
+      });
+      expect(prisma.ticket.findUnique).not.toHaveBeenCalled();
     });
 
     it('forbids Administrator and Requester from mutating status with 403', async () => {
