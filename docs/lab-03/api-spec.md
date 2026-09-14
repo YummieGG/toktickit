@@ -198,7 +198,7 @@ IT Staff only. Body `{ "itPriority": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" }`. 
 
 ### `PATCH /api/tickets/:id/status`
 
-IT Staff only. Body `{ "status": "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED", "confirmed": boolean }`. Confirmation is required for Cancelled, Resolved, Closed, and Reopened. A successful update returns `200` with `{ "data": TicketDetail }`. Invalid transitions return `400 INVALID_STATUS_TRANSITION`; Reopened clears `problemAppearsResolvedAt`.
+IT Staff only. Body `{ "status": "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED", "confirmed": boolean }`. Confirmation is required for Cancelled, Resolved, Closed, and Reopened. A successful update returns `200` with `{ "data": TicketDetail }`. Invalid transitions return `400 INVALID_STATUS_TRANSITION`; Reopened clears `problemAppearsResolvedAt`. If the ticket status changes between the read and the guarded update, the server returns `409 CONFLICT` and does not apply the requested transition.
 
 ### `GET/POST /api/tickets/:ticketId/internal-notes`
 

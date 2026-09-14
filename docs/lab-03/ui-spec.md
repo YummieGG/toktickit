@@ -68,7 +68,7 @@ state and the corresponding API request must be rejected by the backend.
 | Requester My Tickets | Spinner then list/table | Lab 2 columns, search/filter/sort/page | Friendly “No Tickets Submitted Yet” | Invalid query reset/message | Refresh after actions | Retryable API error; ownership-safe 404 |
 | Requester Ticket Detail | Spinner | Read-only ticket, attachments, public comments, resolution action | No comments/attachments message | Upload/comment/resolution errors inline | Busy action; success toast/banner | Safe 404/403/API failure |
 | Staff Queue | Spinner | Search/filter/sort/pagination table or cards | “No tickets match” with clear filters | Invalid query message | Refresh after mutation | Retry, forbidden, and safe server error |
-| Staff Ticket Detail | Spinner | Editable owner/IT priority/status, comments, notes; read-only base fields | No comments/notes/attachments message | Field-level and transition confirmation errors | Saving indicator and success feedback | Conflict/not-found/forbidden/API failure |
+| Staff Ticket Detail | Spinner | Editable owner/IT priority/status, comments, notes; read-only base fields | No comments/notes/attachments message | Field-level and transition confirmation errors | Saving indicator and success feedback | `409 CONFLICT` shows a reload-and-retry message; `401` redirects to Login; not-found/forbidden/API failure remain safe |
 | User Management | Spinner | User list with search/role filter and create/edit panel | “No users found” | Duplicate email/role/password/safety errors | Busy save/reset; success feedback | Admin-only 403 and retryable API failure |
 
 ## 4. Login and Change Password

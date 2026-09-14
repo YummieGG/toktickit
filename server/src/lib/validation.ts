@@ -60,6 +60,15 @@ export function validationError(
   });
 }
 
+export function conflictError(
+  res: Response,
+  message = 'The resource was modified by another user. Reload and try again.',
+) {
+  return res.status(409).json({
+    error: { code: 'CONFLICT', message },
+  });
+}
+
 export function internalError(res: Response) {
   return res.status(500).json({
     error: { code: 'INTERNAL_ERROR', message: 'Unable to process the request' },

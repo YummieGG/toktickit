@@ -111,7 +111,7 @@ Self-registration, password recovery email/MFA/SSO, account deletion, bulk impor
 | Reopened | In Progress, Cancelled |
 | Cancelled | Reopened |
 
-Only IT Staff performs formal transitions. Administrator is read-only; Requester cannot set a formal status. Cancelled, Resolved, Closed, and Reopened require explicit confirmation. Invalid transitions return `400 INVALID_STATUS_TRANSITION`. Reopened clears the resolution indication.
+Only IT Staff performs formal transitions. Administrator is read-only; Requester cannot set a formal status. Cancelled, Resolved, Closed, and Reopened require explicit confirmation. Invalid transitions return `400 INVALID_STATUS_TRANSITION`. If a guarded status update loses a concurrent race, it returns `409 CONFLICT` without applying the requested transition. Reopened clears the resolution indication.
 
 - **BR-14:** IT Priority is separate from Requester Requested Priority. Owner, IT Priority, and status changes are not allowed through Requester endpoints.
 - **BR-15:** Public Comments and Internal Notes accept trimmed plain text from 1–2,000 characters. Newlines are normalized; output is escaped and rendered with preserved line breaks. Client author/timestamp fields are ignored or rejected.

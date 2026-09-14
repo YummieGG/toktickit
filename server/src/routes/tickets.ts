@@ -31,6 +31,7 @@ import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/
 import { requireTrustedOrigin } from '../middleware/csrf';
 import {
   getSingleStringParam,
+  conflictError,
   internalError,
   isPositiveIntegerString,
   type ValidationErrorDetail,
@@ -665,7 +666,7 @@ ticketsRouter.patch(
         },
       });
       if (updateResult.count === 0) {
-        return validationError(response, [{ field: 'status', message: 'Ticket status was modified concurrently' }], 'INVALID_STATUS_TRANSITION');
+        return conflictError(response);
       }
       const ticket = await prisma.ticket.findUnique({
         where: { id: ticketId },
