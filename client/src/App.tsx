@@ -11,7 +11,8 @@ import { Login } from './pages/Login';
 import { ChangePassword } from './pages/ChangePassword';
 import { StaffTicketQueue } from './pages/StaffTicketQueue';
 import { StaffTicketDetail } from './pages/StaffTicketDetail';
-import { FeaturePlaceholder, ForbiddenPage, NotFoundPage } from './pages/RouteStates';
+import { UserManagement } from './pages/UserManagement';
+import { ForbiddenPage, NotFoundPage } from './pages/RouteStates';
 import './App.css';
 
 function GuardLoading() {
@@ -111,10 +112,7 @@ function App() {
               <StaffTicketDetail />
             </RoleGuard>} />
             <Route path="admin/users" element={<RoleGuard roles={['ADMINISTRATOR']}>
-              <FeaturePlaceholder
-                title="User Management"
-                description="Administrator user management is available in the next Lab 3 issue."
-              />
+              <UserManagement />
             </RoleGuard>} />
 
             <Route path="*" element={<NotFoundPage homePath="/" />} />
