@@ -9,6 +9,12 @@ import { validatePasswordInput } from '../utils/password';
 const ROLES: UserRole[] = ['REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'];
 const ORIGIN_PATH = '/admin/users';
 
+function homePathForRole(role: UserRole): string {
+  if (role === 'IT_STAFF') return '/staff/tickets';
+  if (role === 'ADMINISTRATOR') return '/admin/users';
+  return '/tickets';
+}
+
 type UserForm = {
   name: string;
   email: string;
@@ -283,6 +289,24 @@ export function UserManagement() {
         setFormMessage('User updated successfully.');
       }
       setFormErrors({});
+      if (selectedUser?.id === currentUser?.id) {
+        const refreshedUser = await refresh();
+        if (!refreshedUser) {
+          navigate('/login', {
+            replace: true,
+            state: { from: ORIGIN_PATH, notice: 'Your account access changed. Please sign in again.' },
+          });
+          return;
+        }
+        if (refreshedUser.mustChangePassword) {
+          navigate('/change-password', { replace: true });
+          return;
+        }
+        if (refreshedUser.role !== 'ADMINISTRATOR') {
+          navigate(homePathForRole(refreshedUser.role), { replace: true });
+          return;
+        }
+      }
       setRetry(value => value + 1);
     } catch (error) {
       if (error instanceof UserManagementError && error.status === 401) {
@@ -334,6 +358,17 @@ export function UserManagement() {
 
   const isForbidden = loadError?.status === 403;
   const hasFilters = Boolean(filters.search || filters.role || searchInput);
+
+  if (isForbidden) {
+    return (
+      <section aria-labelledby="user-management-forbidden-title" className="user-management">
+        <Alert variant="warning" role="alert" aria-live="polite">
+          <h1 id="user-management-forbidden-title" className="h2">Access Denied</h1>
+          <p className="mb-0">You do not have permission to manage users.</p>
+        </Alert>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="user-management-title" className="user-management">

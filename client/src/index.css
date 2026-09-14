@@ -516,4 +516,9 @@ textarea.form-control[readonly] {
 @media (max-width: 767.98px) {
   .user-management-table-wrap { display: none; }
   .user-management-cards { display: grid; }
+
+  .user-management .form-check-input {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }

@@ -186,4 +186,55 @@ describe('Issue #42 Administrator User Management screen', () => {
     expect(screen.queryByRole('heading', { name: 'User Management' })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(call => String(call[0]).startsWith('/api/admin/users'))).toBe(false);
   });
+
+  it('hides all management controls when the backend rejects an Administrator session', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => String(input) === '/api/auth/me'
+      ? Promise.resolve(response({ data: admin }))
+      : Promise.resolve(response({ error: { code: 'FORBIDDEN', message: 'Forbidden' } }, 403)));
+    global.fetch = fetchMock;
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create user', exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Search users')).not.toBeInTheDocument();
+  });
+
+  it('refreshes the current role after an Administrator changes their own role', async () => {
+    let currentUser: User = admin;
+    const otherAdministrator: User = { ...admin, id: 2, name: 'Admin Two', email: 'admin2@example.com' };
+    let users = [admin, otherAdministrator];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url === '/api/auth/me') return Promise.resolve(response({ data: currentUser }));
+      if (method === 'GET' && url.startsWith('/api/admin/users')) return Promise.resolve(response({ data: users }));
+      if (method === 'PATCH' && url === '/api/admin/users/1') {
+        const payload = JSON.parse(String(init?.body)) as Partial<User>;
+        currentUser = { ...currentUser, ...payload };
+        users = users.map(item => item.id === 1 ? currentUser : item);
+        return Promise.resolve(response({ data: currentUser }));
+      }
+      if (method === 'GET' && url === '/api/categories') return Promise.resolve(response({ data: [] }));
+      if (method === 'GET' && url.startsWith('/api/staff/tickets')) {
+        return Promise.resolve(response({
+          data: [],
+          pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+        }));
+      }
+      throw new Error(`Unexpected request: ${method} ${url}`);
+    });
+    global.fetch = fetchMock;
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'User Management' });
+    await screen.findAllByRole('button', { name: 'Edit', exact: true });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit', exact: true }).at(0)!);
+    fireEvent.change(screen.getByLabelText('Role *'), { target: { value: 'IT_STAFF' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes', exact: true }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/staff/tickets'));
+    expect(currentUser.role).toBe('IT_STAFF');
+    expect(fetchMock.mock.calls.filter(call => String(call[0]) === '/api/auth/me')).toHaveLength(2);
+  });
 });

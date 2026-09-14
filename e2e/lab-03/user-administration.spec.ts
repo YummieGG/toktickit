@@ -156,6 +156,13 @@ test('Requester receives the safe forbidden route state and no admin API is call
   expect(requests.some(request => request.url.startsWith('/api/admin/users'))).toBe(false);
 });
 
+test('IT Staff receives the safe forbidden route state and no admin API is called', async ({ page }) => {
+  const requests = await installMockApi(page, staff);
+  await page.goto('/admin/users');
+  await expect(page.getByRole('heading', { name: 'Access Denied' })).toBeVisible();
+  expect(requests.some(request => request.url.startsWith('/api/admin/users'))).toBe(false);
+});
+
 test('User Management switches to mobile cards without horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await installMockApi(page);
@@ -176,6 +183,10 @@ test('User Management meets required viewport, keyboard focus, and mobile target
     if (width < 768) {
       await expect(page.locator('.user-management-cards')).toBeVisible();
       await expect(page.locator('.user-management-table-wrap')).toBeHidden();
+      await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+      const checkbox = await page.getByLabel('Account active').boundingBox();
+      expect(checkbox?.width ?? 0).toBeGreaterThanOrEqual(44);
+      expect(checkbox?.height ?? 0).toBeGreaterThanOrEqual(44);
     } else {
       await expect(page.locator('.user-management-table-wrap')).toBeVisible();
       await expect(page.locator('.user-management-cards')).toBeHidden();
