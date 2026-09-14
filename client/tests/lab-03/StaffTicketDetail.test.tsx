@@ -14,15 +14,30 @@ const detail = {
 };
 
 function response(body: unknown, status = 200): Response { return { ok: status >= 200 && status < 300, status, json: async () => body, blob: async () => new Blob() } as Response; }
-function installFetch(user: typeof staff | typeof admin, status: string = 'OPEN') {
+function installFetch(
+  user: typeof staff | typeof admin,
+  status: string = 'OPEN',
+  options: { detailStatus?: number; conflict?: boolean } = {},
+) {
   const current = structuredClone(detail) as typeof detail;
   current.currentStatus = status;
+  let authMeCalls = 0;
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url === '/api/auth/me') return Promise.resolve(response({ data: user }));
-    if (url === '/api/tickets/8' && (!init || !init.method)) return Promise.resolve(response({ data: current }));
+    if (url === '/api/auth/me') {
+      authMeCalls += 1;
+      if (options.detailStatus === 401 && authMeCalls > 1) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, 401));
+      return Promise.resolve(response({ data: user }));
+    }
+    if (url === '/api/tickets/8' && (!init || !init.method)) {
+      if (options.detailStatus !== undefined) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, options.detailStatus));
+      return Promise.resolve(response({ data: current }));
+    }
     if (init?.method === 'PATCH' || init?.method === 'POST') {
       const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>;
+      if (options.conflict && url.endsWith('/status')) {
+        return Promise.resolve(response({ error: { code: 'CONFLICT', message: 'The resource was modified by another user. Reload and try again.' } }, 409));
+      }
       const next = { ...current };
       if (url.endsWith('/it-priority')) next.itPriority = body.itPriority as string;
       if (url.endsWith('/owner')) next.owner = body.ownerId === null ? null : { id: body.ownerId as number, name: 'Assigned Staff', email: 'assigned@example.com', role: 'IT_STAFF' };
@@ -82,6 +97,24 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
     expect(window.confirm).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalledWith('/api/tickets/8/status', expect.anything());
     expect(statusSelect.value).toBe('OPEN');
+  });
+
+  it('renders a conflict message when another Staff user changes the ticket first', async () => {
+    installFetch(staff, 'OPEN', { conflict: true });
+    render(<App />);
+    await screen.findByRole('heading', { name: 'TK-0008' });
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'IN_PROGRESS' } });
+
+    expect(await screen.findByText('The resource was modified by another user. Reload and try again.')).toBeInTheDocument();
+  });
+
+  it('redirects to Login when the detail session expires', async () => {
+    installFetch(staff, 'OPEN', { detailStatus: 401 });
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
   });
 
   it('renders Administrator detail as read-only while keeping notes and attachment metadata visible', async () => {

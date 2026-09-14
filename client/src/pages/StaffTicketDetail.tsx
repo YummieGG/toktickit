@@ -43,7 +43,7 @@ function displayStatus(value: string) { return value.replaceAll('_', ' '); }
 
 export function StaffTicketDetail() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const navigate = useNavigate();
   const isAdministrator = user?.role === 'ADMINISTRATOR';
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
@@ -73,11 +73,20 @@ export function StaffTicketDetail() {
         setOwnerInput(payload.data.owner ? String(payload.data.owner.id) : '');
       })
       .catch(requestError => {
-        if ((requestError as Error).name !== 'AbortError') setError(requestError instanceof DetailRequestError ? requestError : new DetailRequestError(0, 'Unable to load ticket detail.'));
+        if ((requestError as Error).name !== 'AbortError') {
+          if (requestError instanceof DetailRequestError && requestError.status === 401) {
+            void refresh().finally(() => navigate('/login', {
+              replace: true,
+              state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+            }));
+            return;
+          }
+          setError(requestError instanceof DetailRequestError ? requestError : new DetailRequestError(0, 'Unable to load ticket detail.'));
+        }
       })
       .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
     return () => controller.abort();
-  }, [id, retry, user]);
+  }, [id, navigate, refresh, retry, user]);
 
   const mutate = async (key: string, url: string, body: unknown, success: string) => {
     if (!ticket || saving) return;
@@ -86,7 +95,13 @@ export function StaffTicketDetail() {
       const payload = await requestJson<{ data: TicketDetail }>(url, { method: 'PATCH', body: JSON.stringify(body) });
       setTicket(payload.data); setOwnerInput(payload.data.owner ? String(payload.data.owner.id) : ''); setFeedback(success);
     } catch (requestError) {
-      if (requestError instanceof DetailRequestError && requestError.status === 401) { navigate('/login', { replace: true }); return; }
+      if (requestError instanceof DetailRequestError && requestError.status === 401) {
+        void refresh().finally(() => navigate('/login', {
+          replace: true,
+          state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+        }));
+        return;
+      }
       setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {});
       setMutationError(requestError instanceof Error ? requestError.message : 'Unable to save changes.');
     } finally { setSaving(null); }
@@ -119,7 +134,17 @@ export function StaffTicketDetail() {
       setTicket(previous => previous ? kind === 'comment' ? { ...previous, comments: [...previous.comments, payload.data as TicketComment] } : { ...previous, internalNotes: [...(previous.internalNotes ?? []), payload.data as TicketInternalNote] } : previous);
       if (kind === 'comment') setCommentText(''); else setNoteText('');
       setFeedback(`${kind === 'comment' ? 'Public comment' : 'Internal note'} added.`);
-    } catch (requestError) { setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {}); setMutationError(requestError instanceof Error ? requestError.message : 'Unable to add entry.'); }
+    } catch (requestError) {
+      if (requestError instanceof DetailRequestError && requestError.status === 401) {
+        void refresh().finally(() => navigate('/login', {
+          replace: true,
+          state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+        }));
+        return;
+      }
+      setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {});
+      setMutationError(requestError instanceof Error ? requestError.message : 'Unable to add entry.');
+    }
     finally { setSaving(null); }
   };
 

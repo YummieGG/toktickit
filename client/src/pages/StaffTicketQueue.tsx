@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -73,7 +73,8 @@ function QueueCell({ label, children }: { label: string; children: ReactNode }) 
 }
 
 export function StaffTicketQueue() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<QueueFilters>(initialFilters);
   const [searchInput, setSearchInput] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('updatedAt');
@@ -110,6 +111,13 @@ export function StaffTicketQueue() {
       })
       .catch(requestError => {
         if ((requestError as Error).name !== 'AbortError') {
+          if (requestError instanceof QueueRequestError && requestError.status === 401) {
+            void refresh().finally(() => navigate('/login', {
+              replace: true,
+              state: { from: '/staff/tickets', notice: 'Your session has expired. Please sign in again.' },
+            }));
+            return;
+          }
           setTickets([]);
           setError(requestError instanceof QueueRequestError ? requestError : new QueueRequestError(0, 'Unable to load the staff queue.'));
         }
@@ -118,7 +126,7 @@ export function StaffTicketQueue() {
         if (!controller.signal.aborted) setIsLoading(false);
       });
     return () => controller.abort();
-  }, [queryString, retry, user]);
+  }, [navigate, queryString, refresh, retry, user]);
 
   useEffect(() => {
     const controller = new AbortController();

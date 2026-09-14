@@ -15,12 +15,20 @@ function response(body: unknown, status = 200): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
 
-function installFetch(user = staff, queueData = [ticket]) {
+function installFetch(user = staff, queueData = [ticket], queueStatus = 200) {
+  let authMeCalls = 0;
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === '/api/auth/me') return Promise.resolve(response({ data: user }));
+    if (url === '/api/auth/me') {
+      authMeCalls += 1;
+      if (queueStatus === 401 && authMeCalls > 1) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, 401));
+      return Promise.resolve(response({ data: user }));
+    }
     if (url === '/api/categories') return Promise.resolve(response({ data: categories }));
-    if (url.startsWith('/api/staff/tickets')) return Promise.resolve(response({ data: queueData, pagination: { page: 1, pageSize: 10, totalItems: queueData.length, totalPages: queueData.length ? 1 : 0, hasNextPage: false, hasPreviousPage: false } }));
+    if (url.startsWith('/api/staff/tickets')) {
+      if (queueStatus !== 200) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, queueStatus));
+      return Promise.resolve(response({ data: queueData, pagination: { page: 1, pageSize: 10, totalItems: queueData.length, totalPages: queueData.length ? 1 : 0, hasNextPage: false, hasPreviousPage: false } }));
+    }
     throw new Error(`Unexpected request: ${url}`);
   });
   global.fetch = fetchMock;
@@ -69,6 +77,14 @@ describe('Issue #41 Staff Ticket Queue screen', () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Unable to Load Staff Queue' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('redirects to Login when the queue session expires', async () => {
+    installFetch(staff, [ticket], 401);
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
   });
 
   it('keeps the queue forbidden for a Requester', async () => {
