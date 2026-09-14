@@ -24,18 +24,9 @@ import {
 } from '../lib/password';
 import { requireAuth } from '../middleware/auth';
 import { requireTrustedOrigin } from '../middleware/csrf';
+import { apiError } from '../lib/validation';
 
 export const authRouter = Router();
-
-function apiError(
-  response: Response,
-  status: number,
-  code: string,
-  message: string,
-  fields?: Record<string, string>,
-) {
-  return response.status(status).json({ error: { code, message, ...(fields ? { fields } : {}) } });
-}
 
 function loginInputError(request: Request): Record<string, string> {
   const fields: Record<string, string> = {};

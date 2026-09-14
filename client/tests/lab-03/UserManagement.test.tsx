@@ -187,6 +187,19 @@ describe('Issue #42 Administrator User Management screen', () => {
     expect(fetchMock.mock.calls.some(call => String(call[0]).startsWith('/api/admin/users'))).toBe(false);
   });
 
+  it('redirects an unauthenticated User Management route without calling the admin API', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => String(input) === '/api/auth/me'
+      ? Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' } }, 401))
+      : Promise.reject(new Error(`Unexpected request: ${String(input)}`)));
+    global.fetch = fetchMock;
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+    expect(fetchMock.mock.calls.some(call => String(call[0]).startsWith('/api/admin/users'))).toBe(false);
+  });
+
   it('hides all management controls when the backend rejects an Administrator session', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => String(input) === '/api/auth/me'
       ? Promise.resolve(response({ data: admin }))

@@ -13,16 +13,11 @@ import { StaffTicketQueue } from './pages/StaffTicketQueue';
 import { StaffTicketDetail } from './pages/StaffTicketDetail';
 import { UserManagement } from './pages/UserManagement';
 import { ForbiddenPage, NotFoundPage } from './pages/RouteStates';
+import { getHomePath } from './utils/navigation';
 import './App.css';
 
 function GuardLoading() {
   return <main className="container py-5 text-center"><h1>Loading...</h1></main>;
-}
-
-function getHomePath(role: UserRole): string {
-  if (role === 'IT_STAFF') return '/staff/tickets';
-  if (role === 'ADMINISTRATOR') return '/admin/users';
-  return '/tickets';
 }
 
 function ProtectedShell() {

@@ -7,7 +7,11 @@ import {
 } from '../lib/auth';
 import { hashPassword, validatePassword } from '../lib/password';
 import {
+  apiError,
+  conflictError,
   getSingleStringParam,
+  internalError,
+  validationError,
   validatePositiveIntegerParam,
   type ValidationErrorDetail,
 } from '../lib/validation';
@@ -48,36 +52,6 @@ class AdminUserError extends Error {
   }
 }
 
-function apiError(
-  response: Response,
-  status: number,
-  code: string,
-  message: string,
-  fields?: Record<string, string>,
-) {
-  return response.status(status).json({
-    error: { code, message, ...(fields ? { fields } : {}) },
-  });
-}
-
-function validationError(response: Response, code: string, details: ValidationErrorDetail[]) {
-  return apiError(
-    response,
-    400,
-    code,
-    code === 'INVALID_QUERY' ? 'Query is invalid' : 'Request is invalid',
-    Object.fromEntries(details.map(({ field, message }) => [field, message])),
-  );
-}
-
-function conflictError(response: Response, code: string, message: string) {
-  return apiError(response, 409, code, message);
-}
-
-function internalError(response: Response) {
-  return apiError(response, 500, 'INTERNAL_ERROR', 'Unable to process the request');
-}
-
 function bodyRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -96,7 +70,7 @@ function parseUserId(request: Request, response: Response): number | undefined {
   const details: ValidationErrorDetail[] = [];
   const userId = validatePositiveIntegerParam(request.params.id, 'id', details);
   if (details.length > 0 || userId === undefined) {
-    validationError(response, 'INVALID_USER_UPDATE', details);
+    validationError(response, details, 'INVALID_USER_UPDATE');
     return undefined;
   }
   return userId;
@@ -187,10 +161,10 @@ function handleAdminUserError(error: unknown, response: Response, operation: str
     return apiError(response, error.status, error.code, error.message, error.fields);
   }
   if (isKnownPrismaError(error, 'P2002')) {
-    return conflictError(response, 'DUPLICATE_EMAIL', 'A user with this email already exists');
+    return conflictError(response, 'A user with this email already exists', 'DUPLICATE_EMAIL');
   }
   if (isKnownPrismaError(error, 'P2034')) {
-    return conflictError(response, 'CONFLICT', 'The user changed while this operation was in progress. Retry the request');
+    return conflictError(response, 'The user changed while this operation was in progress. Retry the request');
   }
   console.error(`Error ${operation}:`, error);
   return internalError(response);
@@ -209,7 +183,7 @@ adminUsersRouter.get('/', async (request: Request, response: Response) => {
   if (rawRole !== undefined && (typeof rawRole !== 'string' || !isUserRole(rawRole))) {
     details.push({ field: 'role', message: `Role must be one of ${USER_ROLES.join(', ')}` });
   }
-  if (details.length > 0) return validationError(response, 'INVALID_QUERY', details);
+  if (details.length > 0) return validationError(response, details, 'INVALID_QUERY');
 
   const search = (getSingleStringParam(rawSearch) ?? '').trim();
   const role = getSingleStringParam(rawRole) as UserRole | undefined;
@@ -240,7 +214,7 @@ adminUsersRouter.get('/', async (request: Request, response: Response) => {
 adminUsersRouter.post('/', requireTrustedOrigin, async (request: Request, response: Response) => {
   const parsed = validateCreateBody(bodyRecord(request.body));
   if (parsed.details.length > 0 || !parsed.name || !parsed.email || !parsed.role || parsed.isActive === undefined || !parsed.initialPassword) {
-    return validationError(response, 'INVALID_USER_CREATE', parsed.details);
+    return validationError(response, parsed.details, 'INVALID_USER_CREATE');
   }
 
   try {
@@ -267,7 +241,7 @@ adminUsersRouter.patch('/:id', requireTrustedOrigin, async (request: Request, re
   if (userId === undefined) return;
 
   const parsed = validateEditBody(bodyRecord(request.body));
-  if (parsed.details.length > 0) return validationError(response, 'INVALID_USER_UPDATE', parsed.details);
+  if (parsed.details.length > 0) return validationError(response, parsed.details, 'INVALID_USER_UPDATE');
 
   try {
     const updatedUser = await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {

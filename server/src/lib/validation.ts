@@ -9,6 +9,18 @@ export function getSingleStringParam(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+export function apiError(
+  response: Response,
+  status: number,
+  code: string,
+  message: string,
+  fields?: Record<string, string>,
+) {
+  return response.status(status).json({
+    error: { code, message, ...(fields ? { fields } : {}) },
+  });
+}
+
 export function isPositiveIntegerString(value: string): boolean {
   if (!/^[1-9]\d*$/.test(value)) return false;
   const parsed = Number(value);
@@ -63,9 +75,10 @@ export function validationError(
 export function conflictError(
   res: Response,
   message = 'The resource was modified by another user. Reload and try again.',
+  code = 'CONFLICT',
 ) {
   return res.status(409).json({
-    error: { code: 'CONFLICT', message },
+    error: { code, message },
   });
 }
 

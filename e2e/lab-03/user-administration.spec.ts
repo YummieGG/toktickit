@@ -18,7 +18,7 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
-async function installMockApi(page: Page, initialUser: User = admin, initialUsers: User[] = [admin, staff, requester]) {
+async function installMockApi(page: Page, initialUser: User | null = admin, initialUsers: User[] = [admin, staff, requester]) {
   let currentUser: User | null = initialUser;
   let users = [...initialUsers];
   const requests: Array<{ method: string; url: string; body: string | null }> = [];
@@ -160,6 +160,14 @@ test('IT Staff receives the safe forbidden route state and no admin API is calle
   const requests = await installMockApi(page, staff);
   await page.goto('/admin/users');
   await expect(page.getByRole('heading', { name: 'Access Denied' })).toBeVisible();
+  expect(requests.some(request => request.url.startsWith('/api/admin/users'))).toBe(false);
+});
+
+test('Unauthenticated users are redirected to Login without an admin API call', async ({ page }) => {
+  const requests = await installMockApi(page, null);
+  await page.goto('/admin/users');
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/login');
   expect(requests.some(request => request.url.startsWith('/api/admin/users'))).toBe(false);
 });
 

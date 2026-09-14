@@ -5,15 +5,10 @@ import { Button } from '../components/ui/Button';
 import { ROLE_LABELS, useAuth, type UserRole } from '../contexts/auth';
 import type { ManagedUser } from '../types/user';
 import { validatePasswordInput } from '../utils/password';
+import { getHomePath } from '../utils/navigation';
 
 const ROLES: UserRole[] = ['REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'];
 const ORIGIN_PATH = '/admin/users';
-
-function homePathForRole(role: UserRole): string {
-  if (role === 'IT_STAFF') return '/staff/tickets';
-  if (role === 'ADMINISTRATOR') return '/admin/users';
-  return '/tickets';
-}
 
 type UserForm = {
   name: string;
@@ -303,7 +298,7 @@ export function UserManagement() {
           return;
         }
         if (refreshedUser.role !== 'ADMINISTRATOR') {
-          navigate(homePathForRole(refreshedUser.role), { replace: true });
+          navigate(getHomePath(refreshedUser.role), { replace: true });
           return;
         }
       }

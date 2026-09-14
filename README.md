@@ -144,6 +144,15 @@ To run a specific test file:
 npx vitest run tests/lab-02/tickets.api.test.ts
 ```
 
+To run the Administrator PostgreSQL integration checks, use an isolated
+PostgreSQL database and provide its connection string explicitly:
+```bash
+TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_admin_test?schema=public" npm run test:integration
+```
+The integration suite creates uniquely named records and removes them during
+cleanup. It verifies real transaction rollback, owner unassignment, session
+revocation, role/origin guards, and concurrent last-Administrator protection.
+
 ### Frontend Tests (Client)
 Tests covering UI components, loading states, forms, and validation:
 
