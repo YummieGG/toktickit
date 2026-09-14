@@ -99,6 +99,7 @@ This table is the canonical method/path-level authorization contract. `Own` mean
 | `POST /api/tickets/:ticketId/comments` | Own/write | All/write | 403 |
 | `POST /api/tickets/:id/problem-appears-resolved` | Own/write | 403 | 403 |
 | `GET /api/staff/tickets` | 403 | All/read | All/read |
+| `GET /api/staff/tickets/owners` | 403 | All/read active owners | All/read active owners |
 | `PATCH /api/tickets/:id/owner` | 403 | All/write | 403 |
 | `PATCH /api/tickets/:id/it-priority` | 403 | All/write | 403 |
 | `PATCH /api/tickets/:id/status` | 403 | All/write | 403 |
@@ -183,6 +184,10 @@ IT Staff can read the full queue; Administrator can read it read-only. Query:
 - `page` (default 1) and `pageSize` (5, 10, or 20).
 
 Response is `200` with `{ "data": TicketSummary[], "pagination": QueuePagination }` and includes ticket number/date, summary, category, both priorities, status, owner, requester, last updated, and resolution indication in each item. Invalid query returns `400 INVALID_QUERY`; no matches return `200` with the same shape and an empty `data` array.
+
+### `GET /api/staff/tickets/owners`
+
+IT Staff and Administrator may read the active users eligible to own a ticket. The response is `200` with `{ "data": OwnerOption[] }`; each option contains only `id`, `name`, `email`, and `role`, and the result includes active `IT_STAFF` and `ADMINISTRATOR` users only. Requester users and inactive users are never returned.
 
 ### Staff/Admin ticket detail projection
 

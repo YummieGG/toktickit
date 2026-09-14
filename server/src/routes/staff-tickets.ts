@@ -9,6 +9,21 @@ import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/
 export const staffTicketsRouter = Router();
 staffTicketsRouter.use(requireAuth, requirePasswordChanged, requireRole('IT_STAFF', 'ADMINISTRATOR'));
 
+// GET /api/staff/tickets/owners — active users eligible for ticket ownership.
+staffTicketsRouter.get('/owners', async (_request: Request, response: Response) => {
+  try {
+    const owners = await prisma.user.findMany({
+      where: { isActive: true, role: { in: ['IT_STAFF', 'ADMINISTRATOR'] } },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      select: { id: true, name: true, email: true, role: true },
+    });
+    return response.status(200).json({ data: owners });
+  } catch (error) {
+    console.error('Error fetching eligible ticket owners:', error);
+    return internalError(response);
+  }
+});
+
 staffTicketsRouter.get('/', async (request: Request, response: Response) => {
   const parsed = parseStaffQueueQuery(request.query as Record<string, unknown>);
   if (!parsed.success) return validationError(response, parsed.details, 'INVALID_QUERY');

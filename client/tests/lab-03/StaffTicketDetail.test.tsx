@@ -17,7 +17,7 @@ function response(body: unknown, status = 200): Response { return { ok: status >
 function installFetch(
   user: typeof staff | typeof admin,
   status: string = 'OPEN',
-  options: { detailStatus?: number; conflict?: boolean } = {},
+  options: { detailStatus?: number; attachmentStatus?: number; conflict?: boolean } = {},
 ) {
   const current = structuredClone(detail) as typeof detail;
   current.currentStatus = status;
@@ -26,8 +26,15 @@ function installFetch(
     const url = String(input);
     if (url === '/api/auth/me') {
       authMeCalls += 1;
-      if (options.detailStatus === 401 && authMeCalls > 1) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, 401));
+      if ((options.detailStatus === 401 || options.attachmentStatus === 401) && authMeCalls > 1) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, 401));
       return Promise.resolve(response({ data: user }));
+    }
+    if (url === '/api/staff/tickets/owners') {
+      return Promise.resolve(response({ data: [
+        staff,
+        { id: 21, name: 'Pimchanok Support', email: 'pimchanok.staff@example.com', role: 'IT_STAFF', isActive: true, mustChangePassword: false },
+        admin,
+      ] }));
     }
     if (url === '/api/tickets/8' && (!init || !init.method)) {
       if (options.detailStatus !== undefined) return Promise.resolve(response({ error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, options.detailStatus));
@@ -46,7 +53,7 @@ function installFetch(
       if (url.endsWith('/internal-notes')) return Promise.resolve(response({ data: { id: 5, ticketId: 8, content: body.content as string, createdAt: '2026-09-12T04:00:00.000Z', author: { id: user.id, name: user.name, role: user.role } } }, 201));
       return Promise.resolve(response({ data: next }, url.endsWith('/comments') || url.endsWith('/internal-notes') ? 201 : 200));
     }
-    if (url.startsWith('/api/attachments/11/download')) return Promise.resolve(response({}, 200));
+    if (url.startsWith('/api/attachments/11/download')) return Promise.resolve(response({}, options.attachmentStatus ?? 200));
     throw new Error(`Unexpected request: ${url}`);
   });
   global.fetch = fetchMock;
@@ -62,7 +69,7 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Internal Notes' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Owner ID'), { target: { value: '21' } });
+    fireEvent.change(screen.getByLabelText('Owner'), { target: { value: '21' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/tickets/8/owner', expect.objectContaining({ method: 'PATCH' })));
     fireEvent.change(screen.getByLabelText('IT Priority'), { target: { value: 'CRITICAL' } });
@@ -112,6 +119,16 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
   it('redirects to Login when the detail session expires', async () => {
     installFetch(staff, 'OPEN', { detailStatus: 401 });
     render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
+  });
+
+  it('redirects to Login when an attachment download session expires', async () => {
+    installFetch(staff, 'OPEN', { attachmentStatus: 401 });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/login'));
     expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();

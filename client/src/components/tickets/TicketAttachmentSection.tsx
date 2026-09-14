@@ -15,6 +15,7 @@ interface TicketAttachmentSectionProps {
   ticketId: number;
   attachments: TicketAttachment[];
   onUpdateAttachments?: (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => void;
+  onSessionExpired?: () => void;
   mode?: 'requester' | 'staff' | 'administrator';
 }
 
@@ -35,6 +36,7 @@ export function TicketAttachmentSection({
   ticketId,
   attachments,
   onUpdateAttachments,
+  onSessionExpired,
   mode = 'requester',
 }: TicketAttachmentSectionProps) {
   const isRequester = mode === 'requester';
@@ -95,6 +97,10 @@ export function TicketAttachmentSection({
         `/api/attachments/${attachment.id}/download`,
         { credentials: 'include' },
       );
+      if (response.status === 401) {
+        onSessionExpired?.();
+        return;
+      }
       if (!response.ok) throw new Error('File unavailable');
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);

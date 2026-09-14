@@ -7,6 +7,7 @@ vi.mock('../../src/lib/prisma', () => ({
   prisma: {
     userSession: { findUnique: vi.fn() },
     ticket: { findMany: vi.fn(), count: vi.fn() },
+    user: { findMany: vi.fn() },
   },
 }));
 
@@ -24,6 +25,7 @@ describe('Issue #41 Staff Queue API', () => {
     vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session() as never);
     vi.mocked(prisma.ticket.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.ticket.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([] as never);
   });
 
   it('requires authentication and the Staff/Admin role', async () => {
@@ -66,6 +68,33 @@ describe('Issue #41 Staff Queue API', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ data: [], pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false } });
     expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], skip: 0, take: 10 }));
+  });
+
+  it.each(['IT_STAFF', 'ADMINISTRATOR'] as const)('returns active eligible owners to %s', async role => {
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session(role) as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 21, name: 'Narin Support', email: 'narin.staff@toktickit.local', role: 'IT_STAFF' },
+      { id: 30, name: 'Araya Administrator', email: 'araya.admin@toktickit.local', role: 'ADMINISTRATOR' },
+    ] as never);
+
+    const response = await request(app).get('/api/staff/tickets/owners').set('Cookie', cookie);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(2);
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { isActive: true, role: { in: ['IT_STAFF', 'ADMINISTRATOR'] } },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      select: { id: true, name: true, email: true, role: true },
+    });
+  });
+
+  it('forbids Requester from reading eligible owners', async () => {
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session('REQUESTER') as never);
+
+    const response = await request(app).get('/api/staff/tickets/owners').set('Cookie', cookie);
+
+    expect(response.status).toBe(403);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   it.each(['?pageSize=15', '?page=0', '?status=ASSIGNED', '?ownerId=999.5', '?search=one&search=two'])('rejects invalid query %s without reading data', async query => {

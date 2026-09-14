@@ -36,6 +36,7 @@ async function installMockApi(page: Page, role: Role = 'IT_STAFF') {
     requests.push({ method: request.method(), url: `${url.pathname}${url.search}`, body: request.postData() });
     if (request.method() === 'GET' && url.pathname === '/api/auth/me') return json(route, { data: user });
     if (request.method() === 'GET' && url.pathname === '/api/categories') return json(route, { data: categories });
+    if (request.method() === 'GET' && url.pathname === '/api/staff/tickets/owners') return json(route, { data: [staff, admin] });
     if (request.method() === 'GET' && url.pathname === '/api/staff/tickets') return json(route, { data: [queueTicket()], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     if (request.method() === 'GET' && url.pathname === '/api/tickets/8') return json(route, { data: ticket });
     if (request.method() === 'PATCH' && url.pathname === '/api/tickets/8/owner') return json(route, { data: { ...ticket, owner: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' } } });
@@ -66,7 +67,7 @@ test('Staff can search the queue, open detail, and complete the Issue #41 workfl
   await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
   await expect(page.getByText('Check gateway logs')).toBeVisible();
 
-  await page.getByLabel('Owner ID').fill('20');
+  await page.getByLabel('Owner').selectOption('20');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Owner updated.')).toBeVisible();
   await page.getByLabel('IT Priority').selectOption('CRITICAL');

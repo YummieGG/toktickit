@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { TicketAttachmentSection } from '../components/tickets/TicketAttachmentSection';
 import { useAuth } from '../contexts/auth';
-import type { TicketComment, TicketDetail, TicketInternalNote, TicketPriority, TicketStatus } from '../types/ticket';
+import type { TicketComment, TicketDetail, TicketInternalNote, TicketOwner, TicketPriority, TicketStatus } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
 
 const PRIORITIES: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
@@ -47,6 +47,8 @@ export function StaffTicketDetail() {
   const navigate = useNavigate();
   const isAdministrator = user?.role === 'ADMINISTRATOR';
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [owners, setOwners] = useState<TicketOwner[]>([]);
+  const [ownerLoadError, setOwnerLoadError] = useState<string | null>(null);
   const [error, setError] = useState<DetailRequestError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [retry, setRetry] = useState(0);
@@ -58,16 +60,20 @@ export function StaffTicketDetail() {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+  const redirectToLogin = useCallback(() => {
+    void refresh().finally(() => navigate('/login', {
+      replace: true,
+      state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+    }));
+  }, [id, navigate, refresh]);
+
   const handleExpiredSession = useCallback((requestError: unknown) => {
     if (requestError instanceof DetailRequestError && requestError.status === 401) {
-      void refresh().finally(() => navigate('/login', {
-        replace: true,
-        state: { from: `/staff/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
-      }));
+      redirectToLogin();
       return true;
     }
     return false;
-  }, [id, navigate, refresh]);
+  }, [redirectToLogin]);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -93,6 +99,21 @@ export function StaffTicketDetail() {
     return () => controller.abort();
   }, [handleExpiredSession, id, retry, user]);
 
+  useEffect(() => {
+    if (!user || isAdministrator) return;
+    const controller = new AbortController();
+    setOwnerLoadError(null);
+    void requestJson<{ data?: TicketOwner[] }>('/api/staff/tickets/owners', { signal: controller.signal })
+      .then(payload => setOwners(payload.data ?? []))
+      .catch(requestError => {
+        if ((requestError as Error).name === 'AbortError') return;
+        if (handleExpiredSession(requestError)) return;
+        setOwners([]);
+        setOwnerLoadError('Unable to load owner options. You can still assign to yourself or unassign.');
+      });
+    return () => controller.abort();
+  }, [handleExpiredSession, isAdministrator, user]);
+
   const mutate = async (key: string, url: string, body: unknown, success: string) => {
     if (!ticket || saving) return;
     setSaving(key); setFeedback(null); setMutationError(null); setValidationErrors({});
@@ -115,7 +136,7 @@ export function StaffTicketDetail() {
   const saveOwner = () => {
     const trimmed = ownerInput.trim();
     if (trimmed === '') { void mutate('owner', `/api/tickets/${ticket?.id}/owner`, { ownerId: null }, 'Ticket is now unassigned.'); return; }
-    const ownerId = Number(trimmed);
+      const ownerId = Number(trimmed);
     if (!Number.isSafeInteger(ownerId) || ownerId < 1) { setValidationErrors({ ownerId: 'Owner ID must be a positive integer or empty for unassigned.' }); setMutationError(null); return; }
     void mutate('owner', `/api/tickets/${ticket?.id}/owner`, { ownerId }, 'Owner updated.');
   };
@@ -177,6 +198,9 @@ export function StaffTicketDetail() {
   if (error || !ticket) return <Alert variant={error?.status === 403 ? 'warning' : 'danger'} className="text-center p-4"><h1 className="h3">{error?.status === 404 ? 'Ticket Not Found' : error?.status === 403 ? 'Access Denied' : 'Unable to Load Ticket'}</h1><p>{error?.message ?? 'The ticket could not be loaded.'}</p>{error && error.status !== 403 && <Button type="button" onClick={() => setRetry(value => value + 1)}>Retry</Button>}</Alert>;
 
   const allowedStatuses = TRANSITIONS[ticket.currentStatus];
+  const ownerOptions = ticket.owner && !owners.some(owner => owner.id === ticket.owner?.id)
+    ? [ticket.owner, ...owners]
+    : owners;
   return (
     <section className="staff-ticket-detail" aria-labelledby="staff-ticket-detail-title">
       <Link className="btn btn-zen-tertiary mb-3 px-0" to="/staff/tickets">← Back to Staff Queue</Link>
@@ -185,9 +209,9 @@ export function StaffTicketDetail() {
       {(feedback || mutationError) && <div className={`alert ${mutationError ? 'alert-danger' : 'alert-success'}`} role="status" aria-live="polite">{mutationError ?? feedback}</div>}
       <div className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><h2 className="h3">Ticket information</h2><dl className="d-grid gap-3 mb-0"><ReadOnlyField label="Category">{ticket.category.name}</ReadOnlyField><ReadOnlyField label="Related System">{ticket.relatedSystem?.name ?? 'Not specified'}</ReadOnlyField><ReadOnlyField label="Summary">{ticket.summary}</ReadOnlyField><ReadOnlyField label="Description"><span className="ticket-detail-description">{ticket.description}</span></ReadOnlyField></dl></div></div>
 
-      {!isAdministrator && <section className="card shadow-sm mb-4" aria-labelledby="workflow-controls-title"><div className="card-body p-3 p-md-4"><h2 id="workflow-controls-title" className="h3">Workflow controls</h2><div className="row g-3"><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-owner">Owner ID</label><div className="input-group"><input id="ticket-owner" list="ticket-owner-suggestions" className={`form-control ${validationErrors.ownerId ? 'is-invalid' : ''}`} inputMode="numeric" value={ownerInput} onChange={event => { setOwnerInput(event.target.value); setValidationErrors({}); }} placeholder="Empty = unassigned" aria-invalid={validationErrors.ownerId ? true : undefined} /><datalist id="ticket-owner-suggestions">{user && <option value={String(user.id)}>{user.name} (You)</option>}{ticket.owner && ticket.owner.id !== user?.id && <option value={String(ticket.owner.id)}>{ticket.owner.name} (Current Owner)</option>}</datalist><Button type="button" onClick={saveOwner} isLoading={saving === 'owner'}>Save</Button></div>{validationErrors.ownerId && <div className="invalid-feedback-custom" role="alert">{validationErrors.ownerId}</div>}<div className="form-text">Use your ID to claim; only active Staff/Admin targets are accepted.</div><div className="d-flex gap-2 mt-2"><Button type="button" variant="secondary" onClick={() => { setOwnerInput(String(user?.id ?? '')); }} disabled={saving !== null}>Assign to me</Button><Button type="button" variant="tertiary" onClick={() => { setOwnerInput(''); }} disabled={saving !== null || ownerInput === ''}>Clear</Button></div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-it-priority">IT Priority</label><select id="ticket-it-priority" className={`form-select ${validationErrors.itPriority ? 'is-invalid' : ''}`} value={ticket.itPriority} disabled={saving !== null} aria-invalid={validationErrors.itPriority ? true : undefined} onChange={event => void mutate('it-priority', `/api/tickets/${ticket.id}/it-priority`, { itPriority: event.target.value }, 'IT Priority updated.')}>{PRIORITIES.map(priority => <option key={priority} value={priority}>{priority}</option>)}</select>{validationErrors.itPriority && <div className="invalid-feedback-custom" role="alert">{validationErrors.itPriority}</div>}<div className="form-text">Requested Priority remains {ticket.requestedPriority}.</div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-status">Status</label><select id="ticket-status" className={`form-select ${validationErrors.status || validationErrors.confirmed ? 'is-invalid' : ''}`} value={ticket.currentStatus} disabled={saving !== null || allowedStatuses.length === 0} aria-invalid={validationErrors.status || validationErrors.confirmed ? true : undefined} onChange={event => saveStatus(event.target.value as TicketStatus, event.currentTarget)}><option value={ticket.currentStatus}>{displayStatus(ticket.currentStatus)} (current)</option>{allowedStatuses.map(status => <option key={status} value={status}>{displayStatus(status)}</option>)}</select>{(validationErrors.status || validationErrors.confirmed) && <div className="invalid-feedback-custom" role="alert">{validationErrors.status ?? validationErrors.confirmed}</div>}<div className="form-text">Allowed next states: {allowedStatuses.length ? allowedStatuses.map(displayStatus).join(', ') : 'None'}.</div></div></div></div></section>}
+      {!isAdministrator && <section className="card shadow-sm mb-4" aria-labelledby="workflow-controls-title"><div className="card-body p-3 p-md-4"><h2 id="workflow-controls-title" className="h3">Workflow controls</h2><div className="row g-3"><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-owner">Owner</label><select id="ticket-owner" className={`form-select ${validationErrors.ownerId ? 'is-invalid' : ''}`} value={ownerInput} disabled={saving !== null} onChange={event => { setOwnerInput(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.ownerId ? true : undefined}><option value="">Unassigned</option>{ownerOptions.map(owner => <option key={owner.id} value={String(owner.id)}>{owner.name} · {owner.email} ({owner.role === 'ADMINISTRATOR' ? 'Administrator' : 'IT Staff'})</option>)}</select>{validationErrors.ownerId && <div className="invalid-feedback-custom" role="alert">{validationErrors.ownerId}</div>}{ownerLoadError ? <div className="form-text text-danger" role="status">{ownerLoadError}</div> : <div className="form-text">Choose an active IT Staff or Administrator.</div>}<div className="d-flex gap-2 mt-2"><Button type="button" variant="secondary" onClick={() => { setOwnerInput(String(user?.id ?? '')); }} disabled={saving !== null}>Assign to me</Button><Button type="button" variant="tertiary" onClick={() => { setOwnerInput(''); }} disabled={saving !== null || ownerInput === ''}>Clear</Button><Button type="button" onClick={saveOwner} isLoading={saving === 'owner'}>Save</Button></div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-it-priority">IT Priority</label><select id="ticket-it-priority" className={`form-select ${validationErrors.itPriority ? 'is-invalid' : ''}`} value={ticket.itPriority} disabled={saving !== null} aria-invalid={validationErrors.itPriority ? true : undefined} onChange={event => void mutate('it-priority', `/api/tickets/${ticket.id}/it-priority`, { itPriority: event.target.value }, 'IT Priority updated.')}>{PRIORITIES.map(priority => <option key={priority} value={priority}>{priority}</option>)}</select>{validationErrors.itPriority && <div className="invalid-feedback-custom" role="alert">{validationErrors.itPriority}</div>}<div className="form-text">Requested Priority remains {ticket.requestedPriority}.</div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-status">Status</label><select id="ticket-status" className={`form-select ${validationErrors.status || validationErrors.confirmed ? 'is-invalid' : ''}`} value={ticket.currentStatus} disabled={saving !== null || allowedStatuses.length === 0} aria-invalid={validationErrors.status || validationErrors.confirmed ? true : undefined} onChange={event => saveStatus(event.target.value as TicketStatus, event.currentTarget)}><option value={ticket.currentStatus}>{displayStatus(ticket.currentStatus)} (current)</option>{allowedStatuses.map(status => <option key={status} value={status}>{displayStatus(status)}</option>)}</select>{(validationErrors.status || validationErrors.confirmed) && <div className="invalid-feedback-custom" role="alert">{validationErrors.status ?? validationErrors.confirmed}</div>}<div className="form-text">Allowed next states: {allowedStatuses.length ? allowedStatuses.map(displayStatus).join(', ') : 'None'}.</div></div></div></div></section>}
 
-      <TicketAttachmentSection ticketId={ticket.id} attachments={ticket.attachments} mode={isAdministrator ? 'administrator' : 'staff'} />
+      <TicketAttachmentSection ticketId={ticket.id} attachments={ticket.attachments} mode={isAdministrator ? 'administrator' : 'staff'} onSessionExpired={redirectToLogin} />
       <section className="card shadow-sm mb-4" aria-labelledby="staff-public-comments-title"><div className="card-body p-3 p-md-4"><h2 id="staff-public-comments-title" className="h3">Public Comments</h2>{ticket.comments.length === 0 ? <p className="text-muted">No public comments yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.comments.map(comment => <article className="border rounded p-3" key={comment.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p><small className="text-muted">{comment.author.name} · {formatTicketDateTime(comment.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postComment(event)}><label className="form-label" htmlFor="staff-public-comment">Add a public comment</label><textarea id="staff-public-comment" className={`form-control ${validationErrors.comment ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={commentText} onChange={event => { setCommentText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.comment ? true : undefined} />{validationErrors.comment && <div className="invalid-feedback-custom" role="alert">{validationErrors.comment}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{commentText.length}/2000</span><Button type="submit" isLoading={saving === 'comment'}>Add public comment</Button></div></form>}</div></section>
       <section className="card shadow-sm mb-4 internal-notes-panel" aria-labelledby="internal-notes-title"><div className="card-body p-3 p-md-4"><h2 id="internal-notes-title" className="h3">Internal Notes</h2>{(ticket.internalNotes?.length ?? 0) === 0 ? <p className="text-muted">No internal notes yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.internalNotes?.map(note => <article className="border rounded p-3" key={note.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p><small className="text-muted">{note.author.name} · {formatTicketDateTime(note.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postInternalNote(event)}><label className="form-label" htmlFor="staff-internal-note">Add an internal note</label><textarea id="staff-internal-note" className={`form-control ${validationErrors.internalNote ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={noteText} onChange={event => { setNoteText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.internalNote ? true : undefined} />{validationErrors.internalNote && <div className="invalid-feedback-custom" role="alert">{validationErrors.internalNote}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{noteText.length}/2000</span><Button type="submit" isLoading={saving === 'note'}>Add internal note</Button></div></form>}</div></section>
     </section>
