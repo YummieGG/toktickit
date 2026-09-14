@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { Prisma } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
 import {
   AUTH_ERROR_MESSAGES,
@@ -153,7 +154,7 @@ authRouter.post('/change-password', requireTrustedOrigin, requireAuth, async (re
 
     const newHash = await hashPassword(newPassword as string);
     const now = new Date();
-    await prisma.$transaction(async (transaction: any) => {
+    await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
       await transaction.user.update({
         where: { id: currentUser.id },
         data: { passwordHash: newHash, mustChangePassword: false },

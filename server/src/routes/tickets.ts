@@ -2,6 +2,12 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer';
 import { Prisma } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
+import { requesterTicketDetailSelect, staffTicketDetailSelect, ticketSummarySelect } from '../lib/ticket-selects';
+import { STAFF_PRIORITIES, STAFF_STATUSES } from '../lib/staff-queue';
+import {
+  isAllowedTransition,
+  requiresConfirmation,
+} from '../lib/status-transition';
 import { generateTicketNumber } from '../lib/ticket-number';
 import {
   ensureTicketAccessible,
@@ -24,6 +30,7 @@ import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/
 import { requireTrustedOrigin } from '../middleware/csrf';
 import {
   getSingleStringParam,
+  conflictError,
   internalError,
   isPositiveIntegerString,
   type ValidationErrorDetail,
@@ -48,52 +55,7 @@ const TICKET_SORT_FIELDS = [
 const SORT_ORDERS = ['asc', 'desc'] as const;
 const PAGE_SIZES = [5, 10, 20] as const;
 
-const ticketSummarySelect = {
-  id: true,
-  ticketNumber: true,
-  ticketDate: true,
-  summary: true,
-  requestedPriority: true,
-  itPriority: true,
-  currentStatus: true,
-  owner: { select: { id: true, name: true, email: true, role: true } },
-  requester: { select: { id: true, name: true, email: true, role: true } },
-  updatedAt: true,
-  problemAppearsResolvedAt: true,
-  category: { select: { id: true, name: true } },
-} satisfies Prisma.TicketSelect;
-
-const ticketDetailSelect = {
-  ...ticketSummarySelect,
-  description: true,
-  relatedSystem: { select: { id: true, name: true } },
-  attachments: {
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    select: {
-      id: true,
-      originalName: true,
-      storedName: true,
-      mimeType: true,
-      sizeBytes: true,
-      isRemoved: true,
-      removalReason: true,
-      removedAt: true,
-      createdAt: true,
-      ticketId: true,
-    },
-  },
-  comments: {
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    select: {
-      id: true,
-      ticketId: true,
-      content: true,
-      createdAt: true,
-      author: { select: { id: true, name: true, role: true } },
-    },
-  },
-  createdAt: true,
-} satisfies Prisma.TicketSelect;
+const ticketDetailSelect = requesterTicketDetailSelect;
 
 function parsePositiveIntegerField(
   value: unknown,
@@ -303,7 +265,9 @@ ticketsRouter.get(
   if (details.length > 0 || ticketId === undefined || ticketId === null) return validationError(response, details);
 
   try {
-    const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, ticketDetailSelect);
+    const user = getAuthenticatedUser(request);
+    const select = user.role === 'REQUESTER' ? requesterTicketDetailSelect : staffTicketDetailSelect;
+    const ticket = await findTicketForUser(user, ticketId, select);
     if (!ticket) {
       sendNotFound(response);
       return;
@@ -429,10 +393,36 @@ ticketsRouter.post(
   },
 );
 
-function normalizeCommentContent(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().replace(/\r\n?/g, '\n');
-  return normalized.length >= 1 && normalized.length <= 2000 ? normalized : null;
+function normalizePlainTextContent(value: unknown): { content?: string; code?: 'CONTENT_REQUIRED' | 'CONTENT_TOO_LONG' } {
+  if (typeof value !== 'string' || value.trim().length === 0) return { code: 'CONTENT_REQUIRED' };
+  const content = value.trim().replace(/\r\n?/g, '\n');
+  if (content.length > 2000) return { code: 'CONTENT_TOO_LONG' };
+  return { content };
+}
+
+function getBodyObject(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function parseStaffTicketId(request: Request, response: Response): number | undefined {
+  const details: ValidationErrorDetail[] = [];
+  const ticketId = parsePositiveIntegerField(request.params.id, 'id', details, true);
+  if (details.length > 0 || ticketId === undefined || ticketId === null) {
+    validationError(response, details);
+    return undefined;
+  }
+  return ticketId;
+}
+
+async function findStaffTicketOr404(request: Request, response: Response, ticketId: number) {
+  const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, { id: true });
+  if (!ticket) {
+    sendNotFound(response);
+    return null;
+  }
+  return ticket;
 }
 
 // Public comments are part of the shared ticket surface in Issue #40.
@@ -472,17 +462,17 @@ ticketsRouter.post(
   async (request: Request, response: Response) => {
     const details: ValidationErrorDetail[] = [];
     const ticketId = parsePositiveIntegerField(request.params.ticketId, 'ticketId', details, true);
-    const content = normalizeCommentContent(request.body?.content);
-    if (content === null) details.push({ field: 'content', message: 'Content must be between 1 and 2000 characters' });
-    if (details.length > 0 || ticketId === undefined || ticketId === null || content === null) {
-      return validationError(response, details);
+    const normalized = normalizePlainTextContent(request.body?.content);
+    if (normalized.code) details.push({ field: 'content', message: normalized.code === 'CONTENT_REQUIRED' ? 'Content is required' : 'Content must not exceed 2000 characters' });
+    if (details.length > 0 || ticketId === undefined || ticketId === null || !normalized.content) {
+      return validationError(response, details, normalized.code);
     }
 
     try {
       const user = getAuthenticatedUser(request);
       if (!(await ensureTicketAccessible(user, ticketId, response))) return;
       const comment = await prisma.publicComment.create({
-        data: { ticketId, content, authorId: user.id },
+        data: { ticketId, content: normalized.content, authorId: user.id },
         select: {
           id: true,
           ticketId: true,
@@ -494,6 +484,196 @@ ticketsRouter.post(
       return response.status(201).json({ data: comment });
     } catch (error) {
       console.error('Error creating public comment:', error);
+      return internalError(response);
+    }
+  },
+);
+
+// Internal Notes are deliberately separate from Public Comments. They are
+// visible to Staff/Admin readers, but only IT Staff can append a note.
+ticketsRouter.get(
+  '/:ticketId/internal-notes',
+  requireRole('IT_STAFF', 'ADMINISTRATOR'),
+  async (request: Request, response: Response) => {
+    const details: ValidationErrorDetail[] = [];
+    const ticketId = parsePositiveIntegerField(request.params.ticketId, 'ticketId', details, true);
+    if (details.length > 0 || ticketId === undefined || ticketId === null) return validationError(response, details);
+
+    try {
+      const user = getAuthenticatedUser(request);
+      if (!(await ensureTicketAccessible(user, ticketId, response))) return;
+      const notes = await prisma.internalNote.findMany({
+        where: { ticketId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          ticketId: true,
+          content: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, role: true } },
+        },
+      });
+      return response.status(200).json({ data: notes });
+    } catch (error) {
+      console.error('Error fetching internal notes:', error);
+      return internalError(response);
+    }
+  },
+);
+
+ticketsRouter.post(
+  '/:ticketId/internal-notes',
+  requireRole('IT_STAFF'),
+  requireTrustedOrigin,
+  async (request: Request, response: Response) => {
+    const details: ValidationErrorDetail[] = [];
+    const ticketId = parsePositiveIntegerField(request.params.ticketId, 'ticketId', details, true);
+    const normalized = normalizePlainTextContent(request.body?.content);
+    if (normalized.code) details.push({ field: 'content', message: normalized.code === 'CONTENT_REQUIRED' ? 'Content is required' : 'Content must not exceed 2000 characters' });
+    if (details.length > 0 || ticketId === undefined || ticketId === null || !normalized.content) {
+      return validationError(response, details, normalized.code);
+    }
+
+    try {
+      const user = getAuthenticatedUser(request);
+      if (!(await ensureTicketAccessible(user, ticketId, response))) return;
+      const note = await prisma.internalNote.create({
+        data: { ticketId, content: normalized.content, authorId: user.id },
+        select: {
+          id: true,
+          ticketId: true,
+          content: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, role: true } },
+        },
+      });
+      return response.status(201).json({ data: note });
+    } catch (error) {
+      console.error('Error creating internal note:', error);
+      return internalError(response);
+    }
+  },
+);
+
+// Staff workflow mutations. The owner is a routing field, not an
+// authorization boundary: any active IT Staff member can operate the queue.
+ticketsRouter.patch(
+  '/:id/owner',
+  requireRole('IT_STAFF'),
+  requireTrustedOrigin,
+  async (request: Request, response: Response) => {
+    const ticketId = parseStaffTicketId(request, response);
+    if (ticketId === undefined) return;
+    const body = getBodyObject(request.body);
+    const details: ValidationErrorDetail[] = [];
+    if (!Object.prototype.hasOwnProperty.call(body, 'ownerId')) {
+      details.push({ field: 'ownerId', message: 'ownerId is required' });
+    } else if (body.ownerId !== null && (
+      typeof body.ownerId !== 'number' || !Number.isSafeInteger(body.ownerId) || body.ownerId < 1
+    )) {
+      details.push({ field: 'ownerId', message: 'ownerId must be a positive integer or null' });
+    }
+    if (details.length > 0) return validationError(response, details);
+
+    try {
+      if (!(await findStaffTicketOr404(request, response, ticketId))) return;
+      if (body.ownerId !== null) {
+        const owner = await prisma.user.findUnique({
+          where: { id: body.ownerId as number },
+          select: { id: true, isActive: true, role: true },
+        });
+        if (!owner || !owner.isActive || (owner.role !== 'IT_STAFF' && owner.role !== 'ADMINISTRATOR')) {
+          return validationError(response, [{ field: 'ownerId', message: 'Owner must be an active IT Staff or Administrator' }]);
+        }
+      }
+      const ticket = await prisma.ticket.update({
+        where: { id: ticketId },
+        data: { ownerId: body.ownerId as number | null },
+        select: staffTicketDetailSelect,
+      });
+      return response.status(200).json({ data: ticket });
+    } catch (error) {
+      console.error('Error assigning ticket owner:', error);
+      return internalError(response);
+    }
+  },
+);
+
+ticketsRouter.patch(
+  '/:id/it-priority',
+  requireRole('IT_STAFF'),
+  requireTrustedOrigin,
+  async (request: Request, response: Response) => {
+    const ticketId = parseStaffTicketId(request, response);
+    if (ticketId === undefined) return;
+    const details: ValidationErrorDetail[] = [];
+    const itPriority = getBodyObject(request.body).itPriority;
+    if (typeof itPriority !== 'string' || !STAFF_PRIORITIES.includes(itPriority as (typeof STAFF_PRIORITIES)[number])) {
+      details.push({ field: 'itPriority', message: `itPriority must be one of ${STAFF_PRIORITIES.join(', ')}` });
+    }
+    if (details.length > 0) return validationError(response, details);
+
+    try {
+      if (!(await findStaffTicketOr404(request, response, ticketId))) return;
+      const ticket = await prisma.ticket.update({
+        where: { id: ticketId },
+        data: { itPriority: itPriority as (typeof STAFF_PRIORITIES)[number] },
+        select: staffTicketDetailSelect,
+      });
+      return response.status(200).json({ data: ticket });
+    } catch (error) {
+      console.error('Error updating IT priority:', error);
+      return internalError(response);
+    }
+  },
+);
+
+ticketsRouter.patch(
+  '/:id/status',
+  requireRole('IT_STAFF'),
+  requireTrustedOrigin,
+  async (request: Request, response: Response) => {
+    const ticketId = parseStaffTicketId(request, response);
+    if (ticketId === undefined) return;
+    const body = getBodyObject(request.body);
+    const details: ValidationErrorDetail[] = [];
+    const nextStatus = body.status;
+    if (typeof nextStatus !== 'string' || !STAFF_STATUSES.includes(nextStatus as (typeof STAFF_STATUSES)[number])) {
+      details.push({ field: 'status', message: `status must be one of ${STAFF_STATUSES.join(', ')}` });
+    }
+    if (typeof body.confirmed !== 'boolean') details.push({ field: 'confirmed', message: 'confirmed must be a boolean' });
+    if (details.length > 0) return validationError(response, details, 'INVALID_STATUS_TRANSITION');
+
+    try {
+      const current = await prisma.ticket.findFirst({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
+      if (!current) {
+        sendNotFound(response);
+        return;
+      }
+      const target = nextStatus as (typeof STAFF_STATUSES)[number];
+      if (!isAllowedTransition(current.currentStatus, target)) {
+        return validationError(response, [{ field: 'status', message: `Cannot transition from ${current.currentStatus} to ${target}` }], 'INVALID_STATUS_TRANSITION');
+      }
+      if (requiresConfirmation(target) && body.confirmed !== true) {
+        return validationError(response, [{ field: 'confirmed', message: `${target} requires explicit confirmation` }], 'INVALID_STATUS_TRANSITION');
+      }
+      const updateResult = await prisma.ticket.updateMany({
+        where: { id: ticketId, currentStatus: current.currentStatus },
+        data: {
+          currentStatus: target,
+          ...(target === 'REOPENED' ? { problemAppearsResolvedAt: null } : {}),
+        },
+      });
+      if (updateResult.count === 0) {
+        return conflictError(response);
+      }
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: staffTicketDetailSelect,
+      });
+      return response.status(200).json({ data: ticket });
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
       return internalError(response);
     }
   },

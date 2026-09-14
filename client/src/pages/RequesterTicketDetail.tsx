@@ -296,6 +296,10 @@ export function RequesterTicketDetail() {
             ticketId={ticket.id}
             attachments={ticket.attachments}
             onUpdateAttachments={updateAttachments}
+            onSessionExpired={() => navigate('/login', {
+              replace: true,
+              state: { from: `/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+            })}
           />
 
           <section className="card shadow-sm mb-4" aria-labelledby="public-comments-title">

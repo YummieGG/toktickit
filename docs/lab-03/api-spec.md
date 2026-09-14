@@ -99,6 +99,7 @@ This table is the canonical method/path-level authorization contract. `Own` mean
 | `POST /api/tickets/:ticketId/comments` | Own/write | All/write | 403 |
 | `POST /api/tickets/:id/problem-appears-resolved` | Own/write | 403 | 403 |
 | `GET /api/staff/tickets` | 403 | All/read | All/read |
+| `GET /api/staff/tickets/owners` | 403 | All/read active owners | All/read active owners |
 | `PATCH /api/tickets/:id/owner` | 403 | All/write | 403 |
 | `PATCH /api/tickets/:id/it-priority` | 403 | All/write | 403 |
 | `PATCH /api/tickets/:id/status` | 403 | All/write | 403 |
@@ -184,6 +185,10 @@ IT Staff can read the full queue; Administrator can read it read-only. Query:
 
 Response is `200` with `{ "data": TicketSummary[], "pagination": QueuePagination }` and includes ticket number/date, summary, category, both priorities, status, owner, requester, last updated, and resolution indication in each item. Invalid query returns `400 INVALID_QUERY`; no matches return `200` with the same shape and an empty `data` array.
 
+### `GET /api/staff/tickets/owners`
+
+IT Staff and Administrator may read the active users eligible to own a ticket. The response is `200` with `{ "data": OwnerOption[] }`; each option contains only `id`, `name`, `email`, and `role`, and the result includes active `IT_STAFF` and `ADMINISTRATOR` users only. Requester users and inactive users are never returned.
+
 ### Staff/Admin ticket detail projection
 
 IT Staff receives the Staff detail projection for any ticket, including attachment metadata and download actions. Administrator receives the same read-only detail but attachment metadata only; no download or mutation affordances. The projection includes attachments, public comments, internal notes (Staff/Admin only), owner, priorities, status, and resolution indication.
@@ -198,7 +203,7 @@ IT Staff only. Body `{ "itPriority": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" }`. 
 
 ### `PATCH /api/tickets/:id/status`
 
-IT Staff only. Body `{ "status": "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED", "confirmed": boolean }`. Confirmation is required for Cancelled, Resolved, Closed, and Reopened. A successful update returns `200` with `{ "data": TicketDetail }`. Invalid transitions return `400 INVALID_STATUS_TRANSITION`; Reopened clears `problemAppearsResolvedAt`.
+IT Staff only. Body `{ "status": "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED", "confirmed": boolean }`. Confirmation is required for Cancelled, Resolved, Closed, and Reopened. A successful update returns `200` with `{ "data": TicketDetail }`. Invalid transitions return `400 INVALID_STATUS_TRANSITION`; Reopened clears `problemAppearsResolvedAt`. If the ticket status changes between the read and the guarded update, the server returns `409 CONFLICT` and does not apply the requested transition.
 
 ### `GET/POST /api/tickets/:ticketId/internal-notes`
 

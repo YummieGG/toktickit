@@ -9,6 +9,13 @@ datasource db {
 
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 enum RequestedPriority {
@@ -35,10 +42,11 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  tickets      Ticket[]        @relation("RequesterTickets")
-  ownedTickets Ticket[]        @relation("OwnedTickets")
-  comments     PublicComment[]
-  sessions     UserSession[]
+  tickets       Ticket[]        @relation("RequesterTickets")
+  ownedTickets  Ticket[]        @relation("OwnedTickets")
+  comments      PublicComment[]
+  internalNotes InternalNote[]
+  sessions      UserSession[]
 }
 
 model UserSession {
@@ -111,13 +119,17 @@ model Ticket {
   relatedSystemId Int?
   relatedSystem   RelatedSystem? @relation(fields: [relatedSystemId], references: [id])
 
-  attachments Attachment[]
-  comments    PublicComment[]
+  attachments   Attachment[]
+  comments      PublicComment[]
+  internalNotes InternalNote[]
 
   @@index([requesterId])
   @@index([ownerId])
   @@index([currentStatus])
   @@index([categoryId])
+  @@index([requestedPriority])
+  @@index([itPriority])
+  @@index([updatedAt])
 }
 
 model Attachment {
@@ -138,6 +150,21 @@ model Attachment {
 }
 
 model PublicComment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+}
+
+model InternalNote {
   id        Int      @id @default(autoincrement())
   content   String
   createdAt DateTime @default(now())

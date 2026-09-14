@@ -41,20 +41,31 @@ export function validatePositiveIntegerParam(
 export function validationError(
   res: Response,
   details: ValidationErrorDetail[],
-  code: 'VALIDATION_ERROR' | 'INVALID_QUERY' | 'INVALID_STATUS_TRANSITION' = 'VALIDATION_ERROR',
+  code = 'VALIDATION_ERROR',
 ) {
+  const messages: Record<string, string> = {
+    INVALID_QUERY: 'Query is invalid',
+    INVALID_STATUS_TRANSITION: 'Invalid status transition',
+    CONTENT_REQUIRED: 'Content is required',
+    CONTENT_TOO_LONG: 'Content is too long',
+  };
   return res.status(400).json({
     error: {
       code,
-      message: code === 'INVALID_QUERY'
-        ? 'Query is invalid'
-        : code === 'INVALID_STATUS_TRANSITION'
-          ? 'Invalid status transition'
-          : 'Request is invalid',
+      message: messages[code] ?? 'Request is invalid',
       fields: Object.fromEntries(details.map(({ field, message }) => [field, message])),
     },
     // Retained for backward compatibility with Lab 2 clients.
     details,
+  });
+}
+
+export function conflictError(
+  res: Response,
+  message = 'The resource was modified by another user. Reload and try again.',
+) {
+  return res.status(409).json({
+    error: { code: 'CONFLICT', message },
   });
 }
 

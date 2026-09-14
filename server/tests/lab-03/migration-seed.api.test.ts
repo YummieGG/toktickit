@@ -46,6 +46,10 @@ describe('Lab 3-2 migration and seed contract', () => {
     expect(seed).toContain('validatePassword(value)');
     expect(seed).toContain('transaction.user.upsert');
     expect(seed).toContain('where: { id, passwordHash: null }');
+    expect(seed).toContain('TK-SEED-001');
+    expect(seed).toContain('transaction.ticket.upsert');
+    expect(seed).toContain('transaction.publicComment.create');
+    expect(seed).toContain('transaction.internalNote.create');
     expect(seed).toContain('await prisma.$transaction');
     expect(seed).not.toContain('ValidPass#12');
   });
