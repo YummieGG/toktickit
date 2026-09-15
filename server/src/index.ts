@@ -7,6 +7,7 @@ import { ticketsRouter } from './routes/tickets';
 import { attachmentsRouter, ticketAttachmentsRouter } from './routes/attachments';
 import { authRouter } from './routes/auth';
 import { staffTicketsRouter } from './routes/staff-tickets';
+import { adminUsersRouter } from './routes/admin-users';
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.use('/api/tickets', ticketsRouter);
 app.use('/api/tickets/:ticketId/attachments', ticketAttachmentsRouter);
 app.use('/api/attachments', attachmentsRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/admin/users', adminUsersRouter);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
