@@ -20,6 +20,7 @@ import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/
 import { requireTrustedOrigin } from '../middleware/csrf';
 
 const USER_ROLES: readonly UserRole[] = ['REQUESTER', 'IT_STAFF', 'ADMINISTRATOR'];
+const CREATE_USER_FIELDS = new Set(['name', 'email', 'role', 'isActive', 'initialPassword']);
 const EDITABLE_FIELDS = new Set(['name', 'email', 'role', 'isActive']);
 
 const ADMIN_USER_SELECT = {
@@ -66,11 +67,15 @@ function isKnownPrismaError(error: unknown, code: string): boolean {
     || (typeof error === 'object' && error !== null && 'code' in error && error.code === code);
 }
 
-function parseUserId(request: Request, response: Response): number | undefined {
+function parseUserId(
+  request: Request,
+  response: Response,
+  errorCode = 'INVALID_USER_UPDATE',
+): number | undefined {
   const details: ValidationErrorDetail[] = [];
   const userId = validatePositiveIntegerParam(request.params.id, 'id', details);
   if (details.length > 0 || userId === undefined) {
-    validationError(response, details, 'INVALID_USER_UPDATE');
+    validationError(response, details, errorCode);
     return undefined;
   }
   return userId;
@@ -85,6 +90,13 @@ function validateCreateBody(body: Record<string, unknown>): {
   initialPassword?: string;
 } {
   const details: ValidationErrorDetail[] = [];
+  const keys = Object.keys(body);
+  for (const key of keys) {
+    if (!CREATE_USER_FIELDS.has(key)) {
+      details.push({ field: key, message: 'Field is not recognized' });
+    }
+  }
+
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name) details.push({ field: 'name', message: 'Name is required' });
 
@@ -303,7 +315,7 @@ adminUsersRouter.patch('/:id', requireTrustedOrigin, async (request: Request, re
 });
 
 adminUsersRouter.post('/:id/initial-password', requireTrustedOrigin, async (request: Request, response: Response) => {
-  const userId = parseUserId(request, response);
+  const userId = parseUserId(request, response, 'VALIDATION_ERROR');
   if (userId === undefined) return;
 
   const initialPassword = bodyRecord(request.body).initialPassword;

@@ -96,13 +96,17 @@ function userFormFrom(user: ManagedUser): UserForm {
   };
 }
 
+const ERROR_MESSAGES: Record<string, string> = {
+  DUPLICATE_EMAIL: 'A user with this email already exists.',
+  SELF_DEACTIVATION: 'You cannot deactivate your own account.',
+  LAST_ADMIN_PROTECTION: 'At least one active Administrator must remain.',
+  CONFLICT: 'The user changed while you were editing. Reload and try again.',
+  NETWORK_ERROR: 'Unable to connect to the server. Please try again.',
+};
+
 function safeErrorMessage(error: unknown, fallback: string): string {
   if (!(error instanceof UserManagementError)) return fallback;
-  if (error.code === 'DUPLICATE_EMAIL') return 'A user with this email already exists.';
-  if (error.code === 'SELF_DEACTIVATION') return 'You cannot deactivate your own account.';
-  if (error.code === 'LAST_ADMIN_PROTECTION') return 'At least one active Administrator must remain.';
-  if (error.code === 'CONFLICT') return 'The user changed while you were editing. Reload and try again.';
-  if (error.code === 'NETWORK_ERROR') return 'Unable to connect to the server. Please try again.';
+  if (error.code && ERROR_MESSAGES[error.code]) return ERROR_MESSAGES[error.code];
   if (error.status === 403) return 'You do not have permission to manage users.';
   return fallback;
 }

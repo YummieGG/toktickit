@@ -201,6 +201,22 @@ describe('Issue #42 Administrator user-management API', () => {
     expect(invalid.body.error.code).toBe('INVALID_USER_CREATE');
     expect(prisma.user.create).not.toHaveBeenCalled();
 
+    const unknownField = await request(app)
+      .post('/api/admin/users')
+      .set('Cookie', COOKIE)
+      .set('Origin', ORIGIN)
+      .send({
+        name: 'Valid Name',
+        email: 'valid@example.com',
+        role: 'REQUESTER',
+        isActive: true,
+        initialPassword: validPassword,
+        extraField: 'unexpected',
+      });
+    expect(unknownField.status).toBe(400);
+    expect(unknownField.body.error.code).toBe('INVALID_USER_CREATE');
+    expect(prisma.user.create).not.toHaveBeenCalled();
+
     vi.mocked(prisma.user.create).mockRejectedValue({ code: 'P2002' } as never);
     const duplicate = await request(app)
       .post('/api/admin/users')
@@ -340,5 +356,13 @@ describe('Issue #42 Administrator user-management API', () => {
     expect(missing.status).toBe(404);
     expect(missing.body).toEqual({ error: { code: 'NOT_FOUND', message: 'Resource not found' } });
     expect(prisma.user.update).not.toHaveBeenCalled();
+
+    const invalidId = await request(app)
+      .post('/api/admin/users/not-a-number/initial-password')
+      .set('Cookie', COOKIE)
+      .set('Origin', ORIGIN)
+      .send({ initialPassword: validPassword });
+    expect(invalidId.status).toBe(400);
+    expect(invalidId.body.error.code).toBe('VALIDATION_ERROR');
   });
 });
