@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 type Role = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
@@ -88,6 +89,7 @@ test('Administrator can list, search, filter, create, edit, and reset a user', a
   await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
   await expect(page.getByText('Staff One').first()).toBeVisible();
   await expect(page.getByText('Inactive').first()).toBeVisible();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/user-management/desktop-initial.png'), fullPage: true });
 
   await page.getByLabel('Search users').fill('staff@example.com');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
@@ -103,6 +105,7 @@ test('Administrator can list, search, filter, create, edit, and reset a user', a
   await page.getByLabel('Initial password').fill('ValidPass#12');
   await page.getByRole('button', { name: 'Create user', exact: true }).last().click();
   await expect(page.getByText('User created successfully.')).toBeVisible();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/user-management/desktop-success.png'), fullPage: true });
 
   const createRequest = requests.find(request => request.method === 'POST' && request.url === '/api/admin/users');
   expect(JSON.parse(createRequest?.body ?? '{}')).toEqual({ name: 'New User', email: 'new@example.com', role: 'REQUESTER', isActive: true, initialPassword: 'ValidPass#12' });
@@ -138,6 +141,7 @@ test('Administrator receives safe duplicate and last-admin feedback and cannot d
   await page.getByRole('button', { name: 'Create user', exact: true }).last().click();
   await expect(page.getByText('A user with this email already exists.')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('ValidPass#12');
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/user-management/validation-error.png'), fullPage: true });
 
   const adminRow = page.locator('.user-management-table tbody tr').filter({ hasText: 'Admin One' });
   await adminRow.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -178,6 +182,7 @@ test('User Management switches to mobile cards without horizontal overflow', asy
   await expect(page.locator('.user-management-cards')).toBeVisible();
   await expect(page.locator('.user-management-table-wrap')).toBeHidden();
   await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/user-management/mobile-cards.png'), fullPage: true });
 });
 
 test('User Management meets required viewport, keyboard focus, and mobile target checks', async ({ page }) => {
@@ -187,6 +192,7 @@ test('User Management meets required viewport, keyboard focus, and mobile target
     await page.goto('/admin/users');
     await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/user-management/${width}.png`), fullPage: true });
 
     if (width < 768) {
       await expect(page.locator('.user-management-cards')).toBeVisible();

@@ -10,7 +10,7 @@
   --text-secondary: #4A5D4A;
   --error: #C62828;
   --error-bg: #FFEBEE;
-  --warning: #E65100;
+  --warning: #8A2E00;
   --warning-bg: #FFF3E0;
   --success: #2E7D32;
   --success-bg: #E8F5E9;
@@ -478,7 +478,7 @@ textarea.form-control[readonly] {
 .staff-queue-table th:nth-child(12) { width: 8%; }
 .staff-sort-button { background: transparent; border: 0; color: inherit; font: inherit; font-weight: 600; padding: 0; text-align: left; }
 .staff-sort-button:hover, .staff-sort-button:focus-visible { color: var(--primary-green); text-decoration: underline; }
-.staff-queue-cards { display: none; }
+.staff-queue-cards { display: none !important; }
 .staff-queue-card-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .staff-queue-cell { min-width: 0; }
 .staff-queue-cell-label { color: var(--text-secondary); display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.15rem; }
@@ -491,7 +491,7 @@ textarea.form-control[readonly] {
 
 @media (max-width: 767.98px) {
   .staff-queue-table-wrap { display: none; }
-  .staff-queue-cards { display: grid; }
+  .staff-queue-cards { display: grid !important; }
   .staff-queue-card-grid { grid-template-columns: 1fr; }
 }
 

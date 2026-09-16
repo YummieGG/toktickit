@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 type Role = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
@@ -253,6 +254,7 @@ test('initial password login requires password change and unblocks normal screen
   await installMockApi(page);
 
   await page.goto('/login');
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/authentication/login-idle.png'), fullPage: true });
   await page.getByLabel('Email').fill('initial.user@toktickit.local');
   await page.getByLabel('Password').fill('InitialPass#12');
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -260,6 +262,7 @@ test('initial password login requires password change and unblocks normal screen
   // Redirected to /change-password immediately
   await expect(page).toHaveURL(/\/change-password$/);
   await expect(page.getByRole('heading', { name: 'Change your password' })).toBeVisible();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/authentication/change-password.png'), fullPage: true });
 
   // Attempting to navigate to normal screens is blocked and returns to /change-password
   await page.goto('/tickets');
@@ -302,8 +305,11 @@ test('authenticated requester retains create, list, detail, attachment, comment,
   await page.getByRole('button', { name: 'Submit Ticket' }).click();
   await expect(page.getByText('Ticket Created Successfully')).toBeVisible();
   await expect(page.getByText('TK-0001')).toBeVisible();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/requester/create-ticket-success.png'), fullPage: true });
 
   await page.getByRole('link', { name: 'View My Tickets' }).click();
+  await expect(page.getByRole('heading', { name: 'My Tickets' })).toBeVisible();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/requester/my-tickets-desktop.png'), fullPage: true });
   await page.getByRole('link', { name: 'TK-0001' }).first().click();
   await expect(page.getByRole('heading', { name: 'TK-0001' })).toBeVisible();
 
@@ -319,6 +325,7 @@ test('authenticated requester retains create, list, detail, attachment, comment,
   await page.getByRole('button', { name: 'Problem Appears Resolved', exact: true }).click();
   await expect(page.getByText(/Reported on/)).toBeVisible();
   await expect(page.getByRole('button', { name: /Problem Appears Resolved \(reported\)/ })).toBeDisabled();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/requester/ticket-detail-resolved.png'), fullPage: true });
   expect(api.getTicket()?.currentStatus).toBe('NEW');
 
   const identityLeaks = api.requestLog.filter(entry =>
@@ -376,10 +383,12 @@ test('authenticated requester pages remain responsive at desktop, tablet, and mo
     await page.goto('/tickets');
     await expect(page.getByRole('heading', { name: 'My Tickets' })).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/requester/my-tickets-${viewport.width}.png`), fullPage: true });
 
     await page.goto('/tickets/new');
     await expect(page.getByText('Create New Ticket')).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/requester/create-ticket-${viewport.width}.png`), fullPage: true });
     const controlsHaveLabels = await page.locator('input, select, textarea').evaluateAll(elements =>
       elements.every(element => Boolean((element as HTMLInputElement).labels?.length)),
     );
@@ -395,5 +404,13 @@ test('authenticated requester pages remain responsive at desktop, tablet, and mo
       );
       expect(shortTouchTargets).toEqual([]);
     }
+
+    const summary = page.getByLabel('Summary');
+    await summary.focus();
+    expect(await summary.evaluate(element => document.activeElement === element)).toBe(true);
+    expect(await summary.evaluate(element => {
+      const style = window.getComputedStyle(element);
+      return style.outlineStyle !== 'none' || style.boxShadow !== 'none';
+    })).toBe(true);
   }
 });
