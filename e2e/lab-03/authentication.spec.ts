@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { expectReadableTextIndicators } from './visual-assertions';
 
 type Role = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
 type User = {
@@ -325,6 +326,7 @@ test('authenticated requester retains create, list, detail, attachment, comment,
   await page.getByRole('button', { name: 'Problem Appears Resolved', exact: true }).click();
   await expect(page.getByText(/Reported on/)).toBeVisible();
   await expect(page.getByRole('button', { name: /Problem Appears Resolved \(reported\)/ })).toBeDisabled();
+  await expectReadableTextIndicators(page);
   await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/requester/ticket-detail-resolved.png'), fullPage: true });
   expect(api.getTicket()?.currentStatus).toBe('NEW');
 

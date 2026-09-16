@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { expectReadableTextIndicators } from './visual-assertions';
 
 type Role = 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR';
 type User = {
@@ -89,6 +90,7 @@ test('Administrator can list, search, filter, create, edit, and reset a user', a
   await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
   await expect(page.getByText('Staff One').first()).toBeVisible();
   await expect(page.getByText('Inactive').first()).toBeVisible();
+  await expectReadableTextIndicators(page);
   await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/user-management/desktop-initial.png'), fullPage: true });
 
   await page.getByLabel('Search users').fill('staff@example.com');
@@ -191,6 +193,7 @@ test('User Management meets required viewport, keyboard focus, and mobile target
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/admin/users');
     await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
+    await expectReadableTextIndicators(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/user-management/${width}.png`), fullPage: true });
 

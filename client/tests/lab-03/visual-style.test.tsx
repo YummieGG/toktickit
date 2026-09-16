@@ -51,6 +51,20 @@ describe('Lab 3 Zen Green visual and accessibility contract (UI-08)', () => {
     expect(contrastRatio('#C62828', '#FFEBEE')).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio('#8A2E00', '#FFF3E0')).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio('#2E7D32', '#E8F5E9')).toBeGreaterThanOrEqual(4.5);
+
+    for (const [foreground, background] of [
+      ['#0D47A1', '#E3F2FD'],
+      ['#8A2E00', '#FFF9C4'],
+      ['#8A2E00', '#FFE0B2'],
+      ['#B71C1C', '#FFCDD2'],
+      ['#1B5E20', '#E8F5E9'],
+      ['#2E7D32', '#E8F5E9'],
+      ['#37474F', '#ECEFF1'],
+      ['#4527A0', '#EDE7F6'],
+      ['#C62828', '#FFEBEE'],
+    ] as const) {
+      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('defines visible focus, responsive representations, and mobile touch targets', () => {

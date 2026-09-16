@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { expectReadableTextIndicators } from './visual-assertions';
 
 type Role = 'IT_STAFF' | 'ADMINISTRATOR';
 const staff = { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' as const, isActive: true, mustChangePassword: false };
@@ -68,6 +69,7 @@ test('Staff can search the queue, open detail, and complete the Issue #41 workfl
   await expect(page).toHaveURL(/\/staff\/tickets\/8$/);
   await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
   await expect(page.getByText('Check gateway logs')).toBeVisible();
+  await expectReadableTextIndicators(page);
   await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/staff-ticket-detail/desktop-success.png'), fullPage: true });
 
   await page.getByLabel('Owner').selectOption('20');
@@ -107,6 +109,7 @@ test('Staff queue meets required viewport representations without horizontal ove
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/staff/tickets');
     await expect(page.getByRole('heading', { name: 'Staff Ticket Queue' })).toBeVisible();
+    await expectReadableTextIndicators(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-queue/${width}.png`), fullPage: true });
 
@@ -134,6 +137,7 @@ test('Staff ticket detail meets required viewport and label checks', async ({ pa
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/staff/tickets/8');
     await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
+    await expectReadableTextIndicators(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-ticket-detail/${width}.png`), fullPage: true });
 

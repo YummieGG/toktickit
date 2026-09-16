@@ -9,7 +9,7 @@ interface BadgeProps {
 
 const PRIORITY_STYLES: Record<TicketPriority, React.CSSProperties> = {
   LOW: { backgroundColor: '#E3F2FD', color: '#0D47A1' },
-  MEDIUM: { backgroundColor: '#FFF9C4', color: '#F57F17' },
+  MEDIUM: { backgroundColor: '#FFF9C4', color: '#8A2E00' },
   HIGH: { backgroundColor: '#FFE0B2', color: '#8A2E00' },
   CRITICAL: { backgroundColor: '#FFCDD2', color: '#B71C1C' },
 };

@@ -191,9 +191,9 @@ Final `tests.md` must record command, date/environment, test-file count, total/p
 ## 6. Issue #43 final verification report
 
 Run date: 2026-09-16 (Asia/Bangkok). The repository was tested from the
-`lab3-5-admin-user-management` working tree with lockfile dependencies already
+`lab3-6-verification-qa` working tree with lockfile dependencies already
 installed. PostgreSQL verification used an isolated temporary database in the
-available `toktickit-db` container; the database was migrated from an empty
+available `toktickit-issue39-verify` container; the database was migrated from an empty
 state and dropped after the run. No production/local application database was
 used by the integration suite.
 
