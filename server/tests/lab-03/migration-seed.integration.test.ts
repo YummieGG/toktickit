@@ -26,20 +26,37 @@ let adminClient: Client | undefined;
 let databaseClient: Client | undefined;
 let temporaryDatabaseUrl: string;
 
+type LegacySnapshot = {
+  categoryId: number;
+  relatedSystemId: number;
+  userId: number;
+  ticketId: number;
+  attachmentId: number;
+  ticketDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+let legacySnapshot: LegacySnapshot;
+
 function databaseUrlWithName(source: string, name: string): string {
   const url = new URL(source);
   url.pathname = `/${name}`;
   return url.toString();
 }
 
-async function runSeed(password: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+async function runSeed(password?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
+    const environment = { ...process.env, DATABASE_URL: temporaryDatabaseUrl };
+    if (password === undefined) delete environment.SEED_INITIAL_PASSWORD;
+    else environment.SEED_INITIAL_PASSWORD = password;
+
     const result = await execFile(
       process.execPath,
       [resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs'), 'prisma/seed.ts'],
       {
         cwd: process.cwd(),
-        env: { ...process.env, DATABASE_URL: temporaryDatabaseUrl, SEED_INITIAL_PASSWORD: password },
+        env: environment,
         maxBuffer: 2 * 1024 * 1024,
       },
     );
@@ -70,6 +87,17 @@ async function readCounts(): Promise<Record<string, number>> {
     UNION ALL SELECT 'notes', COUNT(*)::text FROM "InternalNote"
   `);
   return Object.fromEntries(result.rows.map(row => [row.tableName, Number(row.count)]));
+}
+
+async function readUserRoleCounts(): Promise<Record<string, number>> {
+  const result = await databaseClient!.query<{ role: string; isActive: boolean; count: string }>(`
+    SELECT "role", "isActive", COUNT(*)::text AS count
+    FROM "User"
+    GROUP BY "role", "isActive"
+  `);
+  return Object.fromEntries(
+    result.rows.map(row => [`${row.role}:${row.isActive ? 'active' : 'inactive'}`, Number(row.count)]),
+  );
 }
 
 describe('Lab 3 clean migration and seed PostgreSQL integration (API-12)', () => {
@@ -116,10 +144,21 @@ describe('Lab 3 clean migration and seed PostgreSQL integration (API-12)', () =>
         relatedSystem.rows[0].id,
       ],
     );
-    await databaseClient.query(
-      'INSERT INTO "Attachment" ("originalName", "storedName", "mimeType", "sizeBytes", "ticketId", "createdAt") VALUES ($1, $2, $3, $4, $5, $6)',
+    const attachment = await databaseClient.query<{ id: number }>(
+      'INSERT INTO "Attachment" ("originalName", "storedName", "mimeType", "sizeBytes", "ticketId", "createdAt") VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
       ['legacy.pdf', `legacy-${suffix}.pdf`, 'application/pdf', 12, legacyTicket.rows[0].id, new Date('2026-09-02T09:05:00.000Z')],
     );
+
+    legacySnapshot = {
+      categoryId: category.rows[0].id,
+      relatedSystemId: relatedSystem.rows[0].id,
+      userId: legacyUser.rows[0].id,
+      ticketId: legacyTicket.rows[0].id,
+      attachmentId: attachment.rows[0].id,
+      ticketDate: new Date('2026-09-02T09:00:00.000Z'),
+      createdAt: new Date('2026-09-02T09:00:00.000Z'),
+      updatedAt: new Date('2026-09-02T09:00:00.000Z'),
+    };
 
     for (const migrationFile of migrationFiles.slice(2)) await applyMigration(migrationFile);
 
@@ -148,20 +187,49 @@ describe('Lab 3 clean migration and seed PostgreSQL integration (API-12)', () =>
       id: number;
       email: string;
       role: string;
+      isActive: boolean;
       passwordHash: string | null;
       mustChangePassword: boolean;
-    }>('SELECT id, email, role, "passwordHash", "mustChangePassword" FROM "User" WHERE email = $1', [legacyEmail]);
-    const legacyTicket = await databaseClient!.query<{ id: number; requesterId: number }>(
-      'SELECT id, "requesterId" AS "requesterId" FROM "Ticket" WHERE "ticketNumber" = $1',
+      createdAt: Date;
+      updatedAt: Date;
+    }>('SELECT id, email, role, "isActive", "passwordHash", "mustChangePassword", "createdAt", "updatedAt" FROM "User" WHERE email = $1', [legacyEmail]);
+    const legacyTicket = await databaseClient!.query<{
+      id: number;
+      requesterId: number;
+      categoryId: number;
+      relatedSystemId: number;
+      ticketDate: Date;
+      createdAt: Date;
+      updatedAt: Date;
+    }>(
+      'SELECT id, "requesterId" AS "requesterId", "categoryId" AS "categoryId", "relatedSystemId" AS "relatedSystemId", "ticketDate" AS "ticketDate", "createdAt" AS "createdAt", "updatedAt" AS "updatedAt" FROM "Ticket" WHERE "ticketNumber" = $1',
       [`TK-LEGACY-${suffix}`],
     );
-    const attachment = await databaseClient!.query<{ ticketId: number }>(
-      'SELECT "ticketId" AS "ticketId" FROM "Attachment" WHERE "storedName" = $1',
+    const attachment = await databaseClient!.query<{ id: number; ticketId: number; createdAt: Date }>(
+      'SELECT id, "ticketId" AS "ticketId", "createdAt" AS "createdAt" FROM "Attachment" WHERE "storedName" = $1',
       [`legacy-${suffix}.pdf`],
     );
+    const category = await databaseClient!.query<{ id: number; name: string }>(
+      'SELECT id, name FROM "Category" WHERE id = $1',
+      [legacySnapshot.categoryId],
+    );
+    const relatedSystem = await databaseClient!.query<{ id: number; name: string }>(
+      'SELECT id, name FROM "RelatedSystem" WHERE id = $1',
+      [legacySnapshot.relatedSystemId],
+    );
+    const counts = await readCounts();
+    const roleCounts = await readUserRoleCounts();
 
     expect(legacyUser.rows).toHaveLength(1);
-    expect(legacyUser.rows[0]).toMatchObject({ email: legacyEmail, role: 'REQUESTER', mustChangePassword: true });
+    expect(legacyUser.rows[0]).toMatchObject({
+      id: legacySnapshot.userId,
+      email: legacyEmail,
+      role: 'REQUESTER',
+      isActive: true,
+      mustChangePassword: true,
+      createdAt: new Date('2026-09-01T08:00:00.000Z'),
+      updatedAt: new Date('2026-09-01T08:00:00.000Z'),
+    });
     const [algorithm, n, r, p, salt, key] = legacyUser.rows[0].passwordHash!.split('$');
     expect(algorithm).toBe('scrypt');
     expect(Number(n)).toBe(32_768);
@@ -170,8 +238,32 @@ describe('Lab 3 clean migration and seed PostgreSQL integration (API-12)', () =>
     expect(Buffer.from(salt!, 'base64url')).toHaveLength(16);
     expect(Buffer.from(key!, 'base64url')).toHaveLength(32);
     expect(legacyTicket.rows).toHaveLength(1);
-    expect(attachment.rows).toEqual([{ ticketId: legacyTicket.rows[0].id }]);
-    expect(legacyTicket.rows[0].requesterId).toBe(legacyUser.rows[0].id);
+    expect(legacyTicket.rows[0]).toMatchObject({
+      id: legacySnapshot.ticketId,
+      requesterId: legacySnapshot.userId,
+      categoryId: legacySnapshot.categoryId,
+      relatedSystemId: legacySnapshot.relatedSystemId,
+      ticketDate: legacySnapshot.ticketDate,
+      createdAt: legacySnapshot.createdAt,
+      updatedAt: legacySnapshot.updatedAt,
+    });
+    expect(attachment.rows).toEqual([{
+      id: legacySnapshot.attachmentId,
+      ticketId: legacySnapshot.ticketId,
+      createdAt: new Date('2026-09-02T09:05:00.000Z'),
+    }]);
+    expect(category.rows).toEqual([{ id: legacySnapshot.categoryId, name: `Legacy category ${suffix}` }]);
+    expect(relatedSystem.rows).toEqual([{ id: legacySnapshot.relatedSystemId, name: `Legacy system ${suffix}` }]);
+    expect(roleCounts['REQUESTER:active'] ?? 0).toBeGreaterThanOrEqual(4);
+    expect(roleCounts['REQUESTER:inactive'] ?? 0).toBeGreaterThanOrEqual(1);
+    expect(roleCounts['IT_STAFF:active'] ?? 0).toBeGreaterThanOrEqual(3);
+    expect(roleCounts['IT_STAFF:inactive'] ?? 0).toBeGreaterThanOrEqual(1);
+    expect(roleCounts['ADMINISTRATOR:active'] ?? 0).toBeGreaterThanOrEqual(1);
+    expect(counts.tickets).toBeGreaterThanOrEqual(8);
+    expect(counts.comments).toBeGreaterThan(0);
+    expect(counts.notes).toBeGreaterThan(0);
+    const passwordValues = await databaseClient!.query<{ passwordHash: string | null }>('SELECT "passwordHash" FROM "User"');
+    expect(passwordValues.rows.every(row => !row.passwordHash?.includes(initialPassword))).toBe(true);
   });
 
   it('keeps seed data idempotent and does not overwrite an existing password hash', async () => {
@@ -193,7 +285,7 @@ describe('Lab 3 clean migration and seed PostgreSQL integration (API-12)', () =>
     expect(secondHash.rows[0].passwordHash).toBe(firstHash.rows[0].passwordHash);
   });
 
-  it('rejects an invalid seed password before writing and never echoes the secret', async () => {
+  it('rejects missing or invalid seed passwords before writing and never echoes the secret', async () => {
     const countsBefore = await readCounts();
     const invalidPassword = 'weak';
     const seedResult = await runSeed(invalidPassword);
@@ -202,5 +294,11 @@ describe('Lab 3 clean migration and seed PostgreSQL integration (API-12)', () =>
     expect(seedResult.exitCode).not.toBe(0);
     expect(`${seedResult.stdout}\n${seedResult.stderr}`).not.toContain(invalidPassword);
     expect(countsAfter).toEqual(countsBefore);
+
+    const missingPasswordResult = await runSeed();
+    const countsAfterMissingPassword = await readCounts();
+
+    expect(missingPasswordResult.exitCode).not.toBe(0);
+    expect(countsAfterMissingPassword).toEqual(countsBefore);
   });
 });

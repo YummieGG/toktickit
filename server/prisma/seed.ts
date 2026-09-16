@@ -177,11 +177,11 @@ export async function main(): Promise<void> {
   const initialPassword = await getInitialPassword();
   const legacyUsers = await prisma.user.findMany({
     where: { passwordHash: null },
-    select: { id: true },
+    select: { id: true, updatedAt: true },
   });
-  const legacyHashes = new Map<number, string>();
+  const legacyHashes = new Map<number, { passwordHash: string; updatedAt: Date }>();
   for (const user of legacyUsers) {
-    legacyHashes.set(user.id, await hashPassword(initialPassword));
+    legacyHashes.set(user.id, { passwordHash: await hashPassword(initialPassword), updatedAt: user.updatedAt });
   }
 
   const initialHashes = new Map<string, string>();
@@ -231,10 +231,14 @@ export async function main(): Promise<void> {
       userIds.set(user.email, seededUser.id);
     }
 
-    for (const [id, passwordHash] of legacyHashes) {
+    for (const [id, legacyCredential] of legacyHashes) {
       await transaction.user.updateMany({
         where: { id, passwordHash: null },
-        data: { passwordHash, mustChangePassword: true },
+        data: {
+          passwordHash: legacyCredential.passwordHash,
+          mustChangePassword: true,
+          updatedAt: legacyCredential.updatedAt,
+        },
       });
     }
 

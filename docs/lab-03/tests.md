@@ -192,16 +192,28 @@ Final `tests.md` must record command, date/environment, test-file count, total/p
 
 Run date: 2026-09-16 (Asia/Bangkok). The repository was tested from the
 `lab3-6-verification-qa` working tree with lockfile dependencies already
-installed. PostgreSQL verification used an isolated temporary database in the
-available `toktickit-issue39-verify` container; the database was migrated from an empty
-state and dropped after the run. No production/local application database was
-used by the integration suite.
+installed. PostgreSQL verification used the `toktickit-db` container on
+`localhost:5434` and the temporary database `toktickit_pr50_review_20260916_2252`;
+the target database was created, migrated from an empty state with
+`prisma migrate deploy`, and dropped after the run. No production/local
+application database was used by the integration suite.
+
+Exact integration commands used:
+
+```bash
+docker exec toktickit-db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_pr50_review_20260916_2252\""
+cd server
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/toktickit_pr50_review_20260916_2252?schema=public"
+DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_pr50_review_20260916_2252\" WITH (FORCE)"
+```
 
 | Command | Result | Evidence |
 |---|---|---|
 | `cd server && npm test -- --reporter=dot` | 22 files; 266 passed; 0 failed; 0 skipped | Full server unit/API suite, including Lab 2 regression |
 | `cd client && npm test -- --reporter=dot` | 13 files; 98 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI plus `visual-style.test.tsx` |
-| `cd server && TEST_DATABASE_URL=<isolated-db> npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean migration/seed: 3 tests; Admin PostgreSQL transaction/security: 5 tests |
+| `DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean migration/seed: 3 tests; Admin PostgreSQL transaction/security: 5 tests |
 | `cd e2e && npm test -- --reporter=list` | 19 passed; 0 failed; 0 skipped | 3 files; Chromium auth/requester, Staff, Admin, role denial, responsive and screenshot checks |
 | `cd server && npm run build` | Passed | TypeScript build |
 | `cd client && npm run build` | Passed | TypeScript/Vite production build |
