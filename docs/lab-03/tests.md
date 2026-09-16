@@ -9,12 +9,15 @@ Change Password UI behavior. The remaining planned Lab 3 tests below stay
 migration, staff workflow, or administrator management; they are not evidence
 that those later features are complete.
 
-The Issue #39 migration/seed test path currently verifies the SQL/source
-contract without claiming a PostgreSQL integration run. A clean-database
-migration and seed run still requires the local PostgreSQL service and must be
-recorded separately when that environment is available.
+At the original Issue #39 checkpoint, the migration/seed test path verified
+the SQL/source contract without claiming a PostgreSQL integration run. The
+Issue #43 report below supersedes that historical boundary with the clean
+PostgreSQL migration/seed result.
 
-This is the pre-implementation test contract for Issue 1. Feature issues may add focused tests, but the final repository must keep the paths and coverage below (or document an equivalent path). No test may be skipped, disabled, focused-only, flaky, or a placeholder at completion.
+This file began as the pre-implementation test contract for Issue 1. The
+Issue #43 verification report at the end records the final commands and real
+results. No required test is skipped, disabled, focused-only, flaky, or a
+placeholder in the final verification run.
 
 ## 1. Test strategy
 
@@ -40,6 +43,8 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 - `server/tests/lab-03/staff-ticket-detail.api.test.ts`
 - `server/tests/lab-03/comments-notes.api.test.ts`
 - `server/tests/lab-03/users-admin.api.test.ts`
+- `server/tests/lab-03/users-admin.integration.test.ts`
+- `server/tests/lab-03/migration-seed.integration.test.ts`
 - `server/tests/lab-03/password-policy.unit.test.ts`
 - `server/tests/lab-03/canonical-email.unit.test.ts`
 - `server/tests/lab-03/status-transition.unit.test.ts`
@@ -83,36 +88,36 @@ relevant FR, BR, and AC IDs.
 
 | Test ID | Type | Requirement / FR-BR-AC | What it tests | Expected result | Automated test file | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | FR-01, FR-03, BR-02, BR-03, AC-03, AC-05 | Password policy, scrypt parameters, encoded hash, constant-time comparison | Valid policy/hash cases pass; invalid policy is rejected; plaintext is never returned | `server/tests/lab-03/password-policy.unit.test.ts` | Pending |
-| UNIT-02 | Unit | FR-10, BR-13, AC-09 | Every allowed and disallowed status-transition edge | Allowed edges pass; invalid edges return the contract error | `server/tests/lab-03/status-transition.unit.test.ts` | Focused pass (2026-09-14) |
-| UNIT-03 | Unit | FR-09, BR-21, AC-08 | Queue query parsing, defaults, page sizes, and deterministic secondary sort | Valid queries normalize correctly; invalid values are rejected | `server/tests/lab-03/queue-query.unit.test.ts` | Focused pass (2026-09-14) |
-| API-01 | API | FR-01, FR-02, BR-01, BR-04, AC-03 | Valid login with active credentials | `200`; `{ data: UserProjection }`; eight-hour HttpOnly `tt_session` cookie | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-02 | API | FR-03, BR-05, AC-03 | Invalid credentials, unknown email, inactive account, and cooldown | Same safe `401 INVALID_CREDENTIALS`; cooldown returns `429 LOGIN_COOLDOWN` without enumeration | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-03 | API | FR-04, BR-06, AC-04, AC-05 | Mandatory password change and session revocation | Valid change clears `mustChangePassword`, updates the hash, revokes all sessions, and requires sign-in again | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-04 | API | FR-02, BR-04, BR-06, AC-03 | Logout, expired session, and revoked-session behavior | Logout revokes only the current session; revoked/expired sessions receive safe `401` | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-05 | API | FR-05, FR-07, BR-07, AC-06, AC-12 | Requester identity tampering and cross-owner access | Session identity controls scope; tampered `requesterId` cannot cross owners; safe `404`/`403` is returned | `server/tests/lab-03/authorization.api.test.ts` | Pending |
-| API-06 | API | FR-06, FR-14, BR-17, AC-06, AC-09, AC-12 | Attachment metadata, download, soft removal, and role continuity | Ownership and role rules match the matrix; Admin metadata-only policy is enforced; removed files are not downloadable | `server/tests/lab-03/authorization.api.test.ts` | Pending |
-| API-07 | API | FR-11, FR-12, BR-15, AC-09, AC-10 | Public Comments/Internal Notes visibility, validation, and attribution | Correct roles can read/write; content is append-only, validated, server-attributed, and never leaks notes | `server/tests/lab-03/comments-notes.api.test.ts` | Focused pass (2026-09-14) |
-| API-08 | API | FR-08, BR-16, AC-07 | “Problem Appears Resolved” ownership, idempotency, visibility, and reset | Owner receives `200` with a stable timestamp; Staff/Admin can read it; Reopened clears it | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Focused pass (2026-09-14) |
-| API-09 | API | FR-09, BR-21, AC-08 | Queue search, filters, sorting, pagination, empty/no-results, and invalid queries | `200` collection uses the complete pagination metadata; invalid queries return `400 INVALID_QUERY` | `server/tests/lab-03/staff-queue.api.test.ts` | Focused pass (2026-09-14) |
-| API-10 | API | FR-10, BR-13, BR-14, BR-19, BR-20, AC-09 | Eligible-owner lookup, owner assignment, IT Priority, and status workflow | Only active Staff/Admin owners are offered and accepted; only permitted Staff mutations succeed; priority separation, confirmations, transitions, and concurrent conflict are enforced | `server/tests/lab-03/staff-queue.api.test.ts`, `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Focused pass (2026-09-14) |
-| MIG-01 | Migration contract | FR-10, BR-13, AC-09 | Staff workflow migration is additive and repeatable | All seven enum additions, Internal Note relations, and queue indexes are present without destructive SQL | `server/tests/lab-03/staff-workflow-migration.unit.test.ts` | Focused pass (2026-09-14) |
-| API-11 | API / Integration | FR-13, FR-14, BR-10, BR-11, BR-18, AC-11, AC-12 | Administrator user creation/edit/activation and safety rules | Duplicate email, invalid role, self-deactivation, and last-Admin removal are blocked; owner unassignment/session revocation roll back and serialize correctly against PostgreSQL; Admin Ticket access remains read-only | `server/tests/lab-03/users-admin.api.test.ts`, `server/tests/lab-03/users-admin.integration.test.ts` | Focused + integration pass (2026-09-15) |
-| API-12 | API / Migration | FR-07, BR-08, BR-09, AC-01, AC-02, AC-04 | Schema migration, legacy Requester password backfill, seed counts, and idempotency | Lab 2 ownership/IDs are preserved; `SEED_INITIAL_PASSWORD` is hashed; backfill is idempotent and fails safely when invalid | `server/tests/lab-03/migration-seed.api.test.ts` | Pending |
-| SEC-01 | Security | FR-03, FR-05, BR-04, BR-05, BR-07, AC-03, AC-06, AC-12 | Direct API role bypass, CSRF Origin, session/token exposure, and requesterId tampering | Unauthorized requests receive safe `401`/`403`/`404`; no secrets, tokens, or cross-owner data are exposed | `server/tests/lab-03/authorization.api.test.ts` | Focused pass (2026-09-14) |
-| UI-01 | UI | FR-01, FR-03, FR-15, AC-03 | Login form validation, busy, cooldown, and safe failure states | Busy state prevents duplicate submit; errors do not reveal account existence; fields are preserved appropriately | `client/tests/lab-03/Login.test.tsx` | Pending |
-| UI-02 | UI | FR-04, BR-02, AC-04, AC-05 | Change Password validation and mandatory routing | Complexity/confirmation rules are shown; normal screens remain blocked until success | `client/tests/lab-03/ChangePassword.test.tsx` | Pending |
-| UI-03 | UI / Authorization | FR-05, FR-14, FR-16, AC-12, AC-14 | Screen authorization matrix, route guards, and role navigation | Allowed routes render; wrong roles receive safe 403; unauthenticated users redirect to Login; Admin ticket screens are read-only | `client/tests/lab-03/RouteGuards.test.tsx` | Pending |
-| UI-04 | UI / Regression | FR-06, FR-07, FR-08, AC-06, AC-07 | Authenticated Requester Create Ticket, My Tickets, Detail, attachments, comments, and resolution | Lab 2 behavior remains functional under session identity; ownership and resolution states render correctly | `client/tests/lab-02/CreateTicket.test.tsx`, `client/tests/lab-02/MyTickets.test.tsx`, `client/tests/lab-02/RequesterTicketDetail.test.tsx` | Pending |
-| UI-05 | UI | FR-09, FR-15, FR-16, AC-08 | Staff Queue table/cards, query controls, pagination, and feedback states | Desktop/tablet/mobile representations are readable; loading, empty, no-results, retry, failure, and expired-session states work | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Focused pass (2026-09-14) |
-| UI-06 | UI | FR-10, FR-11, FR-12, FR-14, FR-15, AC-09, AC-10, AC-12 | Staff Detail workflow controls, comments/notes separation, and confirmations | IT Staff sees permitted editors; Admin sees read-only detail; confirmation, conflict, and safe error states are clear | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Focused pass (2026-09-14) |
-| UI-07 | UI | FR-13, FR-14, FR-15, AC-11, AC-12 | Administrator User Management modes and safety feedback | User list, search, create/edit/reset, validation, success, forbidden, and safe failure states render correctly | `client/tests/lab-03/UserManagement.test.tsx` | Focused pass (2026-09-14) |
-| UI-08 | UI Style / Accessibility | FR-16, AC-14 | Zen Green tokens, contrast, labels, focus, 44 px targets, and overflow | Required viewports pass with no clipping/overflow and accessible controls | `client/tests/lab-03/visual-style.test.tsx` | Pending |
-| E2E-01 | E2E | FR-01, FR-02, FR-03, FR-04, AC-03, AC-04 | Login, first-login change, refresh bootstrap, and logout | Session is established safely; normal app is blocked until password change; logout removes access | `e2e/lab-03/authentication.spec.ts` | Pending |
-| E2E-02 | E2E / Regression | FR-06, FR-07, FR-08, AC-06, AC-07 | Requester regression, comments, attachments, and resolution indication | Authenticated Requester can complete Lab 2 flow and cannot access another owner’s data | `e2e/lab-03/authentication.spec.ts` | Pending |
-| E2E-03 | E2E | FR-09, FR-10, FR-11, FR-12, FR-14, AC-08, AC-09, AC-10, AC-12 | Staff queue-to-detail triage and lifecycle | Staff can search, assign, update priority/status, comment/note; Admin remains read-only | `e2e/lab-03/staff-ticket-flow.spec.ts` | Pending |
-| E2E-04 | E2E | FR-13, FR-14, AC-11, AC-12 | Admin user management and cross-role route isolation | Scoped Admin operations work; Requester/Staff routes and APIs are blocked | `e2e/lab-03/user-administration.spec.ts` | Focused pass (2026-09-14) |
-| E2E-05 | E2E / Responsive | FR-15, FR-16, AC-08, AC-09, AC-11, AC-14 | Responsive screenshots and accessibility checks at 1280/768/375 px | No clipping, overflow, inaccessible controls, or sub-44 px mobile targets; evidence is stored at required paths | `e2e/lab-03/authentication.spec.ts`, `e2e/lab-03/staff-ticket-flow.spec.ts`, `e2e/lab-03/user-administration.spec.ts` | Pending |
+| UNIT-01 | Unit | FR-01, FR-03, BR-02, BR-03, AC-03, AC-05 | Password policy, scrypt parameters, encoded hash, constant-time comparison | Valid policy/hash cases pass; invalid policy is rejected; plaintext is never returned | `server/tests/lab-03/password-policy.unit.test.ts` | Verified (2026-09-16) |
+| UNIT-02 | Unit | FR-10, BR-13, AC-09 | Every allowed and disallowed status-transition edge | Allowed edges pass; invalid edges return the contract error | `server/tests/lab-03/status-transition.unit.test.ts` | Verified (2026-09-16) |
+| UNIT-03 | Unit | FR-09, BR-21, AC-08 | Queue query parsing, defaults, page sizes, and deterministic secondary sort | Valid queries normalize correctly; invalid values are rejected | `server/tests/lab-03/queue-query.unit.test.ts` | Verified (2026-09-16) |
+| API-01 | API | FR-01, FR-02, BR-01, BR-04, AC-03 | Valid login with active credentials | `200`; `{ data: UserProjection }`; eight-hour HttpOnly `tt_session` cookie | `server/tests/lab-03/auth.api.test.ts` | Verified (2026-09-16) |
+| API-02 | API | FR-03, BR-05, AC-03 | Invalid credentials, unknown email, inactive account, and cooldown | Same safe `401 INVALID_CREDENTIALS`; cooldown returns `429 LOGIN_COOLDOWN` without enumeration | `server/tests/lab-03/auth.api.test.ts` | Verified (2026-09-16) |
+| API-03 | API | FR-04, BR-06, AC-04, AC-05 | Mandatory password change and session revocation | Valid change clears `mustChangePassword`, updates the hash, revokes all sessions, and requires sign-in again | `server/tests/lab-03/auth.api.test.ts` | Verified (2026-09-16) |
+| API-04 | API | FR-02, BR-04, BR-06, AC-03 | Logout, expired session, and revoked-session behavior | Logout revokes only the current session; revoked/expired sessions receive safe `401` | `server/tests/lab-03/auth.api.test.ts` | Verified (2026-09-16) |
+| API-05 | API | FR-05, FR-07, BR-07, AC-06, AC-12 | Requester identity tampering and cross-owner access | Session identity controls scope; tampered `requesterId` cannot cross owners; safe `404`/`403` is returned | `server/tests/lab-03/authorization.api.test.ts` | Verified (2026-09-16) |
+| API-06 | API | FR-06, FR-14, BR-17, AC-06, AC-09, AC-12 | Attachment metadata, download, soft removal, and role continuity | Ownership and role rules match the matrix; Admin metadata-only policy is enforced; removed files are not downloadable | `server/tests/lab-03/authorization.api.test.ts` | Verified (2026-09-16) |
+| API-07 | API | FR-11, FR-12, BR-15, AC-09, AC-10 | Public Comments/Internal Notes visibility, validation, and attribution | Correct roles can read/write; content is append-only, validated, server-attributed, and never leaks notes | `server/tests/lab-03/comments-notes.api.test.ts` | Verified (2026-09-16) |
+| API-08 | API | FR-08, BR-16, AC-07 | “Problem Appears Resolved” ownership, idempotency, visibility, and reset | Owner receives `200` with a stable timestamp; Staff/Admin can read it; Reopened clears it | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Verified (2026-09-16) |
+| API-09 | API | FR-09, BR-21, AC-08 | Queue search, filters, sorting, pagination, empty/no-results, and invalid queries | `200` collection uses the complete pagination metadata; invalid queries return `400 INVALID_QUERY` | `server/tests/lab-03/staff-queue.api.test.ts` | Verified (2026-09-16) |
+| API-10 | API | FR-10, BR-13, BR-14, BR-19, BR-20, AC-09 | Eligible-owner lookup, owner assignment, IT Priority, and status workflow | Only active Staff/Admin owners are offered and accepted; only permitted Staff mutations succeed; priority separation, confirmations, transitions, and concurrent conflict are enforced | `server/tests/lab-03/staff-queue.api.test.ts`, `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Verified (2026-09-16) |
+| MIG-01 | Migration contract | FR-10, BR-13, AC-09 | Staff workflow migration is additive and repeatable | All seven enum additions, Internal Note relations, and queue indexes are present without destructive SQL | `server/tests/lab-03/staff-workflow-migration.unit.test.ts` | Verified (2026-09-16) |
+| API-11 | API / Integration | FR-13, FR-14, BR-10, BR-11, BR-18, AC-11, AC-12 | Administrator user creation/edit/activation and safety rules | Duplicate email, invalid role, self-deactivation, and last-Admin removal are blocked; owner unassignment/session revocation roll back and serialize correctly against PostgreSQL; Admin Ticket access remains read-only | `server/tests/lab-03/users-admin.api.test.ts`, `server/tests/lab-03/users-admin.integration.test.ts` | Verified (2026-09-16) |
+| API-12 | API / Migration | FR-07, BR-08, BR-09, AC-01, AC-02, AC-04 | Schema migration, legacy Requester password backfill, seed counts, and idempotency | Lab 2 ownership/IDs are preserved; `SEED_INITIAL_PASSWORD` is hashed; backfill is idempotent and fails safely when invalid | `server/tests/lab-03/migration-seed.api.test.ts`, `server/tests/lab-03/migration-seed.integration.test.ts` | Verified (2026-09-16) |
+| SEC-01 | Security | FR-03, FR-05, BR-04, BR-05, BR-07, AC-03, AC-06, AC-12 | Direct API role bypass, CSRF Origin, session/token exposure, and requesterId tampering | Unauthorized requests receive safe `401`/`403`/`404`; no secrets, tokens, or cross-owner data are exposed | `server/tests/lab-03/authorization.api.test.ts` | Verified (2026-09-16) |
+| UI-01 | UI | FR-01, FR-03, FR-15, AC-03 | Login form validation, busy, cooldown, and safe failure states | Busy state prevents duplicate submit; errors do not reveal account existence; fields are preserved appropriately | `client/tests/lab-03/Login.test.tsx` | Verified (2026-09-16) |
+| UI-02 | UI | FR-04, BR-02, AC-04, AC-05 | Change Password validation and mandatory routing | Complexity/confirmation rules are shown; normal screens remain blocked until success | `client/tests/lab-03/ChangePassword.test.tsx` | Verified (2026-09-16) |
+| UI-03 | UI / Authorization | FR-05, FR-14, FR-16, AC-12, AC-14 | Screen authorization matrix, route guards, and role navigation | Allowed routes render; wrong roles receive safe 403; unauthenticated users redirect to Login; Admin ticket screens are read-only | `client/tests/lab-03/RouteGuards.test.tsx` | Verified (2026-09-16) |
+| UI-04 | UI / Regression | FR-06, FR-07, FR-08, AC-06, AC-07 | Authenticated Requester Create Ticket, My Tickets, Detail, attachments, comments, and resolution | Lab 2 behavior remains functional under session identity; ownership and resolution states render correctly | `client/tests/lab-02/CreateTicket.test.tsx`, `client/tests/lab-02/MyTickets.test.tsx`, `client/tests/lab-02/RequesterTicketDetail.test.tsx` | Verified (2026-09-16) |
+| UI-05 | UI | FR-09, FR-15, FR-16, AC-08 | Staff Queue table/cards, query controls, pagination, and feedback states | Desktop/tablet/mobile representations are readable; loading, empty, no-results, retry, failure, and expired-session states work | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Verified (2026-09-16) |
+| UI-06 | UI | FR-10, FR-11, FR-12, FR-14, FR-15, AC-09, AC-10, AC-12 | Staff Detail workflow controls, comments/notes separation, and confirmations | IT Staff sees permitted editors; Admin sees read-only detail; confirmation, conflict, and safe error states are clear | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Verified (2026-09-16) |
+| UI-07 | UI | FR-13, FR-14, FR-15, AC-11, AC-12 | Administrator User Management modes and safety feedback | User list, search, create/edit/reset, validation, success, forbidden, and safe failure states render correctly | `client/tests/lab-03/UserManagement.test.tsx` | Verified (2026-09-16) |
+| UI-08 | UI Style / Accessibility | FR-16, AC-14 | Zen Green tokens, contrast, labels, focus, 44 px targets, and overflow | Required viewports pass with no clipping/overflow and accessible controls | `client/tests/lab-03/visual-style.test.tsx` | Verified (2026-09-16) |
+| E2E-01 | E2E | FR-01, FR-02, FR-03, FR-04, AC-03, AC-04 | Login, first-login change, refresh bootstrap, and logout | Session is established safely; normal app is blocked until password change; logout removes access | `e2e/lab-03/authentication.spec.ts` | Verified (2026-09-16) |
+| E2E-02 | E2E / Regression | FR-06, FR-07, FR-08, AC-06, AC-07 | Requester regression, comments, attachments, and resolution indication | Authenticated Requester can complete Lab 2 flow and cannot access another owner’s data | `e2e/lab-03/authentication.spec.ts` | Verified (2026-09-16) |
+| E2E-03 | E2E | FR-09, FR-10, FR-11, FR-12, FR-14, AC-08, AC-09, AC-10, AC-12 | Staff queue-to-detail triage and lifecycle | Staff can search, assign, update priority/status, comment/note; Admin remains read-only | `e2e/lab-03/staff-ticket-flow.spec.ts` | Verified (2026-09-16) |
+| E2E-04 | E2E | FR-13, FR-14, AC-11, AC-12 | Admin user management and cross-role route isolation | Scoped Admin operations work; Requester/Staff routes and APIs are blocked | `e2e/lab-03/user-administration.spec.ts` | Verified (2026-09-16) |
+| E2E-05 | E2E / Responsive | FR-15, FR-16, AC-08, AC-09, AC-11, AC-14 | Responsive screenshots and accessibility checks at 1280/768/375 px | No clipping, overflow, inaccessible controls, or sub-44 px mobile targets; evidence is stored at required paths | `e2e/lab-03/authentication.spec.ts`, `e2e/lab-03/staff-ticket-flow.spec.ts`, `e2e/lab-03/user-administration.spec.ts` | Verified (2026-09-16) |
 
 ### 3.2 Acceptance-criterion descriptions and traceability
 
@@ -182,3 +187,68 @@ and linked to its planned evidence and owning implementation issue(s).
 ## 5. Test reporting contract
 
 Final `tests.md` must record command, date/environment, test-file count, total/passed/failed/skipped counts, migration/seed result, build/lint result, screenshot evidence, and known limitations. Results must be copied from actual clean-setup output; never claim a pass without running the command.
+
+## 6. Issue #43 final verification report
+
+Run date: 2026-09-16 (Asia/Bangkok). The repository was tested from the
+`lab3-6-verification-qa` working tree with lockfile dependencies already
+installed. PostgreSQL verification used the `toktickit-db` container on
+`localhost:5434` and the temporary database `toktickit_pr50_review_20260916_2252`;
+the target database was created, migrated from an empty state with
+`prisma migrate deploy`, and dropped after the run. No production/local
+application database was used by the integration suite.
+
+Exact integration commands used:
+
+```bash
+docker exec toktickit-db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_pr50_review_20260916_2252\""
+cd server
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/toktickit_pr50_review_20260916_2252?schema=public"
+DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_pr50_review_20260916_2252\" WITH (FORCE)"
+```
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cd server && npm test -- --reporter=dot` | 22 files; 266 passed; 0 failed; 0 skipped | Full server unit/API suite, including Lab 2 regression |
+| `cd client && npm test -- --reporter=dot` | 13 files; 98 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI plus `visual-style.test.tsx` |
+| `DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean migration/seed: 3 tests; Admin PostgreSQL transaction/security: 5 tests |
+| `cd e2e && npm test -- --reporter=list` | 19 passed; 0 failed; 0 skipped | 3 files; Chromium auth/requester, Staff, Admin, role denial, responsive and screenshot checks |
+| `cd server && npm run build` | Passed | TypeScript build |
+| `cd client && npm run build` | Passed | TypeScript/Vite production build |
+| `cd client && npm run lint` | Passed | Oxlint |
+| `git diff --check` | Passed | No whitespace errors |
+
+### Security Guard verification
+
+- Backend guards remain authoritative: protected routes use session
+  authentication, password-change gating, and explicit role authorization.
+- State-changing API calls continue to require the configured trusted Origin;
+  direct API, wrong-role, cross-owner, `requesterId` tampering, session
+  revocation, and Internal Note leakage cases are covered by the Lab 3 server
+  suites and E2E fixtures.
+- The clean PostgreSQL run additionally verifies real transaction rollback,
+  owner unassignment/session revocation, last-active-Administrator protection,
+  concurrent Administrator demotion, legacy ownership preservation, and seed
+  secret handling.
+- The visual verification found and corrected two scoped UI issues: warning
+  text/badge contrast below 4.5:1 and Staff Queue cards overriding the desktop
+  table breakpoint through Bootstrap's `d-grid` rule.
+
+### Screenshot evidence
+
+The E2E run generated and visually inspected the required evidence under
+`artifacts/lab-03/screenshots/`. The viewport-specific evidence covers 1280,
+768, and 375 px for requester, Staff Queue, Staff Ticket Detail, and User
+Management; authentication, success, validation/error, and resolution states
+are also captured. The complete mapping is in
+[`visual-checklist.md`](./visual-checklist.md).
+
+### Verification boundary
+
+The feature API suites intentionally mock Prisma at the route boundary for
+fast deterministic coverage; high-risk persistence behavior and clean
+migration/seed behavior have separate real PostgreSQL integration suites. No
+test is skipped or placeholder, but a future release-hardening pass could add
+real-database integration coverage for every non-Administrator endpoint.

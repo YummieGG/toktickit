@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { expectReadableTextIndicators } from './visual-assertions';
 
 type Role = 'IT_STAFF' | 'ADMINISTRATOR';
 const staff = { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' as const, isActive: true, mustChangePassword: false };
@@ -59,13 +61,16 @@ test('Staff can search the queue, open detail, and complete the Issue #41 workfl
   await page.goto('/staff/tickets');
   await expect(page.getByRole('heading', { name: 'Staff Ticket Queue' })).toBeVisible();
   await expect(page.getByText('TK-0008').first()).toBeVisible();
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/staff-queue/desktop.png'), fullPage: true });
   await page.getByLabel('Search tickets').fill('Somchai');
   await page.getByRole('button', { name: 'Search' }).click();
   await expect.poll(() => requests.some(request => request.url.includes('search=Somchai'))).toBe(true);
-  await page.getByRole('link', { name: 'Open ticket detail' }).click();
+  await page.locator('.staff-queue-table-wrap').getByRole('link', { name: 'Open', exact: true }).click();
   await expect(page).toHaveURL(/\/staff\/tickets\/8$/);
   await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
   await expect(page.getByText('Check gateway logs')).toBeVisible();
+  await expectReadableTextIndicators(page);
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/staff-ticket-detail/desktop-success.png'), fullPage: true });
 
   await page.getByLabel('Owner').selectOption('20');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -89,20 +94,68 @@ test('Administrator can read the queue/detail but has no Staff mutation affordan
   await installMockApi(page, 'ADMINISTRATOR');
   await page.goto('/staff/tickets');
   await expect(page.getByText('Read-only view')).toBeVisible();
-  await page.getByRole('link', { name: 'Open ticket detail' }).click();
+  await page.locator('.staff-queue-table-wrap').getByRole('link', { name: 'Open', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
   await expect(page.getByText('Check gateway logs')).toBeVisible();
+  await expectReadableTextIndicators(page);
   await expect(page.getByRole('heading', { name: 'Workflow controls' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add public comment' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add internal note' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Download' })).toHaveCount(0);
 });
 
-test('Staff queue switches to cards on mobile without horizontal overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
+test('Staff queue meets required viewport representations without horizontal overflow', async ({ page }) => {
   await installMockApi(page);
-  await page.goto('/staff/tickets');
-  await expect(page.locator('.staff-queue-cards')).toBeVisible();
-  await expect(page.locator('.staff-queue-table-wrap')).toBeHidden();
-  await expectNoHorizontalOverflow(page);
+  for (const width of [1280, 768, 375]) {
+    await page.setViewportSize({ width, height: 812 });
+    await page.goto('/staff/tickets');
+    await expect(page.getByRole('heading', { name: 'Staff Ticket Queue' })).toBeVisible();
+    await expectReadableTextIndicators(page);
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-queue/${width}.png`), fullPage: true });
+
+    if (width < 768) {
+      await expect(page.locator('.staff-queue-cards')).toBeVisible();
+      await expect(page.locator('.staff-queue-table-wrap')).toBeHidden();
+    } else {
+      await expect(page.locator('.staff-queue-table-wrap')).toBeVisible();
+      await expect(page.locator('.staff-queue-cards')).toBeHidden();
+    }
+
+    const search = page.getByLabel('Search tickets');
+    await search.focus();
+    expect(await search.evaluate(element => document.activeElement === element)).toBe(true);
+    expect(await search.evaluate(element => {
+      const style = window.getComputedStyle(element);
+      return style.outlineStyle !== 'none' || style.boxShadow !== 'none';
+    })).toBe(true);
+  }
+});
+
+test('Staff ticket detail meets required viewport and label checks', async ({ page }) => {
+  await installMockApi(page);
+  for (const width of [1280, 768, 375]) {
+    await page.setViewportSize({ width, height: 812 });
+    await page.goto('/staff/tickets/8');
+    await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
+    await expectReadableTextIndicators(page);
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-ticket-detail/${width}.png`), fullPage: true });
+
+    const controlsHaveLabels = await page.locator('input, select, textarea').evaluateAll(elements =>
+      elements.every(element => Boolean((element as HTMLInputElement).labels?.length)),
+    );
+    expect(controlsHaveLabels).toBe(true);
+
+    if (width === 375) {
+      const shortTouchTargets = await page.locator('button, a.btn, input, select, textarea').evaluateAll(elements =>
+        elements.filter(element => {
+          const style = window.getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && bounds.width > 0 && bounds.height > 0;
+        }).map(element => Math.round(element.getBoundingClientRect().height)).filter(height => height < 44),
+      );
+      expect(shortTouchTargets).toEqual([]);
+    }
+  }
 });

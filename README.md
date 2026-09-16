@@ -144,10 +144,14 @@ To run a specific test file:
 npx vitest run tests/lab-02/tickets.api.test.ts
 ```
 
-To run the Administrator PostgreSQL integration checks, use an isolated
-PostgreSQL database and provide its connection string explicitly:
+To run the Administrator and clean migration/seed PostgreSQL integration checks, use an isolated
+PostgreSQL database and provide its connection string explicitly. A fresh target database must be
+migrated before running the suite:
 ```bash
-TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_admin_test?schema=public" npm run test:integration
+cd server
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_admin_test?schema=public"
+DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration
 ```
 The integration suite creates uniquely named records and removes them during
 cleanup. It verifies real transaction rollback, owner unassignment, session
