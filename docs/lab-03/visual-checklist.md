@@ -5,7 +5,7 @@ Run date: 2026-09-16. Browser: Playwright Chromium. Required viewports:
 
 | Area | Checks | Screenshot evidence |
 |---|---|---|
-| Authentication | Login idle and mandatory Change Password states; labels and safe feedback | `artifacts/lab-03/screenshots/authentication/login-idle.png`, `change-password.png` |
+| Authentication | Login and Change Password at 1280/768/375 px; labels, focus, touch targets, safe error/cooldown feedback | `artifacts/lab-03/screenshots/authentication/login-idle.png`, `change-password.png`, `login-{1280,768,375}.png`, `login-error.png`, `login-cooldown.png`, `change-password-{1280,768,375}.png` |
 | Requester | Create success, My Tickets, Ticket Detail after resolution, responsive layout | `artifacts/lab-03/screenshots/requester/create-ticket-*.png`, `my-tickets-*.png`, `ticket-detail-resolved.png` |
 | Staff Queue | Desktop/tablet table, mobile cards, search focus, text status/priority indicators, no overflow | `artifacts/lab-03/screenshots/staff-queue/{1280,768,375}.png` |
 | Staff Ticket Detail | Editable Staff workflow, read-only data, comments/notes separation, responsive labels and targets | `artifacts/lab-03/screenshots/staff-ticket-detail/{1280,768,375}.png`, `desktop-success.png` |
@@ -23,8 +23,8 @@ Run date: 2026-09-16. Browser: Playwright Chromium. Required viewports:
   labels; color is not the only indicator.
 - [x] Mobile interactive controls checked at or above 44 px where applicable.
 - [x] Zen Green token contrast pairs are checked by
-  `client/tests/lab-03/visual-style.test.tsx`; warning and orange badge colors
-  were adjusted to meet the 4.5:1 text contrast target.
+  `client/tests/lab-03/visual-style.test.tsx`; warning, amber, and orange badge
+  colors were adjusted to meet the 4.5:1 text contrast target.
 - [x] Screenshots were reviewed for clipping, overlap, and unreadable content.
 
 The Staff tablet table is intentionally dense because `ui-spec.md` requires a

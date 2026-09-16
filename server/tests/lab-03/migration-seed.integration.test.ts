@@ -35,8 +35,8 @@ function databaseUrlWithName(source: string, name: string): string {
 async function runSeed(password: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
     const result = await execFile(
-      resolve(process.cwd(), 'node_modules/.bin/tsx'),
-      ['prisma/seed.ts'],
+      process.execPath,
+      [resolve(process.cwd(), 'node_modules/tsx/dist/cli.mjs'), 'prisma/seed.ts'],
       {
         cwd: process.cwd(),
         env: { ...process.env, DATABASE_URL: temporaryDatabaseUrl, SEED_INITIAL_PASSWORD: password },

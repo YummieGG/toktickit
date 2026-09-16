@@ -9,7 +9,7 @@ interface BadgeProps {
 
 const PRIORITY_STYLES: Record<TicketPriority, React.CSSProperties> = {
   LOW: { backgroundColor: '#E3F2FD', color: '#0D47A1' },
-  MEDIUM: { backgroundColor: '#FFF9C4', color: '#8A2E00' },
+  MEDIUM: { backgroundColor: '#FFF9C4', color: '#7A4B00' },
   HIGH: { backgroundColor: '#FFE0B2', color: '#8A2E00' },
   CRITICAL: { backgroundColor: '#FFCDD2', color: '#B71C1C' },
 };
@@ -17,7 +17,7 @@ const PRIORITY_STYLES: Record<TicketPriority, React.CSSProperties> = {
 const STATUS_STYLES: Partial<Record<TicketStatus, React.CSSProperties>> = {
   NEW: { backgroundColor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7' },
   OPEN: { backgroundColor: '#E3F2FD', color: '#0D47A1' },
-  IN_PROGRESS: { backgroundColor: '#FFF9C4', color: '#8A2E00' },
+  IN_PROGRESS: { backgroundColor: '#FFF9C4', color: '#7A4B00' },
   WAITING_FOR_REQUESTER: { backgroundColor: '#FFF3E0', color: '#8A2E00' },
   RESOLVED: { backgroundColor: '#E8F5E9', color: '#2E7D32' },
   CLOSED: { backgroundColor: '#ECEFF1', color: '#37474F' },

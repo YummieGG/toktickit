@@ -97,6 +97,7 @@ test('Administrator can read the queue/detail but has no Staff mutation affordan
   await page.locator('.staff-queue-table-wrap').getByRole('link', { name: 'Open', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
   await expect(page.getByText('Check gateway logs')).toBeVisible();
+  await expectReadableTextIndicators(page);
   await expect(page.getByRole('heading', { name: 'Workflow controls' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add public comment' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add internal note' })).toHaveCount(0);

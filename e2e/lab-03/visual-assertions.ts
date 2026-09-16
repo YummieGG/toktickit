@@ -23,9 +23,9 @@ function contrastRatio(foreground: Rgb, background: Rgb): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/** Verify rendered status/priority indicators use text and readable colors. */
+/** Verify rendered status, priority, and feedback indicators use readable text and colors. */
 export async function expectReadableTextIndicators(page: Page): Promise<void> {
-  const indicators = await page.locator('.badge, .user-status-badge').evaluateAll(elements => elements
+  const indicators = await page.locator('.badge, .user-status-badge, .alert').evaluateAll(elements => elements
     .filter(element => {
       const style = window.getComputedStyle(element);
       const bounds = element.getBoundingClientRect();

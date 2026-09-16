@@ -62,6 +62,14 @@ const requester: User = {
   mustChangePassword: false,
 };
 
+const firstLoginUser: User = {
+  ...requester,
+  id: 8,
+  name: 'Initial User',
+  email: 'initial.user@toktickit.local',
+  mustChangePassword: true,
+};
+
 const categories = [{ id: 1, name: 'Network' }, { id: 2, name: 'Software' }];
 const systems = [{ id: 1, name: 'VPN' }];
 
@@ -113,15 +121,14 @@ async function installMockApi(page: Page, initialUser: User | null = null) {
     if (method === 'POST' && url.pathname === '/api/auth/login') {
       const payload = JSON.parse(apiRequest.postData() ?? '{}') as { email?: string };
       if (payload.email === 'initial.user@toktickit.local') {
-        currentUser = {
-          id: 8,
-          name: 'Initial User',
-          email: 'initial.user@toktickit.local',
-          role: 'REQUESTER',
-          isActive: true,
-          mustChangePassword: true,
-        };
+        currentUser = firstLoginUser;
         return json(route, { data: currentUser });
+      }
+      if (payload.email === 'invalid.user@toktickit.local') {
+        return json(route, { error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' } }, 401);
+      }
+      if (payload.email === 'cooldown.user@toktickit.local') {
+        return json(route, { error: { code: 'LOGIN_COOLDOWN', message: 'Please try again later' } }, 429);
       }
       currentUser = requester;
       return json(route, { data: requester });
@@ -251,6 +258,34 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth);
 }
 
+async function expectLabeledControls(page: Page) {
+  const controlsHaveLabels = await page.locator('input, select, textarea').evaluateAll(elements =>
+    elements.every(element => Boolean((element as HTMLInputElement).labels?.length)),
+  );
+  expect(controlsHaveLabels).toBe(true);
+}
+
+async function expectMobileTouchTargets(page: Page) {
+  const shortTouchTargets = await page.locator('button, input, select, textarea').evaluateAll(elements =>
+    elements.filter(element => {
+      const style = window.getComputedStyle(element);
+      const bounds = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && bounds.width > 0 && bounds.height > 0;
+    }).map(element => Math.round(element.getBoundingClientRect().height)).filter(height => height < 44),
+  );
+  expect(shortTouchTargets).toEqual([]);
+}
+
+async function expectVisibleFocus(page: Page, selector: string) {
+  const control = page.getByLabel(selector);
+  await control.focus();
+  expect(await control.evaluate(element => document.activeElement === element)).toBe(true);
+  expect(await control.evaluate(element => {
+    const style = window.getComputedStyle(element);
+    return style.outlineStyle !== 'none' || style.boxShadow !== 'none';
+  })).toBe(true);
+}
+
 test('initial password login requires password change and unblocks normal screens after change (E2E-01)', async ({ page }) => {
   await installMockApi(page);
 
@@ -283,6 +318,61 @@ test('initial password login requires password change and unblocks normal screen
   await page.getByLabel('Password').fill('NewSecurePass#99');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'My Tickets' })).toBeVisible();
+});
+
+test('Login meets required viewports and keeps invalid/cooldown feedback safe (E2E-05)', async ({ page }) => {
+  await installMockApi(page);
+  const viewports = [
+    { width: 1280, height: 812 },
+    { width: 768, height: 812 },
+    { width: 375, height: 812 },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: 'TokTickIT' })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await expectLabeledControls(page);
+    await expectVisibleFocus(page, 'Email');
+    if (viewport.width === 375) await expectMobileTouchTargets(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/authentication/login-${viewport.width}.png`), fullPage: true });
+  }
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('invalid.user@toktickit.local');
+  await page.getByLabel('Password').fill('ValidPass#12');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByText('Email or password is incorrect.')).toBeVisible();
+  await expectReadableTextIndicators(page);
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/authentication/login-error.png'), fullPage: true });
+
+  await page.getByLabel('Email').fill('cooldown.user@toktickit.local');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByText('Too many attempts. Please try again later.')).toBeVisible();
+  await expectReadableTextIndicators(page);
+  await page.screenshot({ path: path.resolve(__dirname, '../../artifacts/lab-03/screenshots/authentication/login-cooldown.png'), fullPage: true });
+});
+
+test('Change Password meets required viewports and accessible form checks (E2E-05)', async ({ page }) => {
+  await installMockApi(page, firstLoginUser);
+  const viewports = [
+    { width: 1280, height: 812 },
+    { width: 768, height: 812 },
+    { width: 375, height: 812 },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto('/change-password');
+    await expect(page.getByRole('heading', { name: 'Change your password' })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await expectLabeledControls(page);
+    await expectVisibleFocus(page, 'Current password');
+    if (viewport.width === 375) await expectMobileTouchTargets(page);
+    await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/authentication/change-password-${viewport.width}.png`), fullPage: true });
+  }
 });
 
 test('authenticated requester retains create, list, detail, attachment, comment, and resolution flow (E2E-02)', async ({ page }) => {

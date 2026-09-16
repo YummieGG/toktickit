@@ -54,7 +54,7 @@ describe('Lab 3 Zen Green visual and accessibility contract (UI-08)', () => {
 
     for (const [foreground, background] of [
       ['#0D47A1', '#E3F2FD'],
-      ['#8A2E00', '#FFF9C4'],
+      ['#7A4B00', '#FFF9C4'],
       ['#8A2E00', '#FFE0B2'],
       ['#B71C1C', '#FFCDD2'],
       ['#1B5E20', '#E8F5E9'],
@@ -81,12 +81,16 @@ describe('Lab 3 Zen Green visual and accessibility contract (UI-08)', () => {
       <>
         <Button>Save changes</Button>
         <Alert variant="warning">Read-only view</Alert>
+        <Badge type="priority" value="MEDIUM" />
+        <Badge type="priority" value="HIGH" />
         <Badge type="status" value="CANCELLED" />
       </>,
     );
 
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveClass('btn-zen-primary');
     expect(screen.getByText('Read-only view')).toHaveClass('alert-warning');
+    expect(screen.getByText('MEDIUM')).toHaveStyle({ color: '#7A4B00' });
+    expect(screen.getByText('HIGH')).toHaveStyle({ color: '#8A2E00' });
     expect(screen.getByText('CANCELLED')).toBeVisible();
   });
 });

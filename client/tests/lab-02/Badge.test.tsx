@@ -13,12 +13,12 @@ describe('Badge Component (ui-spec.md:192-196)', () => {
     });
   });
 
-  it('renders Priority: MEDIUM badge with pale yellow background and accessible dark amber text', () => {
+  it('renders Priority: MEDIUM badge with pale yellow background and distinct accessible amber text', () => {
     render(<Badge type="priority" value="MEDIUM" />);
     const badge = screen.getByText('MEDIUM');
     expect(badge).toHaveStyle({
       backgroundColor: '#FFF9C4',
-      color: '#8A2E00',
+      color: '#7A4B00',
     });
   });
 
