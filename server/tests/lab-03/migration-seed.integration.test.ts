@@ -48,7 +48,7 @@ function databaseUrlWithName(source: string, name: string): string {
 async function runSeed(password?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   try {
     const environment = { ...process.env, DATABASE_URL: temporaryDatabaseUrl };
-    if (password === undefined) delete environment.SEED_INITIAL_PASSWORD;
+    if (password === undefined) environment.SEED_INITIAL_PASSWORD = '';
     else environment.SEED_INITIAL_PASSWORD = password;
 
     const result = await execFile(
