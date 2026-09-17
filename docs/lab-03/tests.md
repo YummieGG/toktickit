@@ -286,16 +286,16 @@ export E2E_TEST_PASSWORD='a-different-valid-local-password'
 export AUTH_IP_PEPPER='a-local-only-random-pepper'
 
 # Replace the three local-only placeholder values above before running.
-docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
-docker exec toktickit-postgres psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_integration_20260917\""
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_integration_20260917\""
 cd server
 DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
 cd ..
-docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
 
-docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
-docker exec toktickit-postgres psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_live_20260917_1745\""
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_live_20260917_1745\""
 cd server
 DATABASE_URL="$LIVE_DATABASE_URL" npx prisma migrate deploy
 DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" npx prisma db seed
@@ -303,7 +303,7 @@ cd ../e2e
 npm test -- --reporter=list
 DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list
 cd ..
-docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
 ```
 
 | Command | Result | Evidence |
@@ -322,11 +322,16 @@ docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF
 
 - Backend session authentication, password-change gating, role authorization,
   ownership protection, CSRF Origin checks, and sensitive-data redaction
-  remained authoritative in the server/API suites; the live E2E test also
-  exercised those boundaries through the real browser-to-server path.
+  remained authoritative in the server/API suites.
+- The live E2E test exercised real browser-to-server Administrator password
+  change, authenticated session bootstrap, read-only ticket queue oversight,
+  denial of Staff status mutations (`403 FORBIDDEN`), rejection of untrusted
+  Origin (`403 CSRF_ORIGIN_INVALID`), secret redaction, and session revocation
+  on logout against a freshly seeded PostgreSQL database.
 - Direct API access, wrong-role access, cross-owner access, client
   `requesterId` tampering, session revocation, Internal Note leakage, and
-  Administrator safety cases passed.
+  Administrator safety cases are authoritatively verified across the server
+  API test suites and fixture-backed E2E tests.
 - Clean PostgreSQL migration/seed verification passed without losing Lab 2
   ownership/reference data and without exposing seed secrets. The live E2E
   run used a separate fresh seeded database and removed it after completion.
@@ -334,6 +339,23 @@ docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF
   no clipping, horizontal overflow, or inaccessible controls.
 - No core security, migration, regression, layout, or accessibility blocker
   was found in the staged integration result.
+
+### Screenshot evidence
+
+The Issue #44 staged integration pass verified and refreshed the screenshot
+evidence under `artifacts/lab-03/screenshots/` (13 updated artifacts). The
+complete mapping across authentication, requester, Staff Queue, Staff Ticket
+Detail, and User Management viewports and interaction states is recorded in
+[`visual-checklist.md`](./visual-checklist.md).
+
+### Known limitations
+
+- Live E2E coverage focuses on core Administrator authentication, password
+  change, queue access, CSRF Origin protection, and session revocation against
+  a live PostgreSQL backend. Detailed edge-case matrices (such as individual
+  status transitions, cross-owner resource boundaries, and multi-viewport
+  layouts) remain authoritatively covered by the comprehensive unit, API, and
+  fixture-backed E2E suites for deterministic CI repeatability.
 
 ### Verification boundary
 
