@@ -196,8 +196,8 @@ Final `tests.md` must record command, date/environment, test-file count, total/p
 
 Run date: 2026-09-16 (Asia/Bangkok). The repository was tested from the
 `lab3-6-verification-qa` working tree with lockfile dependencies already
-installed. PostgreSQL verification used the `toktickit-postgres` container on
-`localhost:5432` and the temporary database `toktickit_pr50_review_20260916_2252`;
+installed. PostgreSQL verification used the `toktickit-db` container on
+`localhost:5434` and the temporary database `toktickit_pr50_review_20260916_2252`;
 the target database was created, migrated from an empty state with
 `prisma migrate deploy`, and dropped after the run. No production/local
 application database was used by the integration suite.
@@ -205,12 +205,12 @@ application database was used by the integration suite.
 Exact integration commands used:
 
 ```bash
-docker exec toktickit-postgres psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_pr50_review_20260916_2252\""
+docker exec toktickit-db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_pr50_review_20260916_2252\""
 cd server
-export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_pr50_review_20260916_2252?schema=public"
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/toktickit_pr50_review_20260916_2252?schema=public"
 DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
-docker exec toktickit-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_pr50_review_20260916_2252\" WITH (FORCE)"
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_pr50_review_20260916_2252\" WITH (FORCE)"
 ```
 
 | Command | Result | Evidence |
@@ -259,43 +259,47 @@ real-database integration coverage for every non-Administrator endpoint.
 
 ## 7. Issue #44 staged integration verification report
 
-Run date: 2026-09-17 (Asia/Bangkok). The verification was rerun from the
-`lab3-7-integration-submission` branch created from `origin/lab3-staging` at
-the reviewed Issue #43 merge result. The run covered the Issue #44 core
-acceptance criteria without changing application behavior.
+Run date: 2026-09-18 (Asia/Bangkok). The verification was rerun from the
+`lab3-7-integration-submission` branch after the session-expiry, clean-setup
+readiness, and verification-evidence fixes. The run covered the Issue #44 core
+acceptance criteria.
 
 The clean live-E2E run used the `toktickit-postgres` PostgreSQL container on
 `localhost:5432` and a disposable database named
-`toktickit_issue44_live_20260917_1745`. The database was created empty,
+`toktickit_issue44_fix_live_20260918_0310`. The database was created empty,
 migrated, seeded with a locally supplied `SEED_INITIAL_PASSWORD`, used by the
 live server and browser test, and dropped with `WITH (FORCE)` after the run.
 The password, E2E replacement password, and `AUTH_IP_PEPPER` were supplied
-only through the local environment and are not repository values.
+only through the local environment and are not repository values. The database
+service was started with `docker compose up -d --wait db`, and the migration/
+seed integration suite also verified missing and invalid local seed-secret
+handling without allowing values from the repository's local `.env` to mask
+those cases.
 
 Exact clean-setup and verification commands used:
 
 ```bash
-# Start from the repository root. Start the repository-defined PostgreSQL service.
-docker compose up -d db
+# Start from the repository root. Wait until the repository-defined PostgreSQL service is healthy.
+docker compose up -d --wait db
 
 # Set these local-only values in the shell.
-export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_integration_20260917?schema=public"
-export LIVE_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_live_20260917_1745?schema=public"
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_fix_integration_20260918_0310?schema=public"
+export LIVE_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_fix_live_20260918_0310?schema=public"
 export SEED_INITIAL_PASSWORD='a-valid-local-password'
 export E2E_TEST_PASSWORD='a-different-valid-local-password'
 export AUTH_IP_PEPPER='a-local-only-random-pepper'
 
-# Replace the three local-only placeholder values above before running.
-docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
-docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_integration_20260917\""
+# Replace the local-only placeholder values above before running.
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_integration_20260918_0310\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_fix_integration_20260918_0310\""
 cd server
 DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
 cd ..
-docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_integration_20260918_0310\" WITH (FORCE)"
 
-docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
-docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_live_20260917_1745\""
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_live_20260918_0310\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_fix_live_20260918_0310\""
 cd server
 DATABASE_URL="$LIVE_DATABASE_URL" npx prisma migrate deploy
 DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" npx prisma db seed
@@ -303,13 +307,13 @@ cd ../e2e
 npm test -- --reporter=list
 DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list
 cd ..
-docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_live_20260918_0310\" WITH (FORCE)"
 ```
 
 | Command | Result | Evidence |
 |---|---|---|
 | `cd server && npm test -- --reporter=dot` | 22 files; 266 passed; 0 failed; 0 skipped | Full server unit/API suite and Lab 2 regression |
-| `cd client && npm test -- --reporter=dot` | 13 files; 98 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI and visual-style checks |
+| `cd client && npm test -- --reporter=dot` | 13 files; 99 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI and visual-style checks, including reload-time expired-session notice |
 | `cd server && DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean PostgreSQL migration/seed and transaction/security integration; the suite creates and drops its own temporary database |
 | `cd e2e && npm test -- --reporter=list` | 3 files; 19 passed; 0 failed; 0 skipped | Fixture-backed authentication, requester, Staff, Administrator, authorization, responsive, and screenshot checks |
 | `cd e2e && DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list` | 1 file; 1 passed; 0 failed; 0 skipped | Live browser-to-server login/password-change, real database session, role denial, CSRF-Origin rejection, secret redaction, and logout revocation |
@@ -342,11 +346,10 @@ docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXIS
 
 ### Screenshot evidence
 
-The Issue #44 staged integration pass verified and refreshed the screenshot
-evidence under `artifacts/lab-03/screenshots/` (13 updated artifacts). The
-complete mapping across authentication, requester, Staff Queue, Staff Ticket
-Detail, and User Management viewports and interaction states is recorded in
-[`visual-checklist.md`](./visual-checklist.md).
+The repository contains the 13 screenshot evidence artifacts under
+`artifacts/lab-03/screenshots/`. The complete mapping across authentication,
+requester, Staff Queue, Staff Ticket Detail, and User Management viewports and
+interaction states is recorded in [`visual-checklist.md`](./visual-checklist.md).
 
 ### Known limitations
 
