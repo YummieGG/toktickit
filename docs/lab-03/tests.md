@@ -28,7 +28,7 @@ placeholder in the final verification run.
 - **E2E:** Playwright Chromium for login/change-password, Requester regression, Staff workflow, Administrator management, cross-role denial, and responsive screenshots.
 - **Security/regression:** Explicit direct-API, session, CSRF-Origin, requesterId-tampering, cross-owner, Internal Note leakage, and Lab 2 data-preservation cases.
 
-The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for API authorization tests, and the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix) is the canonical source for route-guard tests. Each endpoint and screen row must have an allowed-role case and a wrong-role/unauthenticated case where applicable.
+The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for API authorization tests, and the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix) is the canonical source for route-guard tests. Each endpoint and screen row must have an allowed-role case and a wrong-role/unauthenticated case where applicable. Issue #43 owns cross-cutting verification; Issue #44 owns staged integration and core evidence; Issue #51 owns documentation/submission packaging; and Issue #52 owns release/final-state verification.
 
 ## 2. Required repository paths
 
@@ -252,3 +252,36 @@ fast deterministic coverage; high-risk persistence behavior and clean
 migration/seed behavior have separate real PostgreSQL integration suites. No
 test is skipped or placeholder, but a future release-hardening pass could add
 real-database integration coverage for every non-Administrator endpoint.
+
+## 7. Issue #44 staged integration verification report
+
+Run date: 2026-09-17 (Asia/Bangkok). The verification was rerun from the
+`lab3-7-integration-submission` branch created from `origin/lab3-staging` at
+the reviewed Issue #43 merge result. The run covered the Issue #44 core
+acceptance criteria without changing application behavior.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cd server && npm test -- --reporter=dot` | 22 files; 266 passed; 0 failed; 0 skipped | Full server unit/API suite and Lab 2 regression |
+| `cd client && npm test -- --reporter=dot` | 13 files; 98 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI and visual-style checks |
+| `DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean PostgreSQL migration/seed and transaction/security integration |
+| `cd e2e && npm test -- --reporter=list` | 19 passed; 0 failed; 0 skipped | Authentication, requester, Staff, Administrator, authorization, responsive, and screenshot checks |
+| `cd server && npm run build` | Passed | TypeScript build |
+| `cd client && npm run build` | Passed | TypeScript/Vite production build |
+| `cd client && npm run lint` | Passed | Oxlint |
+| `git diff --check` | Passed | No whitespace errors |
+
+### Issue #44 Security Guard and integration result
+
+- Backend session authentication, password-change gating, role authorization,
+  ownership protection, CSRF Origin checks, and sensitive-data redaction
+  remained authoritative and passed the server/API and E2E coverage.
+- Direct API access, wrong-role access, cross-owner access, client
+  `requesterId` tampering, session revocation, Internal Note leakage, and
+  Administrator safety cases passed.
+- Clean PostgreSQL migration/seed verification passed without losing Lab 2
+  ownership/reference data and without exposing seed secrets.
+- Responsive and accessibility checks passed at 1280, 768, and 375 px with
+  no clipping, horizontal overflow, or inaccessible controls.
+- No core security, migration, regression, layout, or accessibility blocker
+  was found in the staged integration result.
