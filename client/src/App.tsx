@@ -21,7 +21,7 @@ function GuardLoading() {
 }
 
 function ProtectedShell() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, sessionExpired } = useAuth();
   const location = useLocation();
 
   if (isLoading) return <GuardLoading />;
@@ -30,10 +30,9 @@ function ProtectedShell() {
       <Navigate
         to="/login"
         replace
-        state={{
-          from: location.pathname,
-          notice: 'Your session has expired. Please sign in again.',
-        }}
+        state={sessionExpired
+          ? { from: location.pathname, notice: 'Your session has expired. Please sign in again.' }
+          : { from: location.pathname }}
       />
     );
   }
@@ -42,7 +41,7 @@ function ProtectedShell() {
 }
 
 function PasswordChangeAccess() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, sessionExpired } = useAuth();
   const location = useLocation();
 
   if (isLoading) return <GuardLoading />;
@@ -51,10 +50,9 @@ function PasswordChangeAccess() {
       <Navigate
         to="/login"
         replace
-        state={{
-          from: location.pathname,
-          notice: 'Your session has expired. Please sign in again.',
-        }}
+        state={sessionExpired
+          ? { from: location.pathname, notice: 'Your session has expired. Please sign in again.' }
+          : { from: location.pathname }}
       />
     );
   }

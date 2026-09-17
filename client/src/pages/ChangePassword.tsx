@@ -6,7 +6,7 @@ import { ApiError, useAuth } from '../contexts/auth';
 import { validatePasswordInput } from '../utils/password';
 
 export const ChangePassword: React.FC = () => {
-  const { user, isLoading, changePassword, logout } = useAuth();
+  const { user, isLoading, sessionExpired, changePassword, logout } = useAuth();
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -21,13 +21,15 @@ export const ChangePassword: React.FC = () => {
     if (!isLoading && !user && !success) {
       navigate('/login', {
         replace: true,
-        state: {
-          from: '/change-password',
-          notice: 'Your session has expired. Please sign in again.',
-        },
+        state: sessionExpired
+          ? {
+              from: '/change-password',
+              notice: 'Your session has expired. Please sign in again.',
+            }
+          : { from: '/change-password' },
       });
     }
-  }, [isLoading, navigate, user, success]);
+  }, [isLoading, navigate, sessionExpired, user, success]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
 import { ApiError, AuthContext, type AuthContextValue, type AuthUser } from './auth';
 
 async function readApiError(response: Response): Promise<never> {
@@ -25,19 +25,25 @@ async function readUser(response: Response): Promise<AuthUser> {
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const hadAuthenticatedSession = useRef(false);
 
   const refresh = useCallback(async (): Promise<AuthUser | null> => {
     try {
       const response = await fetch('/api/auth/me', { credentials: 'include' });
       if (!response.ok) {
+        setSessionExpired(response.status === 401 && hadAuthenticatedSession.current);
         setUser(null);
         return null;
       }
       const nextUser = await readUser(response);
       setUser(nextUser);
+      setSessionExpired(false);
+      hadAuthenticatedSession.current = true;
       return nextUser;
     } catch {
       setUser(null);
+      setSessionExpired(false);
       return null;
     }
   }, []);
@@ -66,6 +72,8 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
     const nextUser = await readUser(response);
     setUser(nextUser);
+    setSessionExpired(false);
+    hadAuthenticatedSession.current = true;
     return nextUser;
   }, []);
 
@@ -78,6 +86,8 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       if (!response.ok) await readApiError(response);
     } finally {
       setUser(null);
+      setSessionExpired(false);
+      hadAuthenticatedSession.current = false;
     }
   }, []);
 
@@ -100,11 +110,12 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const value = useMemo<AuthContextValue>(() => ({
     user,
     isLoading,
+    sessionExpired,
     refresh,
     login,
     logout,
     changePassword,
-  }), [changePassword, isLoading, login, logout, refresh, user]);
+  }), [changePassword, isLoading, login, logout, refresh, sessionExpired, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

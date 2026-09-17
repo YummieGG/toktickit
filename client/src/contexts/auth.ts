@@ -34,6 +34,7 @@ export class ApiError extends Error {
 export interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
+  sessionExpired: boolean;
   refresh: () => Promise<AuthUser | null>;
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
