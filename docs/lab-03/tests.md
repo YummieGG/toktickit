@@ -275,7 +275,10 @@ only through the local environment and are not repository values.
 Exact clean-setup and verification commands used:
 
 ```bash
-# Start from the repository root. Set these three values only in the shell.
+# Start from the repository root. Start the repository-defined PostgreSQL service.
+docker compose up -d db
+
+# Set these local-only values in the shell.
 export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_integration_20260917?schema=public"
 export LIVE_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_live_20260917_1745?schema=public"
 export SEED_INITIAL_PASSWORD='a-valid-local-password'
