@@ -127,17 +127,23 @@ cd e2e
 npm test
 ```
 
-Issue #44 also has a separate live integration suite. It starts both the
-backend and frontend and requires a freshly migrated and seeded disposable
-PostgreSQL database plus local-only `SEED_INITIAL_PASSWORD`,
-`E2E_TEST_PASSWORD`, and `AUTH_IP_PEPPER` values. Follow the exact clean-setup
-commands in [`docs/lab-03/tests.md`](docs/lab-03/tests.md#7-issue-44-staged-integration-verification-report)
-before running:
+The live integration suite starts both the backend and frontend and requires a
+freshly migrated and seeded disposable PostgreSQL database. Set the following
+values locally before running it:
+
+- `SEED_INITIAL_PASSWORD`
+- `E2E_TEST_PASSWORD`
+- `AUTH_IP_PEPPER`
+
+Follow the exact clean-setup commands in
+[`docs/lab-03/tests.md`](docs/lab-03/tests.md) before running:
 
 ```bash
 cd e2e
 npm run test:live
 ```
+
+These values are local-only and must not be committed or published.
 
 ---
 
