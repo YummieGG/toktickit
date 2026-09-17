@@ -461,6 +461,39 @@ textarea.form-control[readonly] {
   min-height: 44px;
 }
 
+.ticket-detail-badges {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 28rem);
+}
+
+.ticket-detail-badge {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.ticket-detail-badge-label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  min-height: 1.8rem;
+}
+
+.ticket-detail-badge .badge {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 2.5rem;
+  overflow-wrap: anywhere;
+  padding-inline: 0.75rem;
+  white-space: normal;
+  width: 100%;
+}
+
 /* Staff Queue and Staff Detail (Issue #41) */
 .staff-queue-table-wrap { overflow: hidden; }
 .staff-queue-table { table-layout: fixed; width: 100%; font-size: 0.875rem; }

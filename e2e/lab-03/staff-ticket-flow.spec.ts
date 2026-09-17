@@ -21,7 +21,7 @@ function queueTicket() {
 
 function detailTicket() {
   return {
-    ...queueTicket(), description: 'VPN disconnects after login.', createdAt: '2026-09-12T03:00:00.000Z', relatedSystem: { id: 2, name: 'VPN' },
+    ...queueTicket(), currentStatus: 'REOPENED', description: 'VPN disconnects after login.', createdAt: '2026-09-12T03:00:00.000Z', relatedSystem: { id: 2, name: 'VPN' },
     attachments: [{ id: 11, originalName: 'evidence.pdf', storedName: 'stored.pdf', mimeType: 'application/pdf', sizeBytes: 10, isRemoved: false, removalReason: null, removedAt: null, createdAt: '2026-09-12T03:05:00.000Z', ticketId: 8 }],
     comments: [{ id: 1, ticketId: 8, content: 'Please investigate', createdAt: '2026-09-12T03:10:00.000Z', author: { id: 7, name: 'Somchai Prasert', role: 'REQUESTER' } }],
     internalNotes: [{ id: 2, ticketId: 8, content: 'Check gateway logs', createdAt: '2026-09-12T03:15:00.000Z', author: { id: 20, name: 'Staff One', role: 'IT_STAFF' } }],
@@ -66,6 +66,16 @@ async function expectNoBadgeOverflow(page: Page) {
     return badgeBounds.left < cellBounds.left - 1 || badgeBounds.right > cellBounds.right + 1;
   }));
   expect(hasOverflow).toBe(false);
+}
+
+async function expectBalancedDetailBadges(page: Page) {
+  const bounds = await page.locator('.ticket-detail-badge .badge').evaluateAll(elements => elements.map(element => {
+    const { width, height } = element.getBoundingClientRect();
+    return { width: Math.round(width), height: Math.round(height) };
+  }));
+  expect(bounds).toHaveLength(3);
+  expect(new Set(bounds.map(bound => bound.width)).size).toBe(1);
+  expect(new Set(bounds.map(bound => bound.height)).size).toBe(1);
 }
 
 test('Staff can search the queue, open detail, and complete the Issue #41 workflow', async ({ page }) => {
@@ -151,6 +161,7 @@ test('Staff ticket detail meets required viewport and label checks', async ({ pa
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/staff/tickets/8');
     await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
+    await expectBalancedDetailBadges(page);
     await expectReadableTextIndicators(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-ticket-detail/${width}.png`), fullPage: true });
