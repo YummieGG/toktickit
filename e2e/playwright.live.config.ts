@@ -18,15 +18,19 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `APP_ORIGIN=${clientOrigin} PORT=3000 npm --prefix ../server run dev`,
+      command: 'npm --prefix ../server run dev',
       url: serverHealthUrl,
       cwd: __dirname,
+      env: {
+        APP_ORIGIN: clientOrigin,
+        PORT: '3000',
+      },
       // The live suite must use the database and environment passed to this run.
       reuseExistingServer: false,
       timeout: 120_000,
     },
     {
-      command: 'npm --prefix ../client run dev -- --host 127.0.0.1',
+      command: 'npm --prefix ../client run dev -- --host 127.0.0.1 --port 5173 --strictPort',
       url: clientOrigin,
       cwd: __dirname,
       reuseExistingServer: false,
