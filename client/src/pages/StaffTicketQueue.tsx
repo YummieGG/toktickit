@@ -271,7 +271,7 @@ export function StaffTicketQueue() {
             </table>
           </div>
           <div className="staff-queue-cards d-grid gap-3">{tickets.map(ticket => <article className="card shadow-sm p-3" key={ticket.id}>
-            <div className="d-flex justify-content-between gap-2"><Link className="fw-bold" to={`/staff/tickets/${ticket.id}`}>{ticket.ticketNumber}</Link><Badge type="status" value={ticket.currentStatus} /></div>
+            <div className="staff-queue-card-header d-flex justify-content-between gap-2"><Link className="fw-bold" to={`/staff/tickets/${ticket.id}`}>{ticket.ticketNumber}</Link><Badge type="status" value={ticket.currentStatus} /></div>
             <h2 className="h5 mt-2 mb-3">{ticket.summary}</h2>
             <div className="staff-queue-card-grid"><QueueCell label="Ticket Date">{formatTicketDateTime(ticket.ticketDate)}</QueueCell><QueueCell label="Category">{ticket.category.name}</QueueCell><QueueCell label="Requested Priority"><Badge type="priority" value={ticket.requestedPriority} /></QueueCell><QueueCell label="IT Priority"><Badge type="priority" value={ticket.itPriority} /></QueueCell><QueueCell label="Owner">{ticket.owner?.name ?? 'Unassigned'}</QueueCell><QueueCell label="Requester">{ticket.requester.name} ({ticket.requester.email})</QueueCell><QueueCell label="Last Updated">{formatTicketDateTime(ticket.updatedAt)}</QueueCell><QueueCell label="Resolution Indication">{ticket.problemAppearsResolvedAt ? formatTicketDateTime(ticket.problemAppearsResolvedAt) : 'Not indicated'}</QueueCell></div>
             <Link className="btn btn-zen-secondary mt-3 w-100" to={`/staff/tickets/${ticket.id}`}>Open ticket detail</Link>

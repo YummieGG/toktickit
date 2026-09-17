@@ -465,6 +465,13 @@ textarea.form-control[readonly] {
 .staff-queue-table-wrap { overflow: hidden; }
 .staff-queue-table { table-layout: fixed; width: 100%; font-size: 0.875rem; }
 .staff-queue-table th, .staff-queue-table td { overflow-wrap: anywhere; vertical-align: middle; }
+.staff-queue-table .badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
+}
 .staff-queue-table th:nth-child(1) { width: 7%; }
 .staff-queue-table th:nth-child(2) { width: 8%; }
 .staff-queue-table th:nth-child(3) { width: 12%; }
@@ -481,12 +488,16 @@ textarea.form-control[readonly] {
 .staff-queue-cards { display: none !important; }
 .staff-queue-card-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .staff-queue-cell { min-width: 0; }
+.staff-queue-cell > span:last-child { display: block; min-width: 0; overflow-wrap: anywhere; }
 .staff-queue-cell-label { color: var(--text-secondary); display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.15rem; }
+.staff-queue-card-header { align-items: flex-start; }
+.staff-queue-card-header > a { min-width: 0; overflow-wrap: anywhere; }
+.staff-queue-card-header > .badge,
+.staff-queue-card-grid .badge { max-width: 100%; overflow-wrap: anywhere; text-align: center; white-space: normal; }
 .internal-notes-panel { border-left: 4px solid var(--warning); }
 
 @media (min-width: 768px) and (max-width: 991.98px) {
   .staff-queue-table { font-size: 0.75rem; }
-  .staff-queue-table .badge { white-space: normal; }
 }
 
 @media (max-width: 767.98px) {
