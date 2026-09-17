@@ -52,14 +52,16 @@ test('uses the live server for password change, session, role, and CSRF guards',
       data: { status: 'OPEN', confirmed: true },
     });
     expect(forbiddenMutation.status()).toBe(403);
-    expect((await forbiddenMutation.json()).error.code).toBe('FORBIDDEN');
+    const forbiddenBody = await forbiddenMutation.json() as { error?: { code?: string } };
+    expect(forbiddenBody.error?.code).toBe('FORBIDDEN');
 
     const invalidOriginMutation = await api.post('/api/admin/users', {
       headers: { Origin: 'http://evil.test' },
       data: {},
     });
     expect(invalidOriginMutation.status()).toBe(403);
-    expect((await invalidOriginMutation.json()).error.code).toBe('CSRF_ORIGIN_INVALID');
+    const invalidOriginBody = await invalidOriginMutation.json() as { error?: { code?: string } };
+    expect(invalidOriginBody.error?.code).toBe('CSRF_ORIGIN_INVALID');
 
     await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page).toHaveURL(/\/login\/?$/);
