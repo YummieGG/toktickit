@@ -120,11 +120,23 @@ npm install
 npx playwright install chromium
 ```
 
-The E2E suite uses deterministic API fixtures and starts the Vite client automatically. It covers the complete requester flow and responsive evidence at 1280px, 768px, and 375px:
+The default E2E suite uses deterministic API fixtures and starts the Vite client automatically. It covers the complete requester flow and responsive evidence at 1280px, 768px, and 375px:
 
 ```bash
 cd e2e
 npm test
+```
+
+Issue #44 also has a separate live integration suite. It starts both the
+backend and frontend and requires a freshly migrated and seeded disposable
+PostgreSQL database plus local-only `SEED_INITIAL_PASSWORD`,
+`E2E_TEST_PASSWORD`, and `AUTH_IP_PEPPER` values. Follow the exact clean-setup
+commands in [`docs/lab-03/tests.md`](docs/lab-03/tests.md#7-issue-44-staged-integration-verification-report)
+before running:
+
+```bash
+cd e2e
+npm run test:live
 ```
 
 ---
@@ -145,13 +157,19 @@ npx vitest run tests/lab-02/tickets.api.test.ts
 ```
 
 To run the Administrator and clean migration/seed PostgreSQL integration checks, use an isolated
-PostgreSQL database and provide its connection string explicitly. A fresh target database must be
-migrated before running the suite:
+PostgreSQL database and provide its connection string explicitly. The example below creates and
+removes a disposable database through the repository's Compose service:
 ```bash
+docker compose up -d db
+export TEST_DATABASE_NAME="toktickit_admin_test_local"
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/${TEST_DATABASE_NAME}?schema=public"
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"${TEST_DATABASE_NAME}\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"${TEST_DATABASE_NAME}\""
 cd server
-export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_admin_test?schema=public"
 DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration
+cd ..
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"${TEST_DATABASE_NAME}\" WITH (FORCE)"
 ```
 The integration suite creates uniquely named records and removes them during
 cleanup. It verifies real transaction rollback, owner unassignment, session

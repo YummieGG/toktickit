@@ -15,9 +15,10 @@ Issue #43 report below supersedes that historical boundary with the clean
 PostgreSQL migration/seed result.
 
 This file began as the pre-implementation test contract for Issue 1. The
-Issue #43 verification report at the end records the final commands and real
-results. No required test is skipped, disabled, focused-only, flaky, or a
-placeholder in the final verification run.
+Issue #44 verification report records the latest commands and real results;
+the Issue #43 report is retained as historical evidence. No required test is
+skipped, disabled, focused-only, flaky, or a placeholder in the final
+verification run.
 
 ## 1. Test strategy
 
@@ -25,7 +26,8 @@ placeholder in the final verification run.
 - **Server API/integration:** Supertest against PostgreSQL test data and mocked filesystem boundaries, covering migration/seed, authentication, ownership, role guards, workflow, comments/notes, resolution, and Administrator safety.
 - **Client UI:** Vitest + React Testing Library for screen state matrices, form validation, route guards, response rendering, and accessibility labels.
 - **UI style/visual:** `visual-style.test.tsx` checks Zen Green tokens, shared component styling, readable editable/read-only states, contrast, focus indicators, and mobile control sizing.
-- **E2E:** Playwright Chromium for login/change-password, Requester regression, Staff workflow, Administrator management, cross-role denial, and responsive screenshots.
+- **E2E UI fixtures:** `cd e2e && npm test` runs the deterministic UI and responsive suite with API fixtures; it does not claim backend integration.
+- **E2E live integration:** `cd e2e && npm run test:live` starts the real server and Vite client against a fresh seeded PostgreSQL database and verifies browser-to-API session, role, CSRF, and logout behavior.
 - **Security/regression:** Explicit direct-API, session, CSRF-Origin, requesterId-tampering, cross-owner, Internal Note leakage, and Lab 2 data-preservation cases.
 
 The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for API authorization tests, and the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix) is the canonical source for route-guard tests. Each endpoint and screen row must have an allowed-role case and a wrong-role/unauthenticated case where applicable. Issue #43 owns cross-cutting verification; Issue #44 owns staged integration and core evidence; Issue #51 owns documentation/submission packaging; and Issue #52 owns release/final-state verification.
@@ -66,6 +68,8 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 - `e2e/lab-03/authentication.spec.ts`
 - `e2e/lab-03/staff-ticket-flow.spec.ts`
 - `e2e/lab-03/user-administration.spec.ts`
+- `e2e/lab-03/live-integration.spec.ts`
+- `e2e/playwright.live.config.ts`
 - `artifacts/lab-03/screenshots/authentication/`
 - `artifacts/lab-03/screenshots/requester/`
 - `artifacts/lab-03/screenshots/staff-queue/`
@@ -260,12 +264,52 @@ Run date: 2026-09-17 (Asia/Bangkok). The verification was rerun from the
 the reviewed Issue #43 merge result. The run covered the Issue #44 core
 acceptance criteria without changing application behavior.
 
+The clean live-E2E run used the `toktickit-db` PostgreSQL container on
+`localhost:5434` and a disposable database named
+`toktickit_issue44_live_20260917_1745`. The database was created empty,
+migrated, seeded with a locally supplied `SEED_INITIAL_PASSWORD`, used by the
+live server and browser test, and dropped with `WITH (FORCE)` after the run.
+The password, E2E replacement password, and `AUTH_IP_PEPPER` were supplied
+only through the local environment and are not repository values.
+
+Exact clean-setup and verification commands used:
+
+```bash
+# Start from the repository root. Set these three values only in the shell.
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/toktickit_issue44_integration_20260917?schema=public"
+export LIVE_DATABASE_URL="postgresql://postgres:postgres@localhost:5434/toktickit_issue44_live_20260917_1745?schema=public"
+export SEED_INITIAL_PASSWORD='a-valid-local-password'
+export E2E_TEST_PASSWORD='a-different-valid-local-password'
+export AUTH_IP_PEPPER='a-local-only-random-pepper'
+
+# Replace the three local-only placeholder values above before running.
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
+docker exec toktickit-db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_integration_20260917\""
+cd server
+DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
+cd ..
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_integration_20260917\" WITH (FORCE)"
+
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
+docker exec toktickit-db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_live_20260917_1745\""
+cd server
+DATABASE_URL="$LIVE_DATABASE_URL" npx prisma migrate deploy
+DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" npx prisma db seed
+cd ../e2e
+npm test -- --reporter=list
+DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list
+cd ..
+docker exec toktickit-db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_live_20260917_1745\" WITH (FORCE)"
+```
+
 | Command | Result | Evidence |
 |---|---|---|
 | `cd server && npm test -- --reporter=dot` | 22 files; 266 passed; 0 failed; 0 skipped | Full server unit/API suite and Lab 2 regression |
 | `cd client && npm test -- --reporter=dot` | 13 files; 98 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI and visual-style checks |
-| `DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean PostgreSQL migration/seed and transaction/security integration |
-| `cd e2e && npm test -- --reporter=list` | 19 passed; 0 failed; 0 skipped | Authentication, requester, Staff, Administrator, authorization, responsive, and screenshot checks |
+| `cd server && DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean PostgreSQL migration/seed and transaction/security integration; the suite creates and drops its own temporary database |
+| `cd e2e && npm test -- --reporter=list` | 3 files; 19 passed; 0 failed; 0 skipped | Fixture-backed authentication, requester, Staff, Administrator, authorization, responsive, and screenshot checks |
+| `cd e2e && DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list` | 1 file; 1 passed; 0 failed; 0 skipped | Live browser-to-server login/password-change, real database session, role denial, CSRF-Origin rejection, secret redaction, and logout revocation |
 | `cd server && npm run build` | Passed | TypeScript build |
 | `cd client && npm run build` | Passed | TypeScript/Vite production build |
 | `cd client && npm run lint` | Passed | Oxlint |
@@ -275,13 +319,23 @@ acceptance criteria without changing application behavior.
 
 - Backend session authentication, password-change gating, role authorization,
   ownership protection, CSRF Origin checks, and sensitive-data redaction
-  remained authoritative and passed the server/API and E2E coverage.
+  remained authoritative in the server/API suites; the live E2E test also
+  exercised those boundaries through the real browser-to-server path.
 - Direct API access, wrong-role access, cross-owner access, client
   `requesterId` tampering, session revocation, Internal Note leakage, and
   Administrator safety cases passed.
 - Clean PostgreSQL migration/seed verification passed without losing Lab 2
-  ownership/reference data and without exposing seed secrets.
+  ownership/reference data and without exposing seed secrets. The live E2E
+  run used a separate fresh seeded database and removed it after completion.
 - Responsive and accessibility checks passed at 1280, 768, and 375 px with
   no clipping, horizontal overflow, or inaccessible controls.
 - No core security, migration, regression, layout, or accessibility blocker
   was found in the staged integration result.
+
+### Verification boundary
+
+The default `npm test` E2E command intentionally keeps API fixtures for
+deterministic UI and screenshot coverage. It is reported separately from
+`npm run test:live`, which starts both applications and uses the disposable
+PostgreSQL database above; only the latter is used as live backend-integration
+evidence for Issue #44.

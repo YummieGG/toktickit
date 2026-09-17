@@ -1,7 +1,9 @@
-# Lab 3 Visual QA Checklist — Issue #43
+# Lab 3 Visual QA Checklist — Issue #44
 
-Run date: 2026-09-16. Browser: Playwright Chromium. Required viewports:
-1280 × 812, 768 × 812, and 375 × 812.
+Run date: 2026-09-17. Browser: Playwright Chromium. Required viewports:
+1280 × 812, 768 × 812, and 375 × 812. This checklist records the Issue #44
+staged integration visual review; screenshots not regenerated in this run are
+retained from the Issue #43 baseline.
 
 | Area | Checks | Screenshot evidence |
 |---|---|---|

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: '.',
+  testIgnore: 'lab-03/live-integration.spec.ts',
   fullyParallel: false,
   forbidOnly: true,
   retries: process.env.CI ? 2 : 0,
