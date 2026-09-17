@@ -14,6 +14,7 @@ const activeUser = {
 describe('Issue #39 Login screen', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    sessionStorage.clear();
     window.history.pushState({}, '', '/login');
   });
 
@@ -127,5 +128,16 @@ describe('Issue #39 Login screen', () => {
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.queryByText('Your session has expired. Please sign in again.')).not.toBeInTheDocument();
     expect(window.location.pathname).toBe('/login');
+  });
+
+  it('shows a safe notice when a previously authenticated session expires after reload', async () => {
+    sessionStorage.setItem('toktickit.authenticated-session', '1');
+    window.history.pushState({}, '', '/tickets');
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+
+    render(<App />);
+
+    expect(await screen.findByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
+    expect(sessionStorage.getItem('toktickit.authenticated-session')).toBeNull();
   });
 });
