@@ -21,17 +21,18 @@ function queueTicket() {
 
 function detailTicket() {
   return {
-    ...queueTicket(), description: 'VPN disconnects after login.', createdAt: '2026-09-12T03:00:00.000Z', relatedSystem: { id: 2, name: 'VPN' },
+    ...queueTicket(), currentStatus: 'REOPENED', description: 'VPN disconnects after login.', createdAt: '2026-09-12T03:00:00.000Z', relatedSystem: { id: 2, name: 'VPN' },
     attachments: [{ id: 11, originalName: 'evidence.pdf', storedName: 'stored.pdf', mimeType: 'application/pdf', sizeBytes: 10, isRemoved: false, removalReason: null, removedAt: null, createdAt: '2026-09-12T03:05:00.000Z', ticketId: 8 }],
     comments: [{ id: 1, ticketId: 8, content: 'Please investigate', createdAt: '2026-09-12T03:10:00.000Z', author: { id: 7, name: 'Somchai Prasert', role: 'REQUESTER' } }],
     internalNotes: [{ id: 2, ticketId: 8, content: 'Check gateway logs', createdAt: '2026-09-12T03:15:00.000Z', author: { id: 20, name: 'Staff One', role: 'IT_STAFF' } }],
   };
 }
 
-async function installMockApi(page: Page, role: Role = 'IT_STAFF') {
+async function installMockApi(page: Page, role: Role = 'IT_STAFF', queueStatus: string = 'OPEN') {
   const user = role === 'IT_STAFF' ? staff : admin;
   const requests: Array<{ method: string; url: string; body: string | null }> = [];
   const ticket = detailTicket();
+  const queue = { ...queueTicket(), currentStatus: queueStatus };
   await page.route('**/api/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -39,7 +40,7 @@ async function installMockApi(page: Page, role: Role = 'IT_STAFF') {
     if (request.method() === 'GET' && url.pathname === '/api/auth/me') return json(route, { data: user });
     if (request.method() === 'GET' && url.pathname === '/api/categories') return json(route, { data: categories });
     if (request.method() === 'GET' && url.pathname === '/api/staff/tickets/owners') return json(route, { data: [staff, admin] });
-    if (request.method() === 'GET' && url.pathname === '/api/staff/tickets') return json(route, { data: [queueTicket()], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
+    if (request.method() === 'GET' && url.pathname === '/api/staff/tickets') return json(route, { data: [queue], pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } });
     if (request.method() === 'GET' && url.pathname === '/api/tickets/8') return json(route, { data: ticket });
     if (request.method() === 'PATCH' && url.pathname === '/api/tickets/8/owner') return json(route, { data: { ...ticket, owner: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' } } });
     if (request.method() === 'PATCH' && url.pathname === '/api/tickets/8/it-priority') return json(route, { data: { ...ticket, itPriority: 'CRITICAL' } });
@@ -54,6 +55,27 @@ async function installMockApi(page: Page, role: Role = 'IT_STAFF') {
 async function expectNoHorizontalOverflow(page: Page) {
   const dimensions = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: window.innerWidth }));
   expect(dimensions.width).toBeLessThanOrEqual(dimensions.viewport);
+}
+
+async function expectNoBadgeOverflow(page: Page) {
+  const hasOverflow = await page.locator('.staff-queue-table tbody td').evaluateAll(cells => cells.some(cell => {
+    const badge = cell.querySelector<HTMLElement>('.badge');
+    if (!badge) return false;
+    const cellBounds = cell.getBoundingClientRect();
+    const badgeBounds = badge.getBoundingClientRect();
+    return badgeBounds.left < cellBounds.left - 1 || badgeBounds.right > cellBounds.right + 1;
+  }));
+  expect(hasOverflow).toBe(false);
+}
+
+async function expectBalancedDetailBadges(page: Page) {
+  const bounds = await page.locator('.ticket-detail-badge .badge').evaluateAll(elements => elements.map(element => {
+    const { width, height } = element.getBoundingClientRect();
+    return { width: Math.round(width), height: Math.round(height) };
+  }));
+  expect(bounds).toHaveLength(3);
+  expect(new Set(bounds.map(bound => bound.width)).size).toBe(1);
+  expect(new Set(bounds.map(bound => bound.height)).size).toBe(1);
 }
 
 test('Staff can search the queue, open detail, and complete the Issue #41 workflow', async ({ page }) => {
@@ -105,13 +127,14 @@ test('Administrator can read the queue/detail but has no Staff mutation affordan
 });
 
 test('Staff queue meets required viewport representations without horizontal overflow', async ({ page }) => {
-  await installMockApi(page);
+  await installMockApi(page, 'IT_STAFF', 'WAITING_FOR_REQUESTER');
   for (const width of [1280, 768, 375]) {
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/staff/tickets');
     await expect(page.getByRole('heading', { name: 'Staff Ticket Queue' })).toBeVisible();
     await expectReadableTextIndicators(page);
     await expectNoHorizontalOverflow(page);
+    await expectNoBadgeOverflow(page);
     await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-queue/${width}.png`), fullPage: true });
 
     if (width < 768) {
@@ -138,6 +161,7 @@ test('Staff ticket detail meets required viewport and label checks', async ({ pa
     await page.setViewportSize({ width, height: 812 });
     await page.goto('/staff/tickets/8');
     await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
+    await expectBalancedDetailBadges(page);
     await expectReadableTextIndicators(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: path.resolve(__dirname, `../../artifacts/lab-03/screenshots/staff-ticket-detail/${width}.png`), fullPage: true });

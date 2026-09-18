@@ -15,9 +15,10 @@ Issue #43 report below supersedes that historical boundary with the clean
 PostgreSQL migration/seed result.
 
 This file began as the pre-implementation test contract for Issue 1. The
-Issue #43 verification report at the end records the final commands and real
-results. No required test is skipped, disabled, focused-only, flaky, or a
-placeholder in the final verification run.
+Issue #44 verification report records the latest commands and real results;
+the Issue #43 report is retained as historical evidence. No required test is
+skipped, disabled, focused-only, flaky, or a placeholder in the final
+verification run.
 
 ## 1. Test strategy
 
@@ -25,10 +26,11 @@ placeholder in the final verification run.
 - **Server API/integration:** Supertest against PostgreSQL test data and mocked filesystem boundaries, covering migration/seed, authentication, ownership, role guards, workflow, comments/notes, resolution, and Administrator safety.
 - **Client UI:** Vitest + React Testing Library for screen state matrices, form validation, route guards, response rendering, and accessibility labels.
 - **UI style/visual:** `visual-style.test.tsx` checks Zen Green tokens, shared component styling, readable editable/read-only states, contrast, focus indicators, and mobile control sizing.
-- **E2E:** Playwright Chromium for login/change-password, Requester regression, Staff workflow, Administrator management, cross-role denial, and responsive screenshots.
+- **E2E UI fixtures:** `cd e2e && npm test` runs the deterministic UI and responsive suite with API fixtures; it does not claim backend integration.
+- **E2E live integration:** `cd e2e && npm run test:live` starts the real server and Vite client against a fresh seeded PostgreSQL database and verifies browser-to-API session, role, CSRF, and logout behavior.
 - **Security/regression:** Explicit direct-API, session, CSRF-Origin, requesterId-tampering, cross-owner, Internal Note leakage, and Lab 2 data-preservation cases.
 
-The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for API authorization tests, and the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix) is the canonical source for route-guard tests. Each endpoint and screen row must have an allowed-role case and a wrong-role/unauthenticated case where applicable.
+The endpoint authorization matrix in [`api-spec.md`](./api-spec.md#11-endpoint-authorization-matrix) is the canonical source for API authorization tests, and the screen authorization matrix in [`ui-spec.md`](./ui-spec.md#21-screen-authorization-matrix) is the canonical source for route-guard tests. Each endpoint and screen row must have an allowed-role case and a wrong-role/unauthenticated case where applicable. Issue #43 owns cross-cutting verification; Issue #44 owns staged integration and core evidence; Issue #51 owns documentation/submission packaging; and Issue #52 owns release/final-state verification.
 
 ## 2. Required repository paths
 
@@ -66,6 +68,8 @@ The baseline audit is evidence-based: Lab 2 Issues #11–#18, `origin/main@3f548
 - `e2e/lab-03/authentication.spec.ts`
 - `e2e/lab-03/staff-ticket-flow.spec.ts`
 - `e2e/lab-03/user-administration.spec.ts`
+- `e2e/lab-03/live-integration.spec.ts`
+- `e2e/playwright.live.config.ts`
 - `artifacts/lab-03/screenshots/authentication/`
 - `artifacts/lab-03/screenshots/requester/`
 - `artifacts/lab-03/screenshots/staff-queue/`
@@ -252,3 +256,114 @@ fast deterministic coverage; high-risk persistence behavior and clean
 migration/seed behavior have separate real PostgreSQL integration suites. No
 test is skipped or placeholder, but a future release-hardening pass could add
 real-database integration coverage for every non-Administrator endpoint.
+
+## 7. Issue #44 staged integration verification report
+
+Run date: 2026-09-18 (Asia/Bangkok). The verification was rerun from the
+`lab3-7-integration-submission` branch after the session-expiry, clean-setup
+readiness, and verification-evidence fixes. The run covered the Issue #44 core
+acceptance criteria.
+
+The clean live-E2E run used the `toktickit-postgres` PostgreSQL container on
+`localhost:5432` and a disposable database named
+`toktickit_issue44_fix_live_20260918_0310`. The database was created empty,
+migrated, seeded with a locally supplied `SEED_INITIAL_PASSWORD`, used by the
+live server and browser test, and dropped with `WITH (FORCE)` after the run.
+The password, E2E replacement password, and `AUTH_IP_PEPPER` were supplied
+only through the local environment and are not repository values. The database
+service was started with `docker compose up -d --wait db`, and the migration/
+seed integration suite also verified missing and invalid local seed-secret
+handling without allowing values from the repository's local `.env` to mask
+those cases.
+
+Exact clean-setup and verification commands used:
+
+```bash
+# Start from the repository root. Wait until the repository-defined PostgreSQL service is healthy.
+docker compose up -d --wait db
+
+# Set these local-only values in the shell.
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_fix_integration_20260918_0310?schema=public"
+export LIVE_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_issue44_fix_live_20260918_0310?schema=public"
+export SEED_INITIAL_PASSWORD='a-valid-local-password'
+export E2E_TEST_PASSWORD='a-different-valid-local-password'
+export AUTH_IP_PEPPER='a-local-only-random-pepper'
+
+# Replace the local-only placeholder values above before running.
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_integration_20260918_0310\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_fix_integration_20260918_0310\""
+cd server
+DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot
+cd ..
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_integration_20260918_0310\" WITH (FORCE)"
+
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_live_20260918_0310\" WITH (FORCE)"
+docker compose exec -T db psql -U postgres -d postgres -c "CREATE DATABASE \"toktickit_issue44_fix_live_20260918_0310\""
+cd server
+DATABASE_URL="$LIVE_DATABASE_URL" npx prisma migrate deploy
+DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" npx prisma db seed
+cd ../e2e
+npm test -- --reporter=list
+DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list
+cd ..
+docker compose exec -T db psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS \"toktickit_issue44_fix_live_20260918_0310\" WITH (FORCE)"
+```
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cd server && npm test -- --reporter=dot` | 22 files; 266 passed; 0 failed; 0 skipped | Full server unit/API suite and Lab 2 regression |
+| `cd client && npm test -- --reporter=dot` | 13 files; 99 passed; 0 failed; 0 skipped | Lab 2/Lab 3 UI and visual-style checks, including reload-time expired-session notice |
+| `cd server && DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy` then `TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration -- --reporter=dot` | 2 files; 8 passed; 0 failed; 0 skipped | Clean PostgreSQL migration/seed and transaction/security integration; the suite creates and drops its own temporary database |
+| `cd e2e && npm test -- --reporter=list` | 3 files; 19 passed; 0 failed; 0 skipped | Fixture-backed authentication, requester, Staff, Administrator, authorization, responsive, and screenshot checks |
+| `cd e2e && DATABASE_URL="$LIVE_DATABASE_URL" SEED_INITIAL_PASSWORD="$SEED_INITIAL_PASSWORD" E2E_TEST_PASSWORD="$E2E_TEST_PASSWORD" AUTH_IP_PEPPER="$AUTH_IP_PEPPER" npm run test:live -- --reporter=list` | 1 file; 1 passed; 0 failed; 0 skipped | Live browser-to-server login/password-change, real database session, role denial, CSRF-Origin rejection, secret redaction, and logout revocation |
+| `cd server && npm run build` | Passed | TypeScript build |
+| `cd client && npm run build` | Passed | TypeScript/Vite production build |
+| `cd client && npm run lint` | Passed | Oxlint |
+| `git diff --check` | Passed | No whitespace errors |
+
+### Issue #44 Security Guard and integration result
+
+- Backend session authentication, password-change gating, role authorization,
+  ownership protection, CSRF Origin checks, and sensitive-data redaction
+  remained authoritative in the server/API suites.
+- The live E2E test exercised real browser-to-server Administrator password
+  change, authenticated session bootstrap, read-only ticket queue oversight,
+  denial of Staff status mutations (`403 FORBIDDEN`), rejection of untrusted
+  Origin (`403 CSRF_ORIGIN_INVALID`), secret redaction, and session revocation
+  on logout against a freshly seeded PostgreSQL database.
+- Direct API access, wrong-role access, cross-owner access, client
+  `requesterId` tampering, session revocation, Internal Note leakage, and
+  Administrator safety cases are authoritatively verified across the server
+  API test suites and fixture-backed E2E tests.
+- Clean PostgreSQL migration/seed verification passed without losing Lab 2
+  ownership/reference data and without exposing seed secrets. The live E2E
+  run used a separate fresh seeded database and removed it after completion.
+- Responsive and accessibility checks passed at 1280, 768, and 375 px with
+  no clipping, horizontal overflow, or inaccessible controls.
+- No core security, migration, regression, layout, or accessibility blocker
+  was found in the staged integration result.
+
+### Screenshot evidence
+
+The repository contains the 13 screenshot evidence artifacts under
+`artifacts/lab-03/screenshots/`. The complete mapping across authentication,
+requester, Staff Queue, Staff Ticket Detail, and User Management viewports and
+interaction states is recorded in [`visual-checklist.md`](./visual-checklist.md).
+
+### Known limitations
+
+- Live E2E coverage focuses on core Administrator authentication, password
+  change, queue access, CSRF Origin protection, and session revocation against
+  a live PostgreSQL backend. Detailed edge-case matrices (such as individual
+  status transitions, cross-owner resource boundaries, and multi-viewport
+  layouts) remain authoritatively covered by the comprehensive unit, API, and
+  fixture-backed E2E suites for deterministic CI repeatability.
+
+### Verification boundary
+
+The default `npm test` E2E command intentionally keeps API fixtures for
+deterministic UI and screenshot coverage. It is reported separately from
+`npm run test:live`, which starts both applications and uses the disposable
+PostgreSQL database above; only the latter is used as live backend-integration
+evidence for Issue #44.

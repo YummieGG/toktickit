@@ -47,7 +47,7 @@ describe('Issue #40 route guards and authenticated shell', () => {
     sessionStorage.clear();
   });
 
-  it('redirects an unauthenticated protected route without loading protected data', async () => {
+  it('redirects an unauthenticated protected route without an expiry notice', async () => {
     window.history.pushState({}, '', '/tickets/new');
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -59,7 +59,7 @@ describe('Issue #40 route guards and authenticated shell', () => {
 
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/login');
-    expect(screen.getByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
+    expect(screen.queryByText('Your session has expired. Please sign in again.')).not.toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith('/api/auth/me', { credentials: 'include' });
   });
@@ -152,5 +152,6 @@ describe('Issue #40 route guards and authenticated shell', () => {
     }));
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/login');
+    expect(screen.queryByText('Your session has expired. Please sign in again.')).not.toBeInTheDocument();
   });
 });

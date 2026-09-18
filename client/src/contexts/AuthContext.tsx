@@ -1,5 +1,24 @@
-import { useCallback, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
 import { ApiError, AuthContext, type AuthContextValue, type AuthUser } from './auth';
+
+const AUTHENTICATED_SESSION_MARKER = 'toktickit.authenticated-session';
+
+function readAuthenticatedSessionMarker(): boolean {
+  try {
+    return sessionStorage.getItem(AUTHENTICATED_SESSION_MARKER) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeAuthenticatedSessionMarker(isAuthenticated: boolean): void {
+  try {
+    if (isAuthenticated) sessionStorage.setItem(AUTHENTICATED_SESSION_MARKER, '1');
+    else sessionStorage.removeItem(AUTHENTICATED_SESSION_MARKER);
+  } catch {
+    // Session storage is only a non-secret UX hint; auth remains server-authoritative.
+  }
+}
 
 async function readApiError(response: Response): Promise<never> {
   let payload: { error?: { code?: string; message?: string; fields?: Record<string, string> } } = {};
@@ -25,19 +44,31 @@ async function readUser(response: Response): Promise<AuthUser> {
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const hadAuthenticatedSession = useRef(readAuthenticatedSessionMarker());
 
   const refresh = useCallback(async (): Promise<AuthUser | null> => {
     try {
       const response = await fetch('/api/auth/me', { credentials: 'include' });
       if (!response.ok) {
+        const expired = response.status === 401 && hadAuthenticatedSession.current;
+        setSessionExpired(expired);
+        if (response.status === 401) {
+          hadAuthenticatedSession.current = false;
+          writeAuthenticatedSessionMarker(false);
+        }
         setUser(null);
         return null;
       }
       const nextUser = await readUser(response);
       setUser(nextUser);
+      setSessionExpired(false);
+      hadAuthenticatedSession.current = true;
+      writeAuthenticatedSessionMarker(true);
       return nextUser;
     } catch {
       setUser(null);
+      setSessionExpired(false);
       return null;
     }
   }, []);
@@ -66,6 +97,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
     const nextUser = await readUser(response);
     setUser(nextUser);
+    setSessionExpired(false);
+    hadAuthenticatedSession.current = true;
+    writeAuthenticatedSessionMarker(true);
     return nextUser;
   }, []);
 
@@ -78,6 +112,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
       if (!response.ok) await readApiError(response);
     } finally {
       setUser(null);
+      setSessionExpired(false);
+      hadAuthenticatedSession.current = false;
+      writeAuthenticatedSessionMarker(false);
     }
   }, []);
 
@@ -100,11 +137,12 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const value = useMemo<AuthContextValue>(() => ({
     user,
     isLoading,
+    sessionExpired,
     refresh,
     login,
     logout,
     changePassword,
-  }), [changePassword, isLoading, login, logout, refresh, user]);
+  }), [changePassword, isLoading, login, logout, refresh, sessionExpired, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
