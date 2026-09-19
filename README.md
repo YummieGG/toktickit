@@ -29,7 +29,6 @@ toktickit/
 │   ├── playwright.config.ts    # Mocked fixture-backed E2E configuration
 │   └── playwright.live.config.ts # Real server + PostgreSQL live integration configuration
 ├── docs/                       # Project specifications, contract documents, and review logs
-│   ├── agents/                 # AI assistant and issue tracker guidelines
 │   ├── lab-01/                 # Sprint 1 documentation, tests, reviewer logs, and AI use
 │   ├── lab-02/                 # Sprint 2 engineering contract, specs, and test reports
 │   └── lab-03/                 # Sprint 3 engineering contract, API/UI specs, tests, and reviewer log
