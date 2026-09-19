@@ -209,7 +209,7 @@
   > **Verdict: Approved**
   > Outstanding work on this PR, @YummieGG! The authentication foundation and security hardening are thoroughly designed and meet all requirements from the Lab 3 handout and our engineering contract.
 - **How I responded (@YummieGG)**:
-  > Thanks youuuuu. Password hashing with Argon2id, opaque server-side session token hashing, `tt_session` HttpOnly/SameSite cookie, normalized email + IP rate limiting, mandatory password change gating, and safe error codes are fully in place.
+  > Thank you. Password hashing with Argon2id, opaque server-side session token hashing, `tt_session` HttpOnly/SameSite cookie, normalized email + IP rate limiting, mandatory password change gating, and safe error codes are fully in place.
 
 ---
 
@@ -227,7 +227,7 @@
   > - **Attachment Policies**: Scoped download access enforced (`403` for Administrator).
   > - **Verification**: Server Tests: 130/130 passed, Client Tests: 76/76 passed, Build & Lint clean.
 - **How I responded (@YummieGG)**:
-  > ty kub. Extracted `contexts/auth.ts` to clear Oxlint fast-refresh warnings, removed obsolete delegates, and verified full Lab 2 Requester regression.
+  > Thank you. Extracted `contexts/auth.ts` to clear Oxlint fast-refresh warnings, removed obsolete delegates, and verified full Lab 2 Requester regression.
 
 ---
 
@@ -258,7 +258,7 @@
   > **Verdict: Approved with minor suggestions**
   > Great work implementing Issue #42! Role authorization, account safety rules (BR-10, BR-11), transactional ticket unassignment, and password/session revocation are solidly handled and well-tested.
 - **How I responded (@YummieGG)**:
-  > thanks very you much. Enforced critical safety invariants: preventing self-deactivation, preventing removing or deactivating the last active Administrator, transactional unassignment of claimed tickets upon Staff deactivation, and immediate session revocation upon role/status changes.
+  > Thank you very much. Enforced critical safety invariants: preventing self-deactivation, preventing removing or deactivating the last active Administrator, transactional unassignment of claimed tickets upon Staff deactivation, and immediate session revocation upon role/status changes.
 
 ---
 
@@ -305,7 +305,7 @@
   > **Verdict: Approved**
   > All core verification criteria for Issue #44 verified green:
   > - Server unit/API tests: 22 files, 266 passed
-  > - Client tests: 13 files, 98 passed
+  > - Client tests: 13 files, 99 passed
   > - Mocked E2E tests: 3 files, 19 passed
   > - Live integration E2E: 1 file, 1 passed
   > - Production builds and lint: Passed cleanly

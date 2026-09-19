@@ -11,6 +11,36 @@ TokTickIT is an IT service desk management system designed for logging, tracking
 
 ---
 
+## Repository Structure
+
+```text
+toktickit/
+├── client/                     # Frontend web application (React 19 + TypeScript + Vite)
+│   ├── src/                    # Components, pages, auth context, and Zen Green design tokens
+│   └── tests/                  # UI, component, and visual test suites (lab-02, lab-03)
+├── server/                     # Backend REST API service (Express 5 + TypeScript)
+│   ├── prisma/                 # Prisma schema, migrations, and idempotent seed script
+│   ├── src/                    # API routes (auth, tickets, staff, admin), middleware, lib
+│   ├── tests/                  # Vitest API and PostgreSQL integration tests (lab-01, lab-02, lab-03)
+│   └── uploads/                # Local directory for ticket file attachments
+├── e2e/                        # End-to-end browser test suites (Playwright)
+│   ├── lab-02/                 # Requester ticket workflows and responsive checks
+│   ├── lab-03/                 # Auth, IT Staff queue/detail, Admin user management, live E2E
+│   ├── playwright.config.ts    # Mocked fixture-backed E2E configuration
+│   └── playwright.live.config.ts # Real server + PostgreSQL live integration configuration
+├── docs/                       # Project specifications, contract documents, and review logs
+│   ├── agents/                 # AI assistant and issue tracker guidelines
+│   ├── lab-01/                 # Sprint 1 documentation, tests, reviewer logs, and AI use
+│   ├── lab-02/                 # Sprint 2 engineering contract, specs, and test reports
+│   └── lab-03/                 # Sprint 3 engineering contract, API/UI specs, tests, and reviewer log
+├── artifacts/                  # Visual QA evidence and test screenshots
+│   ├── lab-02/                 # Responsive screenshots for Lab 2
+│   └── lab-03/screenshots/     # Multi-role screenshots across desktop, tablet, and mobile
+└── docker-compose.yml          # PostgreSQL database service container definition
+```
+
+---
+
 ## Prerequisites
 
 Make sure you have the following installed on your machine:
