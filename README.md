@@ -127,6 +127,17 @@ cd e2e
 npm test
 ```
 
+To run the live integration E2E suite against a real server and PostgreSQL database:
+
+```bash
+cd e2e
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_live_test?schema=public" \
+SEED_INITIAL_PASSWORD="your-local-seed-password" \
+E2E_TEST_PASSWORD="your-local-test-password" \
+AUTH_IP_PEPPER="your-local-pepper" \
+npm run test:live
+```
+
 ---
 
 ## Running Automated Tests
