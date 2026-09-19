@@ -1,19 +1,26 @@
-# Lab 3 — AI Use and Reflection
+# Lab 3 AI Use Log
 
-**LLM/agent used:** OpenAI Codex coding agent (GPT-5-based), with a requested Luna xhigh implementation pass.
+## LLM Used
+- **Gemini Flash 3.8**
+- **GPT Luna 5.6**
 
-## Key prompts used
+## Key Prompts
 
-| # | Prompt used | Result / use of the result |
-|---|---|---|
-| 1 | Read `labsheet/md/Lab_03_labsheet.md` and `PlanLab/PLAN.md`, then prepare for the next instruction. | Established the Lab 3 requirements, engineering constraints, and implementation boundary. |
-| 2 | Compare GitHub Issues #38–#44 with `PlanLab/PLAN.md` in detail; use subagents if useful. | Built traceability between the issue sequence, the plan, and the Lab 3 delivery scope. |
-| 3 | Issue #1 is already implemented; determine whether work can continue with Issue #39 using the Lab 3 labsheet. | Confirmed that the existing work could be treated as a dependency and that Issue #39 should continue from the documented baseline. |
-| 4 | Review the local TokTickIT code against Issue #39 from fixed point `lab3-staging`; prepare review-ready changes, with no PR or merge. | Compared standards and acceptance criteria, identified missing auth/test evidence, and recorded the review boundary. |
-| 5 | Read `issue-39-code-review.md`, `PlanLab/PLAN.md`, `specification.md`, `api-spec.md`, and `ui-spec.md`; fix the findings and use Luna at xhigh, without pushing or merging. | Implemented/remediated the User/session/login-attempt foundation, password handling, auth API/UI behavior, migration safeguards, and focused tests while keeping later-issue work separate. |
-| 6 | Teach how to test all work for Issue #39 step by step, including the expected results, and write it as Markdown in `docs/lab-03`. | Produced the testing guides covering unit/API/UI tests, build/lint, migration, seed idempotency, concurrency, cleanup, canonical email, and collision protection. |
-| 7 | Validate the real test outputs and troubleshoot PostgreSQL, Docker, Prisma Studio, login, hash comparison, migration paths, and shell commands; update the guide when a command is wrong. | Verified passing test/build results, corrected documentation mistakes such as the missing `FROM "User"`, wrong migration names, missing `updatedAt`, and incorrect database targets. |
+| # | Prompt Summary | Purpose | Outcome |
+|---|---------------|---------|---------|
+| 1 | Decompose Sprint 3 requirements into 4 contract documents | Establish engineering specification before coding | Created `specification.md`, `api-spec.md`, `ui-spec.md`, and `tests.md` with full traceability |
+| 2 | Create User and UserSession models with scrypt hashing and cookie sessions | Build database models and authentication foundation | Added Prisma migrations, scrypt password hashing, and secure `tt_session` cookie handling |
+| 3 | Implement login rate limiting by email and IP with a 15-minute cooldown | Protect against brute-force and credential stuffing | Implemented 5-attempt limit and uniform safe error messages |
+| 4 | Remove requester selector and enforce session-based ticket ownership | Eliminate client-side user spoofing | Scoped queries to authenticated user and added fail-closed checks |
+| 5 | Implement 8-state ticket lifecycle and concurrency conflict handling | Build IT Staff ticket workflow and status transitions | Created state machine with confirmation dialogs and 409 conflict detection |
+| 6 | Implement Administrator user management and safety rules | Build admin UI and protect critical accounts | Added user CRUD, password reset, last-admin guard, and ticket unassignment |
+| 7 | Update database seed script to keep legacy Lab 2 ticket timestamps | Preserve original data during password backfill | Seed runs safely multiple times without altering existing ticket dates |
+| 8 | Adjust priority badge colors to pass WCAG AA contrast requirements | Ensure accessible colors for Medium and High badges | Set distinct colors (`#7A4B00` Medium, `#8A2E00` High) meeting 4.5:1 contrast |
+| 9 | Fix Windows test runner errors with `process.execPath` and Playwright `env` | Ensure cross-platform compatibility on Windows | Replaced POSIX shell commands with platform-independent settings |
+| 10 | Create live Playwright test for browser, server, and PostgreSQL integration | Test the complete system with a real database | Verified real login, password change, CSRF protection, and session logout |
 
-## Reflection
+## My Reflection
 
-AI accelerated the review, implementation, and test-documentation work by turning the Lab plan and issue criteria into executable steps. Iterative human verification was essential: real command output exposed documentation and environment mistakes that unit tests alone did not catch. The final scope still requires human judgment, especially for deferred Admin reset/deactivation work and any push or merge decision.
+Using AI with a clear engineering contract made developing Lab 3 much faster and easier. Having `specification.md` and `tests.md` ready before coding helped the AI generate database schemas, API routes, and React components with fewer mistakes.
+
+However, human oversight and peer review with `@Snnn3` were still very important. The AI struggled with real environment issues, such as Windows shell errors (`.bin/tsx`), badge color contrast, and test race conditions. By testing everything locally and reviewing the code carefully, I was able to guide the AI to fix these issues. AI is a great coding assistant, but the developer must always verify the actual results.
