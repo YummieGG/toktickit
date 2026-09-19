@@ -209,7 +209,7 @@
   > **Verdict: Approved**
   > Outstanding work on this PR, @YummieGG! The authentication foundation and security hardening are thoroughly designed and meet all requirements from the Lab 3 handout and our engineering contract.
 - **How I responded (@YummieGG)**:
-  > Thank you. Password hashing with Argon2id, opaque server-side session token hashing, `tt_session` HttpOnly/SameSite cookie, normalized email + IP rate limiting, mandatory password change gating, and safe error codes are fully in place.
+  > Thank you. Password hashing with Node.js `crypto.scrypt` (BR-03), opaque server-side session token hashing, `tt_session` HttpOnly/SameSite cookie, normalized email + IP rate limiting, mandatory password change gating, and safe error codes are fully in place.
 
 ---
 
@@ -245,7 +245,7 @@
   > - Responsive Zen Green UI (desktop table + mobile cards).
   > - Verification: Server 255/255 passed | Client 87/87 passed | Lint: 0 warnings/errors | Builds: Clean.
 - **How I responded (@YummieGG)**:
-  > thank you. Concurrency conflict detection via `updatedAt` and optimistic locking ensures staff members do not overwrite simultaneous changes.
+  > Thank you. Concurrency conflict detection via `updatedAt` and optimistic locking ensures staff members do not overwrite simultaneous changes.
 
 ---
 

@@ -9,7 +9,7 @@
 | # | Prompt Summary | Purpose | Outcome |
 |---|---------------|---------|---------|
 | 1 | Decompose Sprint 3 requirements into 4 contract documents | Establish engineering specification before coding | Created `specification.md`, `api-spec.md`, `ui-spec.md`, and `tests.md` with full traceability |
-| 2 | Create User and UserSession models with Argon2id hashing and cookie sessions | Build database models and authentication foundation | Added Prisma migrations, password hashing, and secure `tt_session` cookie handling |
+| 2 | Create User and UserSession models with scrypt hashing and cookie sessions | Build database models and authentication foundation | Added Prisma migrations, scrypt password hashing, and secure `tt_session` cookie handling |
 | 3 | Implement login rate limiting by email and IP with a 15-minute cooldown | Protect against brute-force and credential stuffing | Implemented 5-attempt limit and uniform safe error messages |
 | 4 | Remove requester selector and enforce session-based ticket ownership | Eliminate client-side user spoofing | Scoped queries to authenticated user and added fail-closed checks |
 | 5 | Implement 8-state ticket lifecycle and concurrency conflict handling | Build IT Staff ticket workflow and status transitions | Created state machine with confirmation dialogs and 409 conflict detection |
