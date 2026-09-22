@@ -1,17 +1,31 @@
+# Dependencies
 node_modules/
+
+# Environment and local secrets
 .env
+.env*.local
+
+# Production builds
 dist/
 build/
-.DS_Store
 
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Editor & AI tool directories
 .agents/
 .claude/
 .windsurf/
+agents
+
+# Uploads & temporary storage
 uploads/
 server/uploads/
+
+# Test output & reports
 e2e/test-results/
 e2e/playwright-report/
 
-
+# Working notes
 issue-spec.md
-agents

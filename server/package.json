@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
     "build": "tsc -p tsconfig.build.json"
   },
   "keywords": [],

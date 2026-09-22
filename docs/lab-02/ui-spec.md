@@ -18,7 +18,7 @@ This document defines the user interface specifications for the TokTickIT Reques
 | `text-secondary` | `#4A5D4A` | Muted descriptions, helper text, timestamps |
 | `error` | `#C62828` | Validation error borders, error message text, destructive buttons |
 | `error-bg` | `#FFEBEE` | Background for error alert banners |
-| `warning` | `#E65100` | Warning badges, caution indicators (amber, not decorative) |
+| `warning` | `#8A2E00` | Warning badges, caution indicators (accessible dark orange) |
 | `warning-bg` | `#FFF3E0` | Warning callout background |
 | `success` | `#2E7D32` | Confirmation alert borders and text |
 | `success-bg` | `#E8F5E9` | Success alert background |
@@ -190,8 +190,8 @@ Badges use rounded pill styling (`badge rounded-pill`), with clear text contrast
 | Badge | Background | Text Color | Border / Accent |
 |---|---|---|---|
 | **Priority: LOW** | `#E3F2FD` (pale blue) | `#0D47A1` (dark blue) | None |
-| **Priority: MEDIUM** | `#FFF9C4` (pale yellow) | `#F57F17` (dark amber) | None |
-| **Priority: HIGH** | `#FFE0B2` (pale orange) | `#E65100` (dark orange) | None |
+| **Priority: MEDIUM** | `#FFF9C4` (pale yellow) | `#7A4B00` (accessible amber) | None |
+| **Priority: HIGH** | `#FFE0B2` (pale orange) | `#8A2E00` (accessible dark orange) | None |
 | **Priority: CRITICAL** | `#FFCDD2` (pale red) | `#B71C1C` (dark red) | None |
 | **Status: NEW** | `#E8F5E9` (pale green) | `#1B5E20` (dark green) | 1px solid `#A5D6A7` |
 

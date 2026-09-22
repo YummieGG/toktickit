@@ -1,5 +1,4 @@
 import type { Response } from 'express';
-import { prisma } from './prisma';
 
 export interface ValidationErrorDetail {
   field: string;
@@ -8,6 +7,18 @@ export interface ValidationErrorDetail {
 
 export function getSingleStringParam(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+export function apiError(
+  response: Response,
+  status: number,
+  code: string,
+  message: string,
+  fields?: Record<string, string>,
+) {
+  return response.status(status).json({
+    error: { code, message, ...(fields ? { fields } : {}) },
+  });
 }
 
 export function isPositiveIntegerString(value: string): boolean {
@@ -39,23 +50,40 @@ export function validatePositiveIntegerParam(
   return Number(normalized);
 }
 
-export function validationError(res: Response, details: ValidationErrorDetail[]) {
-  return res.status(400).json({ error: 'Validation failed', details });
+export function validationError(
+  res: Response,
+  details: ValidationErrorDetail[],
+  code = 'VALIDATION_ERROR',
+) {
+  const messages: Record<string, string> = {
+    INVALID_QUERY: 'Query is invalid',
+    INVALID_STATUS_TRANSITION: 'Invalid status transition',
+    CONTENT_REQUIRED: 'Content is required',
+    CONTENT_TOO_LONG: 'Content is too long',
+  };
+  return res.status(400).json({
+    error: {
+      code,
+      message: messages[code] ?? 'Request is invalid',
+      fields: Object.fromEntries(details.map(({ field, message }) => [field, message])),
+    },
+    // Retained for backward compatibility with Lab 2 clients.
+    details,
+  });
 }
 
-export async function validateActiveRequester(
-  requesterId: number,
-  res: Response
-): Promise<boolean> {
-  const requester = await prisma.requesterUser.findUnique({
-    where: { id: requesterId },
-    select: { id: true, isActive: true },
+export function conflictError(
+  res: Response,
+  message = 'The resource was modified by another user. Reload and try again.',
+  code = 'CONFLICT',
+) {
+  return res.status(409).json({
+    error: { code, message },
   });
+}
 
-  if (!requester || !requester.isActive) {
-    validationError(res, [{ field: 'requesterId', message: 'Requester not found or is inactive' }]);
-    return false;
-  }
-
-  return true;
+export function internalError(res: Response) {
+  return res.status(500).json({
+    error: { code: 'INTERNAL_ERROR', message: 'Unable to process the request' },
+  });
 }

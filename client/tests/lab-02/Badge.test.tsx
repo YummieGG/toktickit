@@ -13,21 +13,21 @@ describe('Badge Component (ui-spec.md:192-196)', () => {
     });
   });
 
-  it('renders Priority: MEDIUM badge with pale yellow background and dark amber text', () => {
+  it('renders Priority: MEDIUM badge with pale yellow background and distinct accessible amber text', () => {
     render(<Badge type="priority" value="MEDIUM" />);
     const badge = screen.getByText('MEDIUM');
     expect(badge).toHaveStyle({
       backgroundColor: '#FFF9C4',
-      color: '#F57F17',
+      color: '#7A4B00',
     });
   });
 
-  it('renders Priority: HIGH badge with pale orange background and dark orange text', () => {
+  it('renders Priority: HIGH badge with pale orange background and accessible dark orange text', () => {
     render(<Badge type="priority" value="HIGH" />);
     const badge = screen.getByText('HIGH');
     expect(badge).toHaveStyle({
       backgroundColor: '#FFE0B2',
-      color: '#E65100',
+      color: '#8A2E00',
     });
   });
 

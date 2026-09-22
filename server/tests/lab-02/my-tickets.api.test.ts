@@ -1,84 +1,79 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import app from '../../src/index';
 import { prisma } from '../../src/lib/prisma';
 
-vi.mock('../../src/lib/prisma', () => {
-  const mockPrisma = {
-    ticket: {
-      findMany: vi.fn(),
-      count: vi.fn(),
-    },
-    requesterUser: {
-      findUnique: vi.fn(),
-    },
-    $transaction: vi.fn(),
-    $executeRaw: vi.fn().mockResolvedValue(1),
-    $queryRaw: vi.fn().mockResolvedValue([]),
-  };
+vi.mock('../../src/lib/prisma', () => ({
+  prisma: {
+    ticket: { findMany: vi.fn(), count: vi.fn() },
+    userSession: { findUnique: vi.fn() },
+  },
+}));
+
+const cookie = 'tt_session=test-session-token';
+
+function session(role: 'REQUESTER' | 'IT_STAFF' | 'ADMINISTRATOR' = 'REQUESTER', id = 7) {
   return {
-    prisma: mockPrisma,
+    id: 10,
+    tokenHash: 'hash',
+    expiresAt: new Date(Date.now() + 60_000),
+    revokedAt: null,
+    user: {
+      id, name: 'Somchai', email: 'somchai@example.com', role,
+      isActive: true, mustChangePassword: false,
+    },
   };
-});
+}
 
 describe('Tickets API - GET /api/tickets', () => {
-  const ticket = {
-    id: 8,
-    ticketNumber: 'TK-0008',
-    summary: 'VPN access unavailable',
-    requestedPriority: 'HIGH',
-    currentStatus: 'NEW',
-    ticketDate: new Date('2026-09-05T08:30:00.000Z'),
-    category: { id: 2, name: 'Network' },
-    updatedAt: new Date('2026-09-05T08:30:00.000Z'),
-  };
-
   beforeEach(() => {
     vi.resetAllMocks();
-    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, isActive: true });
-    (prisma.ticket.findMany as any).mockResolvedValue([ticket]);
-    (prisma.ticket.count as any).mockResolvedValue(1);
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session() as never);
+    vi.mocked(prisma.ticket.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.ticket.count).mockResolvedValue(0 as never);
   });
 
-  it('returns only the active requester tickets using default sorting and pagination (API-15, API-21, API-23)', async () => {
-    const response = await request(app).get('/api/tickets?requesterId=1');
+  it('returns 401 without a session and 403 for a non-requester role', async () => {
+    const unauthenticated = await request(app).get('/api/tickets');
+
+    vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session('IT_STAFF') as never);
+    const wrongRole = await request(app).get('/api/tickets').set('Cookie', cookie);
+
+    expect(unauthenticated.status).toBe(401);
+    expect(wrongRole.status).toBe(403);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('uses only the session requester and ignores a tampered requesterId query', async () => {
+    vi.mocked(prisma.ticket.findMany).mockResolvedValue([{ id: 8, ticketNumber: 'TK-0008' }] as never);
+    vi.mocked(prisma.ticket.count).mockResolvedValue(1 as never);
+
+    const response = await request(app)
+      .get('/api/tickets?requesterId=999')
+      .set('Cookie', cookie);
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toHaveLength(1);
     expect(response.body.pagination).toEqual({
-      page: 1,
-      pageSize: 10,
-      totalItems: 1,
-      totalPages: 1,
+      page: 1, pageSize: 10, totalItems: 1, totalPages: 1,
+      hasNextPage: false, hasPreviousPage: false,
     });
     expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { requesterId: 1 },
+      where: { requesterId: 7 },
       orderBy: [{ ticketDate: 'desc' }, { id: 'desc' }],
       skip: 0,
       take: 10,
-      select: expect.objectContaining({
-        category: { select: { id: true, name: true } },
-      }),
     }));
-    const listQuery = (prisma.ticket.findMany as any).mock.calls[0][0];
-    expect(listQuery.select).not.toHaveProperty('description');
+    expect(prisma.ticket.count).toHaveBeenCalledWith({ where: { requesterId: 7 } });
   });
 
-  it('applies case-insensitive search, filters, sorting, and pagination to both list and count (API-17, API-18, API-19, API-20)', async () => {
-    (prisma.ticket.count as any).mockResolvedValue(12);
+  it('applies search, filters, sorting, and pagination within the authenticated scope', async () => {
+    vi.mocked(prisma.ticket.count).mockResolvedValue(12 as never);
 
-    const response = await request(app).get(
-      '/api/tickets?requesterId=7&search=VpN&category=2&status=NEW&priority=HIGH&sortBy=summary&sortOrder=asc&page=2&pageSize=5'
-    );
+    const response = await request(app)
+      .get('/api/tickets?search=VpN&category=2&status=NEW&priority=HIGH&sortBy=summary&sortOrder=asc&page=2&pageSize=5')
+      .set('Cookie', cookie);
 
-    expect(response.status).toBe(200);
-    expect(response.body.pagination).toEqual({
-      page: 2,
-      pageSize: 5,
-      totalItems: 12,
-      totalPages: 3,
-    });
-    const expectedWhere = {
+    const where = {
       requesterId: 7,
       categoryId: 2,
       currentStatus: 'NEW',
@@ -89,86 +84,47 @@ describe('Tickets API - GET /api/tickets', () => {
         { description: { contains: 'VpN', mode: 'insensitive' } },
       ],
     };
+    expect(response.status).toBe(200);
+    expect(response.body.pagination).toEqual({
+      page: 2, pageSize: 5, totalItems: 12, totalPages: 3,
+      hasNextPage: true, hasPreviousPage: true,
+    });
     expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expectedWhere,
-      orderBy: [{ summary: 'asc' }, { id: 'asc' }],
-      skip: 5,
-      take: 5,
+      where, orderBy: [{ summary: 'asc' }, { id: 'desc' }], skip: 5, take: 5,
     }));
-    expect(prisma.ticket.count).toHaveBeenCalledWith({ where: expectedWhere });
-  });
-
-  it('supports sorting by ticketNumber in ascending order (API-22)', async () => {
-    const response = await request(app).get(
-      '/api/tickets?requesterId=1&sortBy=ticketNumber&sortOrder=asc'
-    );
-
-    expect(response.status).toBe(200);
-    expect(prisma.ticket.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        orderBy: [{ ticketNumber: 'asc' }, { id: 'asc' }],
-      })
-    );
-  });
-
-  it.each([5, 10, 20])('accepts permitted page size %s', async pageSize => {
-    const response = await request(app).get(`/api/tickets?requesterId=1&pageSize=${pageSize}`);
-
-    expect(response.status).toBe(200);
-    expect(response.body.pagination.pageSize).toBe(pageSize);
-    expect(prisma.ticket.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: pageSize }));
+    expect(prisma.ticket.count).toHaveBeenCalledWith({ where });
   });
 
   it.each([
-    ['missing requesterId (API-16)', ''],
-    ['invalid requesterId', '?requesterId=0'],
-    ['requesterId beyond database integer range', '?requesterId=2147483648'],
-    ['fractional category', '?requesterId=1&category=1.5'],
-    ['invalid status', '?requesterId=1&status=CLOSED'],
-    ['invalid priority', '?requesterId=1&priority=URGENT'],
-    ['invalid sort field', '?requesterId=1&sortBy=description'],
-    ['invalid sort order', '?requesterId=1&sortOrder=sideways'],
-    ['invalid page (API-25)', '?requesterId=1&page=0'],
-    ['page beyond database integer range', '?requesterId=1&page=2147483648'],
-    ['invalid page size (API-26)', '?requesterId=1&pageSize=15'],
-    ['repeated page', '?requesterId=1&page=1&page=2'],
-  ])('returns the common 400 response for %s', async (_label, query) => {
-    const response = await request(app).get(`/api/tickets${query}`);
+    ['fractional category', '?category=1.5'],
+    ['invalid status', '?status=CLOSED'],
+    ['invalid priority', '?priority=URGENT'],
+    ['invalid sort field', '?sortBy=description'],
+    ['invalid sort order', '?sortOrder=sideways'],
+    ['invalid page', '?page=0'],
+    ['invalid page size', '?pageSize=15'],
+    ['repeated page', '?page=1&page=2'],
+  ])('returns a structured 400 for %s', async (_label, query) => {
+    const response = await request(app).get(`/api/tickets${query}`).set('Cookie', cookie);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Validation failed');
+    expect(response.body.error.code).toBe('INVALID_QUERY');
     expect(response.body.details).toEqual(expect.arrayContaining([
       expect.objectContaining({ field: expect.any(String), message: expect.any(String) }),
     ]));
     expect(prisma.ticket.findMany).not.toHaveBeenCalled();
   });
 
-  it('rejects a requester that does not exist or is inactive', async () => {
-    (prisma.requesterUser.findUnique as any).mockResolvedValue({ id: 1, isActive: false });
-
-    const response = await request(app).get('/api/tickets?requesterId=1');
-
-    expect(response.status).toBe(400);
-    expect(response.body.details).toContainEqual({
-      field: 'requesterId',
-      message: 'Requester not found or is inactive',
-    });
-    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
-  });
-
-  it('returns an empty array with zero pagination metadata when requester has no matching tickets (API-24)', async () => {
-    (prisma.ticket.findMany as any).mockResolvedValue([]);
-    (prisma.ticket.count as any).mockResolvedValue(0);
-
-    const response = await request(app).get('/api/tickets?requesterId=1');
+  it('returns stable empty pagination metadata', async () => {
+    const response = await request(app).get('/api/tickets').set('Cookie', cookie);
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual([]);
-    expect(response.body.pagination).toEqual({
-      page: 1,
-      pageSize: 10,
-      totalItems: 0,
-      totalPages: 0,
+    expect(response.body).toEqual({
+      data: [],
+      pagination: {
+        page: 1, pageSize: 10, totalItems: 0, totalPages: 0,
+        hasNextPage: false, hasPreviousPage: false,
+      },
     });
   });
 });

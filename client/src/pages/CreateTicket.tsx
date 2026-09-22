@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useRequester } from '../contexts/RequesterContext';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { InputField } from '../components/ui/InputField';
 import { SelectField } from '../components/ui/SelectField';
@@ -19,9 +18,6 @@ interface RelatedSystem {
 }
 
 export const CreateTicket: React.FC = () => {
-  const { requester } = useRequester();
-  const navigate = useNavigate();
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [systems, setSystems] = useState<RelatedSystem[]>([]);
   
@@ -67,17 +63,12 @@ export const CreateTicket: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!requester) {
-      navigate('/');
-      return;
-    }
-
     const fetchData = async () => {
       try {
         setIsLoadingData(true);
         const [catRes, sysRes] = await Promise.all([
-          fetch('/api/categories'),
-          fetch('/api/related-systems')
+          fetch('/api/categories', { credentials: 'include' }),
+          fetch('/api/related-systems', { credentials: 'include' })
         ]);
         
         if (!catRes.ok) {
@@ -99,7 +90,7 @@ export const CreateTicket: React.FC = () => {
       }
     };
     fetchData();
-  }, [requester, navigate]);
+  }, []);
 
   const processFiles = (files: FileList | File[]) => {
     setAttachmentError(null);
@@ -204,7 +195,6 @@ export const CreateTicket: React.FC = () => {
     
     try {
       const formData = new FormData();
-      formData.append('requesterId', String(requester?.id));
       formData.append('categoryId', String(categoryId));
       if (relatedSystemId) formData.append('relatedSystemId', String(relatedSystemId));
       formData.append('requestedPriority', requestedPriority);
@@ -216,29 +206,45 @@ export const CreateTicket: React.FC = () => {
 
       const response = await fetch('/api/tickets', {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
 
-      const data = await response.json();
+      const data = await response.json() as {
+        data?: { ticketNumber?: string };
+        error?: string | {
+          message?: string;
+          fields?: Record<string, string>;
+        };
+        details?: Array<{ field: string; message: string }>;
+      };
 
       if (!response.ok) {
         const nonFieldErrors: string[] = [];
-        if (data.details && Array.isArray(data.details)) {
-          const backendErrors: Record<string, string> = {};
+        const backendErrors: Record<string, string> = {
+          ...(typeof data.error === 'object' ? data.error.fields : {}),
+        };
+        if (Array.isArray(data.details)) {
           data.details.forEach((d: { field: string; message: string }) => {
             backendErrors[d.field] = d.message;
             if (!['categoryId', 'relatedSystemId', 'requestedPriority', 'summary', 'description', 'attachments'].includes(d.field)) {
               nonFieldErrors.push(d.message);
             }
           });
+        }
+        if (Object.keys(backendErrors).length > 0) {
           setErrors(backendErrors);
         }
+        const structuredMessage = typeof data.error === 'string'
+          ? data.error
+          : data.error?.message;
         const errorMsg = nonFieldErrors.length > 0
           ? nonFieldErrors.join('; ')
-          : (data.error || 'Failed to create ticket');
+          : (structuredMessage || 'Failed to create ticket');
         throw new Error(errorMsg);
       }
 
+      if (!data.data?.ticketNumber) throw new Error('The server did not return a ticket number');
       setSuccessTicketNumber(data.data.ticketNumber);
     } catch (err: unknown) {
       setApiError((err as Error).message || 'An error occurred during submission');

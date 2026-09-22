@@ -14,17 +14,19 @@ interface AttachmentError {
 interface TicketAttachmentSectionProps {
   ticketId: number;
   attachments: TicketAttachment[];
-  requesterId: string | number;
-  onUpdateAttachments: (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => void;
+  onUpdateAttachments?: (update: (attachments: TicketAttachment[]) => TicketAttachment[]) => void;
+  onSessionExpired?: () => void;
+  mode?: 'requester' | 'staff' | 'administrator';
 }
 
 const parseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
   try {
     const payload = await response.json() as {
-      error?: string;
+      error?: string | { message?: string };
       details?: Array<{ message?: string }>;
     };
-    return payload.details?.find(detail => detail.message)?.message || payload.error || fallback;
+    const errorMessage = typeof payload.error === 'string' ? payload.error : payload.error?.message;
+    return payload.details?.find(detail => detail.message)?.message || errorMessage || fallback;
   } catch {
     return fallback;
   }
@@ -33,9 +35,12 @@ const parseErrorMessage = async (response: Response, fallback: string): Promise<
 export function TicketAttachmentSection({
   ticketId,
   attachments,
-  requesterId,
   onUpdateAttachments,
+  onSessionExpired,
+  mode = 'requester',
 }: TicketAttachmentSectionProps) {
+  const isRequester = mode === 'requester';
+  const canDownload = mode !== 'administrator';
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<AttachmentError | null>(null);
   const [unavailableAttachmentIds, setUnavailableAttachmentIds] = useState<Set<number>>(new Set());
@@ -61,10 +66,10 @@ export function TicketAttachmentSection({
     setUploadingFileName(file.name);
     try {
       const formData = new FormData();
-      formData.append('requesterId', String(requesterId));
       formData.append('file', file);
       const response = await fetch(`/api/tickets/${ticketId}/attachments`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       if (!response.ok) {
@@ -73,7 +78,7 @@ export function TicketAttachmentSection({
         return;
       }
       const payload = await response.json() as { data: TicketAttachment };
-      onUpdateAttachments(current => [
+      onUpdateAttachments?.(current => [
         ...current,
         { ...payload.data, removalReason: null, removedAt: null },
       ]);
@@ -89,8 +94,13 @@ export function TicketAttachmentSection({
     setDownloadingAttachmentId(attachment.id);
     try {
       const response = await fetch(
-        `/api/attachments/${attachment.id}/download?requesterId=${encodeURIComponent(String(requesterId))}`
+        `/api/attachments/${attachment.id}/download`,
+        { credentials: 'include' },
       );
+      if (response.status === 401) {
+        onSessionExpired?.();
+        return;
+      }
       if (!response.ok) throw new Error('File unavailable');
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
@@ -134,19 +144,30 @@ export function TicketAttachmentSection({
     try {
       const response = await fetch(`/api/attachments/${removalTarget.id}/remove`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requesterId, removalReason: trimmedReason }),
+        body: JSON.stringify({ removalReason: trimmedReason }),
       });
       if (!response.ok) {
         setRemovalError(await parseErrorMessage(response, 'Unable to remove attachment'));
         return;
       }
-      const payload = await response.json() as {
-        data: Pick<TicketAttachment, 'id' | 'isRemoved' | 'removalReason' | 'removedAt'>;
-      };
-      onUpdateAttachments(current => current.map(attachment =>
-        attachment.id === payload.data.id ? { ...attachment, ...payload.data } : attachment
-      ));
+      if (response.status === 204) {
+        onUpdateAttachments?.(current => current.map(attachment =>
+          attachment.id === removalTarget.id
+            ? { ...attachment, isRemoved: true, removalReason: trimmedReason, removedAt: null }
+            : attachment
+        ));
+      } else {
+        const payload = await response.json() as {
+          data?: Pick<TicketAttachment, 'id' | 'isRemoved' | 'removalReason' | 'removedAt'>;
+        };
+        if (payload.data) {
+          onUpdateAttachments?.(current => current.map(attachment =>
+            attachment.id === payload.data!.id ? { ...attachment, ...payload.data } : attachment
+          ));
+        }
+      }
       setRemovalTarget(null);
       setRemovalReason('');
     } catch {
@@ -160,7 +181,7 @@ export function TicketAttachmentSection({
     <div className="card shadow-sm mb-4">
       <div className="card-body p-3 p-md-4">
         <h2 className="h3 mb-3">Attachments</h2>
-        <div className="attachment-picker mb-3">
+        {isRequester && <div className="attachment-picker mb-3">
           <label htmlFor="ticket-attachment" className="form-label">Add attachment</label>
           <input
             id="ticket-attachment"
@@ -176,7 +197,7 @@ export function TicketAttachmentSection({
           <div id="ticket-attachment-help" className="form-text">
             JPG, PNG, WEBP, or PDF. Maximum 5 MB per file and 5 active attachments.
           </div>
-        </div>
+        </div>}
 
         {attachmentError && (
           <div id="ticket-attachment-error" className="ticket-attachment ticket-attachment-invalid mb-3" role="alert">
@@ -230,7 +251,7 @@ export function TicketAttachmentSection({
                       <div className="d-flex flex-column align-items-start align-items-lg-end gap-2">
                         <span className="attachment-state-badge is-active">Active</span>
                         <div className="ticket-attachment-actions d-flex flex-column flex-sm-row gap-2">
-                          <Button
+                          {canDownload && <Button
                             variant="secondary"
                             type="button"
                             isLoading={downloadingAttachmentId === attachment.id}
@@ -238,15 +259,15 @@ export function TicketAttachmentSection({
                             onClick={() => void handleDownload(attachment)}
                           >
                             Download
-                          </Button>
-                          <Button
+                          </Button>}
+                          {isRequester && <Button
                             variant="destructive"
                             type="button"
                             disabled={uploadingFileName !== null || isRemoving || downloadingAttachmentId !== null}
                             onClick={() => openRemovalConfirmation(attachment)}
                           >
                             Remove
-                          </Button>
+                          </Button>}
                         </div>
                       </div>
                     )}

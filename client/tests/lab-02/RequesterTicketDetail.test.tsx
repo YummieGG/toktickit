@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import App from '../../src/App';
+import { authenticatedFetchMock } from '../setup';
 
 const requester = { id: 7, name: 'Somchai Prasert', email: 'somchai@example.com' };
 
@@ -53,18 +54,17 @@ describe('Requester Ticket Detail screen', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
-    sessionStorage.setItem('toktickit_requester', JSON.stringify(requester));
     window.history.pushState({}, '', '/tickets/8');
   });
 
   it('loads and renders all ticket information as selectable read-only content (UI-20)', async () => {
-    global.fetch = vi.fn(() => jsonResponse({ data: ticket }));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ data: ticket }));
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/tickets/8?requesterId=7',
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      '/api/tickets/8',
+      expect.objectContaining({ credentials: 'include', signal: expect.any(AbortSignal) })
     );
     expect(screen.getByText('HIGH')).toBeInTheDocument();
     expect(screen.getByText('NEW')).toBeInTheDocument();
@@ -75,7 +75,8 @@ describe('Requester Ticket Detail screen', () => {
     expect(screen.getByText('VPN access unavailable')).toHaveClass('ticket-detail-summary');
     expect(screen.getByText('Somchai Prasert')).toBeInTheDocument();
     expect(screen.getByText('somchai@example.com')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Add a public comment' })).toBeInTheDocument();
+    expect(document.querySelector('.ticket-detail-readonly input')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
 
     const description = document.querySelector('.ticket-detail-description');
@@ -87,7 +88,7 @@ describe('Requester Ticket Detail screen', () => {
   });
 
   it('shows active and removed attachment metadata without hiding the audit trail (UI-21, UI-24)', async () => {
-    global.fetch = vi.fn(() => jsonResponse({ data: ticket }));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ data: ticket }));
     render(<App />);
 
     expect(await screen.findByText(/vpn error screenshot with a long filename\.png/)).toBeInTheDocument();
@@ -108,7 +109,7 @@ describe('Requester Ticket Detail screen', () => {
   });
 
   it('uploads a valid attachment and adds the returned active metadata to the list', async () => {
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ data: ticket }))
       .mockImplementationOnce(() => jsonResponse({
         data: {
@@ -137,7 +138,7 @@ describe('Requester Ticket Detail screen', () => {
 
   it('shows the Uploading state and disables the picker while upload is pending', async () => {
     let resolveUpload!: (response: Response) => void;
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ data: ticket }))
       .mockImplementationOnce(() => new Promise<Response>(resolve => { resolveUpload = resolve; }));
     render(<App />);
@@ -167,7 +168,7 @@ describe('Requester Ticket Detail screen', () => {
   });
 
   it('shows a dismissible Invalid state for a client-invalid file without uploading', async () => {
-    global.fetch = vi.fn(() => jsonResponse({ data: ticket }));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ data: ticket }));
     render(<App />);
 
     const picker = await screen.findByLabelText('Add attachment');
@@ -177,13 +178,13 @@ describe('Requester Ticket Detail screen', () => {
 
     expect(screen.getByText('Invalid: malware.exe')).toBeInTheDocument();
     expect(screen.getByText(/Supported formats/)).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('Invalid: malware.exe')).not.toBeInTheDocument();
   });
 
   it('rejects a file over 5 MB on the client before uploading', async () => {
-    global.fetch = vi.fn(() => jsonResponse({ data: ticket }));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ data: ticket }));
     render(<App />);
 
     const picker = await screen.findByLabelText('Add attachment');
@@ -193,11 +194,11 @@ describe('Requester Ticket Detail screen', () => {
 
     expect(screen.getByText('Invalid: large.pdf')).toBeInTheDocument();
     expect(screen.getByText(/exceeds the 5 MB limit/)).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('shows a server HTTP 400 upload failure as a dismissible Invalid state', async () => {
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ data: ticket }))
       .mockImplementationOnce(() => jsonResponse({
         error: 'Validation failed',
@@ -222,7 +223,7 @@ describe('Requester Ticket Detail screen', () => {
       id: 20 + index,
       originalName: `active-${index + 1}.png`,
     }));
-    global.fetch = vi.fn(() => jsonResponse({ data: { ...ticket, attachments: fiveActive } }));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ data: { ...ticket, attachments: fiveActive } }));
     render(<App />);
 
     const picker = await screen.findByLabelText('Add attachment');
@@ -233,7 +234,7 @@ describe('Requester Ticket Detail screen', () => {
 
     expect(screen.getByText('Invalid: sixth.png')).toBeInTheDocument();
     expect(screen.getByText(/Maximum 5 active attachments/)).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('downloads an active attachment through the owned endpoint', async () => {
@@ -242,7 +243,7 @@ describe('Requester Ticket Detail screen', () => {
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl });
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ data: ticket }))
       .mockImplementationOnce(() => Promise.resolve({
         ok: true,
@@ -252,14 +253,17 @@ describe('Requester Ticket Detail screen', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
-    await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith('/api/attachments/11/download?requesterId=7'));
+    await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/attachments/11/download',
+      { credentials: 'include' },
+    ));
     expect(createObjectUrl).toHaveBeenCalled();
     expect(click).toHaveBeenCalled();
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download');
   });
 
   it('changes a failed download into the Unavailable state with no actions', async () => {
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ data: ticket }))
       .mockImplementationOnce(() => jsonResponse({ error: 'File not found on server' }, 404));
     render(<App />);
@@ -273,7 +277,7 @@ describe('Requester Ticket Detail screen', () => {
   });
 
   it('requires explicit confirmation and a valid reason before soft removal', async () => {
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ data: ticket }))
       .mockImplementationOnce(() => jsonResponse({
         data: {
@@ -286,12 +290,14 @@ describe('Requester Ticket Detail screen', () => {
       }));
     render(<App />);
 
+    const activeItem = (await screen.findByText(/vpn error screenshot/)).closest('li');
+    expect(activeItem).not.toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
     const dialog = screen.getByRole('dialog', { name: /Remove vpn error screenshot/ });
     expect(dialog).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Attachment' }));
     expect(within(dialog).getByText(/between 3 and 500 characters/)).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
 
     fireEvent.change(within(dialog).getByLabelText(/Removal reason/), {
       target: { value: '  Uploaded the wrong screenshot  ' },
@@ -301,16 +307,37 @@ describe('Requester Ticket Detail screen', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenLastCalledWith('/api/attachments/11/remove', expect.objectContaining({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requesterId: 7, removalReason: 'Uploaded the wrong screenshot' }),
+      credentials: 'include',
+      body: JSON.stringify({ removalReason: 'Uploaded the wrong screenshot' }),
     })));
-    const removedItem = screen.getByText(/vpn error screenshot/).closest('li');
-    expect(await within(removedItem!).findByText('Removed')).toBeInTheDocument();
-    expect(within(removedItem!).getByText(/Uploaded the wrong screenshot/)).toBeInTheDocument();
-    expect(within(removedItem!).queryByRole('button')).not.toBeInTheDocument();
+    expect(await within(activeItem!).findByText('Removed')).toBeInTheDocument();
+    expect(within(activeItem!).getByText(/Uploaded the wrong screenshot/)).toBeInTheDocument();
+    expect(within(activeItem!).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('does not fabricate a removal timestamp when the server returns 204', async () => {
+    global.fetch = authenticatedFetchMock()
+      .mockImplementationOnce(() => jsonResponse({ data: ticket }))
+      .mockImplementationOnce(() => jsonResponse({}, 204));
+    render(<App />);
+
+    const activeItem = (await screen.findByText(/vpn error screenshot/)).closest('li');
+    expect(activeItem).not.toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    const dialog = screen.getByRole('dialog', { name: /Remove vpn error screenshot/ });
+    fireEvent.change(within(dialog).getByLabelText(/Removal reason/), {
+      target: { value: 'Duplicate screenshot' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove Attachment' }));
+
+    expect(await within(activeItem!).findByText('Removed')).toBeInTheDocument();
+    expect(within(activeItem!).getByText('Removed at:').closest('div')).toHaveTextContent(
+      'Removal time unavailable',
+    );
   });
 
   it('represents a missing related system and empty attachments clearly', async () => {
-    global.fetch = vi.fn(() => jsonResponse({
+    global.fetch = authenticatedFetchMock(() => jsonResponse({
       data: { ...ticket, relatedSystem: null, attachments: [] },
     }));
     render(<App />);
@@ -319,26 +346,16 @@ describe('Requester Ticket Detail screen', () => {
     expect(screen.getByText('No attachments were submitted with this ticket.')).toBeInTheDocument();
   });
 
-  it('shows a centered loading state while ticket data is pending', () => {
-    global.fetch = vi.fn(() => new Promise<Response>(() => undefined));
+  it('shows a centered loading state while ticket data is pending', async () => {
+    global.fetch = authenticatedFetchMock(() => new Promise<Response>(() => undefined));
     render(<App />);
 
-    expect(screen.getByText('Loading...', { selector: 'p' })).toBeInTheDocument();
+    expect(await screen.findByText('Loading...', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
-  it('returns to requester selection without fetching when requester context is missing', async () => {
-    sessionStorage.clear();
-    global.fetch = vi.fn();
-    render(<App />);
-
-    expect(await screen.findByRole('heading', { name: 'Development Login' })).toBeInTheDocument();
-    const requestedUrls = vi.mocked(global.fetch).mock.calls.map(call => String(call[0]));
-    expect(requestedUrls.some(url => url.startsWith('/api/tickets/'))).toBe(false);
-  });
-
   it('shows a not-found state without rendering ticket content', async () => {
-    global.fetch = vi.fn(() => jsonResponse({ error: 'Ticket not found' }, 404));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ error: 'Ticket not found' }, 404));
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Ticket Not Found' })).toBeInTheDocument();
@@ -348,7 +365,7 @@ describe('Requester Ticket Detail screen', () => {
   });
 
   it('shows a safe unauthorized state without rendering protected data (UI-25)', async () => {
-    global.fetch = vi.fn(() => jsonResponse({ error: 'You do not have access to this ticket' }, 403));
+    global.fetch = authenticatedFetchMock(() => jsonResponse({ error: 'You do not have access to this ticket' }, 403));
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
@@ -358,7 +375,7 @@ describe('Requester Ticket Detail screen', () => {
   });
 
   it('shows an unexpected failure safely and retries without leaving the page', async () => {
-    global.fetch = vi.fn()
+    global.fetch = authenticatedFetchMock()
       .mockImplementationOnce(() => jsonResponse({ error: 'Internal server error' }, 500))
       .mockImplementationOnce(() => jsonResponse({ data: ticket }));
     render(<App />);
@@ -368,6 +385,74 @@ describe('Requester Ticket Detail screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
   });
+
+  it('submits a public comment and adds it to the comments list', async () => {
+    const newComment = {
+      id: 101,
+      ticketId: 8,
+      content: 'I have tested again and it works.',
+      createdAt: '2026-09-12T10:00:00.000Z',
+      author: { id: 7, name: 'Somchai Prasert', role: 'REQUESTER' },
+    };
+
+    global.fetch = authenticatedFetchMock()
+      .mockImplementationOnce(() => jsonResponse({ data: { ...ticket, comments: [] } }))
+      .mockImplementationOnce(() => jsonResponse({ data: newComment }, 201));
+    render(<App />);
+
+    expect(await screen.findByText('No public comments yet.')).toBeInTheDocument();
+
+    const textarea = screen.getByLabelText('Add a public comment');
+    fireEvent.change(textarea, { target: { value: '  I have tested again and it works.  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Comment' }));
+
+    await waitFor(() => expect(screen.getByText('I have tested again and it works.')).toBeInTheDocument());
+    expect(global.fetch).toHaveBeenLastCalledWith('/api/tickets/8/comments', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'I have tested again and it works.' }),
+    }));
+    expect(screen.queryByText('No public comments yet.')).not.toBeInTheDocument();
+  });
+
+  it('submits Problem Appears Resolved and disables the button with reported status', async () => {
+    const resolvedTimestamp = '2026-09-12T10:30:00.000Z';
+    global.fetch = authenticatedFetchMock()
+      .mockImplementationOnce(() => jsonResponse({ data: { ...ticket, problemAppearsResolvedAt: null } }))
+      .mockImplementationOnce(() => jsonResponse({
+        data: { ticketId: 8, problemAppearsResolvedAt: resolvedTimestamp },
+      }));
+    render(<App />);
+
+    const button = await screen.findByRole('button', { name: 'Problem Appears Resolved' });
+    expect(button).toBeEnabled();
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Problem Appears Resolved \(reported\)/ })).toBeDisabled());
+    expect(screen.getByText(/Reported on/)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenLastCalledWith('/api/tickets/8/problem-appears-resolved', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+    }));
+  });
+
+  it.each(['CLOSED', 'CANCELLED'] as const)(
+    'disables Problem Appears Resolved button and shows status notice when ticket is %s',
+    async status => {
+      global.fetch = authenticatedFetchMock().mockImplementationOnce(() =>
+        jsonResponse({ data: { ...ticket, currentStatus: status, problemAppearsResolvedAt: null } }),
+      );
+      render(<App />);
+
+      const button = await screen.findByRole('button', { name: 'Problem Appears Resolved' });
+      expect(button).toBeDisabled();
+      expect(
+        screen.getByText(new RegExp(`This ticket is ${status.toLowerCase()} and can no longer be marked as resolved`, 'i')),
+      ).toBeInTheDocument();
+    },
+  );
 });

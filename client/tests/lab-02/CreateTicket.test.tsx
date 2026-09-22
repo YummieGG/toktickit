@@ -2,14 +2,15 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from '../../src/App';
 import React from 'react';
+import { authenticatedFetchMock } from '../setup';
 
 // Mock fetch globally
-global.fetch = vi.fn();
+global.fetch = authenticatedFetchMock();
 
 describe('Create Ticket Feature', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
-    sessionStorage.setItem('toktickit_requester', JSON.stringify({ id: 1, name: 'Somchai Prasert', email: 'somchai@example.com' }));
+    vi.restoreAllMocks();
+    global.fetch = authenticatedFetchMock();
     window.history.pushState({}, "", "/tickets/create");
   });
 
@@ -30,7 +31,7 @@ describe('Create Ticket Feature', () => {
     render(<App />);
 
     expect(screen.getByRole('heading', { name: 'Loading...' })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Category/)).toBeDisabled();
+    expect(await screen.findByLabelText(/Category/)).toBeDisabled();
 
     resolveCategories({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Software' }] }) });
 
@@ -64,6 +65,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Summary/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
@@ -76,7 +78,7 @@ describe('Create Ticket Feature', () => {
     });
     
     // API should not have been called
-    expect(global.fetch).toHaveBeenCalledTimes(2); // Only the 2 initial loads
+    expect(global.fetch).toHaveBeenCalledTimes(3); // Auth bootstrap plus the 2 initial loads
   });
 
   it('submits successfully using FormData and shows ticket number, and allows creating another ticket', async () => {
@@ -89,6 +91,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
@@ -106,7 +109,7 @@ describe('Create Ticket Feature', () => {
     });
 
     // Verify FormData was used (no Content-Type header — browser sets it automatically)
-    const submitCall = (global.fetch as any).mock.calls[2];
+    const submitCall = (global.fetch as any).mock.calls[3];
     expect(submitCall[0]).toBe('/api/tickets');
     expect(submitCall[1].body).toBeInstanceOf(FormData);
 
@@ -271,6 +274,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
@@ -297,6 +301,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Summary/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     const summaryInput = screen.getByLabelText(/Summary/);
@@ -322,6 +327,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Summary/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
@@ -348,6 +354,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
@@ -361,13 +368,13 @@ describe('Create Ticket Feature', () => {
       expect(screen.getByText('TK-0008')).toBeInTheDocument();
     });
 
-    const submitCall = (global.fetch as any).mock.calls[2];
+    const submitCall = (global.fetch as any).mock.calls[3];
     const formData = submitCall[1].body as FormData;
     expect(formData.get('summary')).toBe('Trimmed Summary');
     expect(formData.get('description')).toBe('Detailed description with padding');
   });
 
-  it('surfaces non-form backend validation errors in danger banner (ui-spec.md §7.6)', async () => {
+  it('renders a structured API error message instead of coercing the error object', async () => {
     (global.fetch as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: 1, name: 'Hardware' }] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) })
@@ -375,8 +382,10 @@ describe('Create Ticket Feature', () => {
         ok: false,
         status: 400,
         json: async () => ({
-          error: 'Validation failed',
-          details: [{ field: 'requesterId', message: 'Requester not found or is inactive' }]
+          error: {
+            code: 'REQUESTER_INACTIVE',
+            message: 'Your requester account is inactive',
+          },
         })
       });
 
@@ -384,6 +393,7 @@ describe('Create Ticket Feature', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Category/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Category/)).not.toBeDisabled();
     });
 
     fireEvent.change(screen.getByLabelText(/Category/), { target: { value: '1' } });
@@ -394,7 +404,8 @@ describe('Create Ticket Feature', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit Ticket' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Requester not found or is inactive/)).toBeInTheDocument();
+      expect(screen.getByText('Your requester account is inactive')).toBeInTheDocument();
+      expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
     });
   });
 });
