@@ -16,7 +16,7 @@
 
 | PR # | Title | Branch | Status | Reviewer |
 |:---|:---|:---|:---|:---|
-| Pending | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | Pending | [@Snnn3](https://github.com/Snnn3) |
+| [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | Open | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-4: Ticket workflow resolution gate and child action lifecycle | `lab4-4-resolution-workflow` | Planned | [@Snnn3](https://github.com/Snnn3) |
@@ -142,11 +142,11 @@
 
 ## Review Comments Received & Responses
 
-### PR: Lab 4-1: Define Sprint 4 Engineering Contract and Traceability
-- **Target PR**: Pending (`lab4-1-engineering-contract` → `lab4-staging`)
+### PR #65: Lab 4-1: Define Sprint 4 Engineering Contract and Traceability
+- **Target PR**: [#65](https://github.com/YummieGG/toktickit/pull/65) (`lab4-1-engineering-contract` → `lab4-staging`)
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Pending
+- **Status**: Open
 - **Reviewer comment received (@Snnn3)**:
   > Awaiting peer review on the Lab 4 engineering contract package.
 - **How I responded (@YummieGG)**:
