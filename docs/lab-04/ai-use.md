@@ -1,5 +1,9 @@
 # Lab 4 AI Use Log
 
+**Sprint:** Lab 4 (Issue #56 / PR #65)  
+**Branch:** `lab4-1-engineering-contract` ➔ `lab4-staging`  
+**Base Commit:** `a295882` | **Contract Commit:** `da2426b`  
+
 ## LLM Used
 - **Gemini Flash 3.8**
 - **GPT Luna 5.6**

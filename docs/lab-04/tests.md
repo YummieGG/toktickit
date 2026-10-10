@@ -93,6 +93,24 @@ This matrix maps every acceptance criterion and functional requirement to an aut
 | LIVE-02 | Live E2E | AC-07, AC-08, AC-10 | Browser to real API to PostgreSQL dashboard flow | Real backend counts match dashboard cards; drill-down filters match rows | `e2e/lab-04/dashboards.live.spec.ts` | Planned |
 | REG-01 | Regression | FR-04-17, AC-10 | Full regression of Lab 1–3 auth, tickets, queue, comments, notes | Existing test suites continue to pass green without regression | Existing server, client, and e2e test paths | Planned |
 
+### 3.2 Acceptance-criterion traceability breakdown
+
+| ID | Acceptance criterion | Planned evidence | Implementation issue(s) | PDF Section |
+|---|---|---|---|---|
+| AC-01 | Four core contract documents are complete, mutually consistent, and explicit. | `docs/lab-04/*.md`, READY-04 gate review | [#56](https://github.com/YummieGG/toktickit/issues/56) | Part 2, Part 9 |
+| AC-02 | Every write API enforces session, role, Origin, versions, and Serializable transactions. | `docs/lab-04/api-spec.md`, `tests.md` §4, CONTRACT-02 | [#56](https://github.com/YummieGG/toktickit/issues/56) | Part 2, Part 6 |
+| AC-03 | No unresolved business/API decisions prior to implementation; contract reviewed and merged. | `docs/lab-04/specification.md` Appendix C, PR #65 | [#56](https://github.com/YummieGG/toktickit/issues/56) | Part 1, Part 9 |
+| AC-04 | Actions Taken model, lifecycle (PENDING, IN_PROGRESS, COMPLETED, CANCELLED), validation, and events. | `business-rules.unit.test.ts`, `actions-taken.api.test.ts`, `ActionsTaken.test.tsx`, `actions-taken-flow.spec.ts` | [#57](https://github.com/YummieGG/toktickit/issues/57), [#58](https://github.com/YummieGG/toktickit/issues/58) | Part 3, Part 4, Part 7 |
+| AC-05 | Actions Taken permissions: Staff/Admin create/edit/status; Requester read-only on owned tickets; safe 404 for unowned. | `actions-taken.api.test.ts`, `ActionsTaken.test.tsx`, `actions-taken-flow.spec.ts` | [#57](https://github.com/YummieGG/toktickit/issues/57), [#58](https://github.com/YummieGG/toktickit/issues/58) | Part 4, Part 7 |
+| AC-06 | Resolution gate: Ticket RESOLVED requires at least 1 COMPLETED action with result; no pending/in-progress/unresolved follow-up; parent cancel atomically cancels active children. | `business-rules.unit.test.ts`, `ticket-workflow.api.test.ts`, `TicketWorkflow.test.tsx`, `ticket-resolution.spec.ts` | [#59](https://github.com/YummieGG/toktickit/issues/59) | Part 3, Part 4, Part 7 |
+| AC-07 | Requester dashboard: 4 metrics, 7-day Bangkok date window, zero counts, owned recent/attention/resolved lists, bounded responses <= 64 KiB. | `business-rules.unit.test.ts`, `requester-dashboard.api.test.ts`, `RequesterDashboard.test.tsx`, `dashboards.spec.ts` | [#60](https://github.com/YummieGG/toktickit/issues/60) | Part 4, Part 5, Part 7 |
+| AC-08 | Staff dashboard: 7 metrics, zero-count groups, urgent tickets, assigned actions list, and query-param drill-down parity. | `staff-dashboard.api.test.ts`, `StaffDashboard.test.tsx`, `DashboardDrilldown.test.tsx`, `dashboards.spec.ts` | [#60](https://github.com/YummieGG/toktickit/issues/60) | Part 4, Part 5, Part 7 |
+| AC-09 | Non-destructive migration and idempotent seed preserving Labs 1–3 data, ownership, and credentials. | `migration-seed.integration.test.ts` | [#57](https://github.com/YummieGG/toktickit/issues/57) | Part 3 |
+| AC-10 | Full regression suite: Labs 1–3 authentication, queue, details, comments, notes, and user administration continue to pass green. | REG-01, existing server/client/E2E regression suites | [#61](https://github.com/YummieGG/toktickit/issues/61) | Part 6, Part 7 |
+| AC-11 | Real PostgreSQL integration and live E2E verifying Serializable conflict rollback, idempotency replay, and account deactivation unassignment. | `action-concurrency.integration.test.ts`, `actions-taken-flow.live.spec.ts`, `ticket-resolution.live.spec.ts` | [#57](https://github.com/YummieGG/toktickit/issues/57), [#61](https://github.com/YummieGG/toktickit/issues/61) | Part 6, Part 7 |
+| AC-12 | Zen Green tokens, accessible badges, 44 px touch targets, and responsive 1280/768/375 px layouts with zero horizontal scroll. | `visual-style.test.tsx`, Playwright responsive assertions, visual checklist | [#58](https://github.com/YummieGG/toktickit/issues/58), [#60](https://github.com/YummieGG/toktickit/issues/60), [#61](https://github.com/YummieGG/toktickit/issues/61) | Part 5, Part 8 |
+| AC-13 | Performance benchmark: 1,000 tickets / 5,000 actions dataset completes within <= 64 KiB response size and warm p95 <= 1,000 ms. | `dashboard-performance.integration.test.ts` | [#61](https://github.com/YummieGG/toktickit/issues/61) | Part 6 |
+
 ## 4. Write API security and concurrency checklist
 
 | Endpoint | Session/password gate | Role | Parent/ownership | Origin | Version/transaction | Idempotency |

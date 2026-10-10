@@ -31,10 +31,12 @@ toktickit/
 ├── docs/                       # Project specifications, contract documents, and review logs
 │   ├── lab-01/                 # Sprint 1 documentation, tests, reviewer logs, and AI use
 │   ├── lab-02/                 # Sprint 2 engineering contract, specs, and test reports
-│   └── lab-03/                 # Sprint 3 engineering contract, API/UI specs, tests, and reviewer log
+│   ├── lab-03/                 # Sprint 3 engineering contract, API/UI specs, tests, and reviewer log
+│   └── lab-04/                 # Sprint 4 engineering contract, Actions Taken, dashboards, and review logs
 ├── artifacts/                  # Visual QA evidence and test screenshots
 │   ├── lab-02/                 # Responsive screenshots for Lab 2
-│   └── lab-03/screenshots/     # Multi-role screenshots across desktop, tablet, and mobile
+│   ├── lab-03/screenshots/     # Multi-role screenshots across desktop, tablet, and mobile
+│   └── lab-04/screenshots/     # Multi-role screenshots across viewports for Lab 4
 └── docker-compose.yml          # PostgreSQL database service container definition
 ```
 

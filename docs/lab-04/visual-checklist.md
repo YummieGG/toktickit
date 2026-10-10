@@ -1,5 +1,9 @@
 # Lab 4 Visual QA Checklist — Issue #56
 
+**Sprint:** Lab 4 (Issue #56 / PR #65)  
+**Branch:** `lab4-1-engineering-contract` ➔ `lab4-staging`  
+**Base Commit:** `a295882` | **Contract Commit:** `da2426b`  
+
 Run date: Pre-implementation checklist for Issue #56. Browser: Playwright Chromium. Required viewports: 1280 × 812, 768 × 812, and 375 × 812. This checklist records the visual QA plan for Lab 4 screens; screenshot evidence will be captured and verified during subsequent UI and QA issues.
 
 | Area | Checks | Screenshot evidence |

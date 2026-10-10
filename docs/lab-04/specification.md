@@ -130,7 +130,7 @@ Screen state transitions handle loading skeletons, empty data, validation errors
 
 ## 7. Data Changes
 
-- Add `ActionTaken` model with immutable parent `ticketId`, server `createdAt`, `performedById` creator, `assigneeId`, `status` enum (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), `description`, `result`, `followUpRequired`, `followUpNote`, `attachmentNotes`, `cancelReason`, `version`, `creationKey`, `creationFingerprint`, and `seedKey`.
+- Add `ActionTaken` model with immutable parent `ticketId`, server `createdAt`, `updatedAt`, `performedById` creator, `assigneeId`, `status` enum (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`), `description`, `result`, `followUpRequired`, `followUpNote`, `attachmentNotes`, `cancelReason`, `version`, `creationKey`, `creationFingerprint`, and `seedKey` (deterministic seed identifier for idempotent setup).
 - Add `ActionTakenEvent` append-only audit model (`actionId`, `actorId`, `type`, `createdAt`, `before` JSON, `after` JSON) with event types `CREATED`, `EDITED`, `ASSIGNED`, `UNASSIGNED`, `STARTED`, `COMPLETED`, and `CANCELLED`.
 - Extend `Ticket` with `version` (default/backfill 1) and nullable `resolvedAt`.
 - Add composite lookup indexes: `(ticketId, createdAt, id)`, `(assigneeId, status)`, unique `(ticketId, performedById, creationKey)`, and `(actionId, createdAt, id)`.

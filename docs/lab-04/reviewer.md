@@ -14,21 +14,23 @@
 
 ## Pull Requests Authored
 
-| PR # | Title | Branch | Status | Reviewer |
-|:---|:---|:---|:---|:---|
-| [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | Open | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-4: Ticket workflow resolution gate and child action lifecycle | `lab4-4-resolution-workflow` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-dashboards` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-6: Cross-cutting verification, QA test suite, and visual evidence | `lab4-6-verification-qa` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-7: Staged integration and clean verification | `lab4-7-staging-integration` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-8: Final documentation, reviewer logs, AI log, and submission packaging | `lab4-8-documentation` | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-9: Release verification against final main, evidence check, and tag | `lab4-9-release-verification` | Planned | [@Snnn3](https://github.com/Snnn3) |
+| PR # | Title | Branch | Commit SHA | Status | Reviewer |
+|:---|:---|:---|:---|:---|:---|
+| [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | `da2426b` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-4: Ticket workflow resolution gate and child action lifecycle | `lab4-4-resolution-workflow` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-dashboards` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-6: Cross-cutting verification, QA test suite, and visual evidence | `lab4-6-verification-qa` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-7: Staged integration and clean verification | `lab4-7-staging-integration` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-8: Final documentation, reviewer logs, AI log, and submission packaging | `lab4-8-documentation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| Pending | Lab 4-9: Release verification against final main, evidence check, and tag | `lab4-9-release-verification` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 
 ---
 
 ## Pull Requests Reviewed
+
+> *Note on Partner Implementation Records:* The entries below record peer review performed on partner repository (Snnn3/TokTickIT). Partner uses `409 STALE_WRITE` and `resolutionSummary` in their codebase; TokTickIT contract standardizes on `409 CONFLICT` and completion predicate per `api-spec.md` and `specification.md`.
 
 | PR # | Title | Author | Status | Key Comments |
 |:---|:---|:---|:---|:---|
@@ -144,6 +146,8 @@
 
 ### PR #65: Lab 4-1: Define Sprint 4 Engineering Contract and Traceability
 - **Target PR**: [#65](https://github.com/YummieGG/toktickit/pull/65) (`lab4-1-engineering-contract` → `lab4-staging`)
+- **Base Commit**: `a295882` (Lab 3 main baseline)
+- **Initial Contract Commit**: `da2426b`
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
 - **Status**: Open
