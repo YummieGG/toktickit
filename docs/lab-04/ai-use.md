@@ -14,6 +14,6 @@
 
 ## My Reflection
 
-In this contract phase, AI helped draft and organize the specification documents and complex business rules much faster.
+For Lab 4, using AI helped break down the new requirements—especially the Actions Taken lifecycle, resolution gates, and role dashboards—into clear engineering contracts much faster.
 
-However, careful review was still needed to ensure the structure aligned with Lab 3 standards and that edge cases—such as parent ticket `updatedAt` touches and strict Admin permissions—were accurately defined. I will continue updating this log as implementation progresses.
+Manual checking was still necessary to ensure edge cases were properly addressed, such as refreshing the parent ticket's `updatedAt` on action mutations and keeping Admin permissions correctly scoped. I will keep updating this log as we progress through Lab 4.
