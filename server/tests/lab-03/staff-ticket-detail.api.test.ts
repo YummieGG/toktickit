@@ -45,6 +45,7 @@ function staffDetail(status = 'OPEN', problemAppearsResolvedAt: string | null = 
     comments: [],
     internalNotes: [],
     problemAppearsResolvedAt,
+    version: 1,
     createdAt: '2026-09-05T08:30:00.000Z',
     updatedAt: '2026-09-05T09:00:00.000Z',
   };
@@ -84,11 +85,11 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/owner')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ ownerId: 21 });
+        .send({ ownerId: 21, expectedTicketVersion: 1 });
       expect(assignStaff.status).toBe(200);
       expect(prisma.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 8 },
-        data: { ownerId: 21 },
+        data: expect.objectContaining({ ownerId: 21 }),
       }));
 
       // Unassign
@@ -96,10 +97,10 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/owner')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ ownerId: null });
+        .send({ ownerId: null, expectedTicketVersion: 1 });
       expect(unassign.status).toBe(200);
       expect(prisma.ticket.update).toHaveBeenLastCalledWith(expect.objectContaining({
-        data: { ownerId: null },
+        data: expect.objectContaining({ ownerId: null }),
       }));
     });
 
@@ -109,7 +110,7 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/owner')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ ownerId: 21 });
+        .send({ ownerId: 21, expectedTicketVersion: 1 });
       expect(inactive.status).toBe(400);
 
       vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 7, isActive: true, role: 'REQUESTER' } as never);
@@ -117,7 +118,7 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/owner')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ ownerId: 7 });
+        .send({ ownerId: 7, expectedTicketVersion: 1 });
       expect(requester.status).toBe(400);
     });
 
@@ -127,7 +128,7 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/owner')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ ownerId: null });
+        .send({ ownerId: null, expectedTicketVersion: 1 });
       expect(adminRes.status).toBe(403);
 
       vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session('REQUESTER') as never);
@@ -135,7 +136,7 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/owner')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ ownerId: null });
+        .send({ ownerId: null, expectedTicketVersion: 1 });
       expect(reqRes.status).toBe(403);
     });
   });
@@ -146,11 +147,12 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/it-priority')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ itPriority: 'CRITICAL', requestedPriority: 'LOW' });
+        .send({ itPriority: 'CRITICAL', expectedTicketVersion: 1 });
       expect(response.status).toBe(200);
       expect(prisma.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
-        data: { itPriority: 'CRITICAL' },
+        data: expect.objectContaining({ itPriority: 'CRITICAL' }),
       }));
+      expect(prisma.ticket.update.mock.calls[0]?.[0]?.data).not.toHaveProperty('requestedPriority');
     });
 
     it('rejects invalid IT priority and requires trusted origin', async () => {
@@ -158,13 +160,13 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/it-priority')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ itPriority: 'SUPER_URGENT' });
+        .send({ itPriority: 'SUPER_URGENT', expectedTicketVersion: 1 });
       expect(invalid.status).toBe(400);
 
       const csrf = await request(app)
         .patch('/api/tickets/8/it-priority')
         .set('Cookie', cookie)
-        .send({ itPriority: 'LOW' });
+        .send({ itPriority: 'LOW', expectedTicketVersion: 1 });
       expect(csrf.status).toBe(403);
     });
 

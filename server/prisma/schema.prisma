@@ -42,11 +42,31 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  tickets       Ticket[]        @relation("RequesterTickets")
-  ownedTickets  Ticket[]        @relation("OwnedTickets")
-  comments      PublicComment[]
-  internalNotes InternalNote[]
-  sessions      UserSession[]
+  tickets          Ticket[]           @relation("RequesterTickets")
+  ownedTickets     Ticket[]           @relation("OwnedTickets")
+  comments         PublicComment[]
+  internalNotes    InternalNote[]
+  sessions         UserSession[]
+  actionsPerformed ActionTaken[]      @relation("ActionsPerformed")
+  actionsAssigned  ActionTaken[]      @relation("ActionsAssigned")
+  actionEvents     ActionTakenEvent[] @relation("ActionEventsAuthored")
+}
+
+enum ActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionEventType {
+  CREATED
+  EDITED
+  ASSIGNED
+  UNASSIGNED
+  STARTED
+  COMPLETED
+  CANCELLED
 }
 
 model UserSession {
@@ -104,6 +124,8 @@ model Ticket {
   currentStatus            TicketStatus      @default(NEW)
   ticketDate               DateTime          @default(now())
   problemAppearsResolvedAt DateTime?
+  resolvedAt               DateTime?
+  version                  Int               @default(1)
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
 
@@ -122,6 +144,7 @@ model Ticket {
   attachments   Attachment[]
   comments      PublicComment[]
   internalNotes InternalNote[]
+  actionsTaken  ActionTaken[]
 
   @@index([requesterId])
   @@index([ownerId])
@@ -178,3 +201,49 @@ model InternalNote {
   @@index([ticketId, createdAt])
   @@index([authorId])
 }
+
+model ActionTaken {
+  id                  Int          @id @default(autoincrement())
+  ticketId            Int
+  description         String
+  result              String?
+  performedById       Int
+  assigneeId          Int?
+  status              ActionStatus @default(PENDING)
+  followUpRequired    Boolean      @default(false)
+  followUpNote        String?
+  attachmentNotes     String?
+  cancelReason        String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  version             Int          @default(1)
+  creationKey         String?
+  creationFingerprint String?
+  seedKey             String?      @unique
+
+  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  performedBy User               @relation("ActionsPerformed", fields: [performedById], references: [id], onDelete: Restrict)
+  assignee    User?              @relation("ActionsAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  events      ActionTakenEvent[]
+
+  @@index([ticketId, createdAt, id])
+  @@index([assigneeId, status])
+  @@unique([ticketId, performedById, creationKey])
+}
+
+model ActionTakenEvent {
+  id        Int             @id @default(autoincrement())
+  actionId  Int
+  actorId   Int
+  type      ActionEventType
+  createdAt DateTime        @default(now())
+  before    Json?
+  after     Json?
+
+  action ActionTaken @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actor  User        @relation("ActionEventsAuthored", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actionId, createdAt, id])
+  @@index([actorId])
+}
+

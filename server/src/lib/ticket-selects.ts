@@ -8,6 +8,8 @@ export const ticketSummarySelect = {
   requestedPriority: true,
   itPriority: true,
   currentStatus: true,
+  version: true,
+  resolvedAt: true,
   owner: { select: { id: true, name: true, email: true, role: true } },
   requester: { select: { id: true, name: true, email: true, role: true } },
   updatedAt: true,
