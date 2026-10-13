@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+import { Prisma } from '../../generated/prisma';
 import app from '../../src/index';
 import { prisma } from '../../src/lib/prisma';
 import { computeActionFingerprint } from '../../src/lib/action-rules';
@@ -87,6 +88,33 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
     vi.mocked(prisma.actionTaken.create).mockResolvedValue(sampleAction as never);
     vi.mocked(prisma.actionTaken.update).mockResolvedValue(sampleAction as never);
     vi.mocked(prisma.actionTakenEvent.create).mockResolvedValue({ id: 1 } as never);
+  });
+
+  describe('API-00: Service Health & Error Envelopes (Issue #57 Scope)', () => {
+    it('returns 200 with service health status on GET /api/health', async () => {
+      const res = await request(app).get('/api/health');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        status: 'ok',
+        service: 'TokTickIT API',
+      });
+    });
+
+    it('returns 500 with standard INTERNAL_ERROR envelope on unexpected error', async () => {
+      vi.mocked(prisma.actionTaken.count).mockRejectedValue(new Error('Unexpected DB breakdown') as never);
+
+      const res = await request(app)
+        .get('/api/tickets/8/actions-taken')
+        .set('Cookie', COOKIE);
+
+      expect(res.status).toBe(500);
+      expect(res.body).toEqual({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Unable to process the request',
+        },
+      });
+    });
   });
 
   describe('API-01: Action List (GET /api/tickets/:ticketId/actions-taken)', () => {
@@ -296,6 +324,77 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
 
       expect(res.status).toBe(409);
       expect(res.body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+    });
+
+    it('rejects malformed non-integer assigneeId on creation with 400 VALIDATION_ERROR', async () => {
+      const res = await request(app)
+        .post('/api/tickets/8/actions-taken')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .set('Idempotency-Key', 'idem-malformed-assignee')
+        .send({
+          ...validCreatePayload,
+          assigneeId: 'not-a-number',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.fields).toHaveProperty('assigneeId');
+    });
+
+    it('handles concurrent creation P2002 race gracefully by replaying matching creation (200)', async () => {
+      const fp = computeActionFingerprint({
+        description: validCreatePayload.description,
+        assigneeId: 20,
+        followUpRequired: false,
+      });
+
+      // Simulate $transaction failing with P2002 unique constraint violation
+      const p2002Error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '7.9.1',
+      });
+      vi.mocked(prisma.$transaction).mockRejectedValueOnce(p2002Error as never);
+
+      // Subsequent lookup outside transaction finds the matching committed record
+      vi.mocked(prisma.actionTaken.findFirst).mockResolvedValueOnce({
+        ...sampleAction,
+        creationFingerprint: fp,
+      } as never);
+
+      const res = await request(app)
+        .post('/api/tickets/8/actions-taken')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .set('Idempotency-Key', 'idem-p2002-replay-key')
+        .send(validCreatePayload);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.action.id).toBe(101);
+    });
+
+    it('handles concurrent creation P2002 race by returning 409 CONFLICT if content differs', async () => {
+      const p2002Error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '7.9.1',
+      });
+      vi.mocked(prisma.$transaction).mockRejectedValueOnce(p2002Error as never);
+
+      // Subsequent lookup finds record with different fingerprint
+      vi.mocked(prisma.actionTaken.findFirst).mockResolvedValueOnce({
+        ...sampleAction,
+        creationFingerprint: 'different-fp',
+      } as never);
+
+      const res = await request(app)
+        .post('/api/tickets/8/actions-taken')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .set('Idempotency-Key', 'idem-p2002-conflict-key')
+        .send(validCreatePayload);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('CONFLICT');
     });
   });
 

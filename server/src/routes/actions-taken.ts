@@ -64,8 +64,8 @@ function handleActionError(error: unknown, response: Response): void {
     apiError(response, error.status, error.code, error.message);
     return;
   }
-  if (isKnownPrismaError(error, 'P2034')) {
-    conflictError(response, 'Transaction serialization conflict. Please reload and retry.', 'CONFLICT');
+  if (isKnownPrismaError(error, 'P2034') || isKnownPrismaError(error, 'P2002')) {
+    conflictError(response, 'The resource was modified by another user. Reload and try again.', 'CONFLICT');
     return;
   }
   console.error('Unexpected error in action handler:', error);
@@ -346,6 +346,16 @@ ticketActionsTakenRouter.post(
       details.push({ field: 'attachmentNotes', message: 'Attachment notes must not exceed 2,000 characters' });
     }
 
+    if (
+      body.assigneeId !== undefined &&
+      body.assigneeId !== null &&
+      (typeof body.assigneeId !== 'number' ||
+        !Number.isSafeInteger(body.assigneeId) ||
+        body.assigneeId < 1)
+    ) {
+      details.push({ field: 'assigneeId', message: 'assigneeId must be a positive integer' });
+    }
+
     validateActionVersions(body, details);
 
     if (details.length > 0) {
@@ -469,6 +479,45 @@ ticketActionsTakenRouter.post(
         },
       });
     } catch (error) {
+      if (isKnownPrismaError(error, 'P2002')) {
+        try {
+          const replayed = await prisma.actionTaken.findFirst({
+            where: {
+              ticketId,
+              performedById: user.id,
+              creationKey: idempotencyKey,
+            },
+            select: ACTION_SELECT,
+          });
+
+          if (replayed) {
+            if (replayed.creationFingerprint === payloadFingerprint) {
+              const currentTicket = await prisma.ticket.findUnique({
+                where: { id: ticketId },
+                select: { version: true },
+              });
+              return response.status(200).json({
+                data: {
+                  action: projectAction(replayed),
+                  ticketVersion: currentTicket?.version ?? 1,
+                },
+              });
+            }
+            return conflictError(
+              response,
+              'An action with this idempotency key was already created with different content',
+              'CONFLICT',
+            );
+          }
+        } catch {
+          // Fall through to general conflict
+        }
+        return conflictError(
+          response,
+          'A concurrent creation with the same idempotency key was detected. Please reload and retry.',
+          'CONFLICT',
+        );
+      }
       handleActionError(error, response);
     }
   },
