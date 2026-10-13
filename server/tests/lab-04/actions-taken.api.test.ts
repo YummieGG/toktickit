@@ -431,6 +431,46 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('ASSIGNEE_INELIGIBLE');
     });
+
+    it('rejects reassignment on COMPLETED action with 400 ACTION_COMPLETED_REASSIGNMENT_NOT_ALLOWED (BR-09)', async () => {
+      vi.mocked(prisma.actionTaken.findUnique).mockResolvedValue({
+        ...sampleAction,
+        status: 'COMPLETED',
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/8/actions-taken/101/assignee')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({
+          assigneeId: 21,
+          expectedTicketVersion: 3,
+          expectedActionVersion: 1,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('ACTION_COMPLETED_REASSIGNMENT_NOT_ALLOWED');
+    });
+
+    it('rejects reassignment on CANCELLED action with 400 ACTION_CANCELLED_READ_ONLY (BR-09)', async () => {
+      vi.mocked(prisma.actionTaken.findUnique).mockResolvedValue({
+        ...sampleAction,
+        status: 'CANCELLED',
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/8/actions-taken/101/assignee')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({
+          assigneeId: 21,
+          expectedTicketVersion: 3,
+          expectedActionVersion: 1,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('ACTION_CANCELLED_READ_ONLY');
+    });
   });
 
   describe('API-02: Action Status Transitions (PATCH /api/tickets/:ticketId/actions-taken/:actionId/status)', () => {

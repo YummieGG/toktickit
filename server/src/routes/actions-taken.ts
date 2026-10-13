@@ -698,6 +698,9 @@ ticketActionsTakenRouter.patch(
           if (existingAction.status === 'CANCELLED') {
             throw new ActionError(400, 'ACTION_CANCELLED_READ_ONLY', 'Cancelled actions cannot be modified');
           }
+          if (existingAction.status === 'COMPLETED') {
+            throw new ActionError(400, 'ACTION_COMPLETED_REASSIGNMENT_NOT_ALLOWED', 'Completed actions cannot be reassigned');
+          }
 
           const assignee = await tx.user.findUnique({
             where: { id: assigneeId },

@@ -147,11 +147,12 @@ describe('API-08 & API-10: Staff Ticket Detail Workflow (FR-08, FR-10, BR-13, BR
         .patch('/api/tickets/8/it-priority')
         .set('Cookie', cookie)
         .set('Origin', origin)
-        .send({ itPriority: 'CRITICAL', expectedTicketVersion: 1, requestedPriority: 'LOW' });
+        .send({ itPriority: 'CRITICAL', expectedTicketVersion: 1 });
       expect(response.status).toBe(200);
       expect(prisma.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ itPriority: 'CRITICAL' }),
       }));
+      expect(prisma.ticket.update.mock.calls[0]?.[0]?.data).not.toHaveProperty('requestedPriority');
     });
 
     it('rejects invalid IT priority and requires trusted origin', async () => {

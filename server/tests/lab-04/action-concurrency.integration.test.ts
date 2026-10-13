@@ -239,5 +239,11 @@ describe('PG-01: Action Concurrency, Idempotency & Eligibility Integration (CONC
     });
     expect(unassignedEvent).not.toBeNull();
     expect(unassignedEvent?.actorId).toBe(adminId);
+
+    const updatedTicket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { version: true },
+    });
+    expect(updatedTicket?.version).toBeGreaterThan(ticket!.version);
   });
 });

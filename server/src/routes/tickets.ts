@@ -416,14 +416,6 @@ function parseStaffTicketId(request: Request, response: Response): number | unde
   return ticketId;
 }
 
-async function findStaffTicketOr404(request: Request, response: Response, ticketId: number) {
-  const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, { id: true, version: true });
-  if (!ticket) {
-    sendNotFound(response);
-    return null;
-  }
-  return ticket as { id: number; version?: number };
-}
 
 // Public comments are part of the shared ticket surface in Issue #40.
 ticketsRouter.get(
@@ -565,7 +557,7 @@ async function runSerializableTx<T>(callback: (tx: Prisma.TransactionClient) => 
 }
 
 const OWNER_MUTATION_KEYS = ['ownerId', 'expectedTicketVersion'] as const;
-const IT_PRIORITY_MUTATION_KEYS = ['itPriority', 'expectedTicketVersion', 'requestedPriority'] as const;
+const IT_PRIORITY_MUTATION_KEYS = ['itPriority', 'expectedTicketVersion'] as const;
 
 // Staff workflow mutations. The owner is a routing field, not an
 // authorization boundary: any active IT Staff member can operate the queue.

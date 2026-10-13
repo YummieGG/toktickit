@@ -289,6 +289,12 @@ adminUsersRouter.patch('/:id', requireTrustedOrigin, async (request: Request, re
 
       const ownerBecomesIneligible = nextRole === 'REQUESTER' || !nextIsActive;
       if (ownerBecomesIneligible) {
+        const ownedTickets = await transaction.ticket.findMany({
+          where: { ownerId: userId },
+          select: { id: true },
+        });
+        const ownedTicketIds = ownedTickets.map((t) => t.id);
+
         await transaction.ticket.updateMany({
           where: { ownerId: userId },
           data: { ownerId: null },
@@ -322,7 +328,9 @@ adminUsersRouter.patch('/:id', requireTrustedOrigin, async (request: Request, re
           });
         }
 
-        const affectedTicketIds = Array.from(new Set(activeAssignedActions.map((a) => a.ticketId)));
+        const affectedTicketIds = Array.from(
+          new Set([...ownedTicketIds, ...activeAssignedActions.map((a) => a.ticketId)]),
+        );
         for (const ticketId of affectedTicketIds) {
           await transaction.ticket.update({
             where: { id: ticketId },
