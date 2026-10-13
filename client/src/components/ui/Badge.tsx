@@ -2,7 +2,7 @@ import React from 'react';
 import type { TicketPriority, TicketStatus } from '../../types/ticket';
 
 interface BadgeProps {
-  type: 'priority' | 'status';
+  type: 'priority' | 'status' | 'action-status';
   value: TicketPriority | TicketStatus | string;
   className?: string;
 }
@@ -14,7 +14,7 @@ const PRIORITY_STYLES: Record<TicketPriority, React.CSSProperties> = {
   CRITICAL: { backgroundColor: '#FFCDD2', color: '#B71C1C' },
 };
 
-const STATUS_STYLES: Partial<Record<TicketStatus, React.CSSProperties>> = {
+const STATUS_STYLES: Record<string, React.CSSProperties> = {
   NEW: { backgroundColor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7' },
   OPEN: { backgroundColor: '#E3F2FD', color: '#0D47A1' },
   IN_PROGRESS: { backgroundColor: '#FFF9C4', color: '#7A4B00' },
@@ -23,14 +23,16 @@ const STATUS_STYLES: Partial<Record<TicketStatus, React.CSSProperties>> = {
   CLOSED: { backgroundColor: '#ECEFF1', color: '#37474F' },
   REOPENED: { backgroundColor: '#EDE7F6', color: '#4527A0' },
   CANCELLED: { backgroundColor: '#FFEBEE', color: '#C62828' },
+  PENDING: { backgroundColor: '#EDE7F6', color: '#4527A0' },
+  COMPLETED: { backgroundColor: '#E8F5E9', color: '#2E7D32' },
 };
 
 const DEFAULT_STYLE: React.CSSProperties = { backgroundColor: '#E8EDE8', color: '#1A2E1A' };
 
 export const Badge: React.FC<BadgeProps> = ({ type, value, className = '' }) => {
   const getStyle = (): React.CSSProperties => {
-    if (type === 'status') {
-      return STATUS_STYLES[value as TicketStatus] ?? DEFAULT_STYLE;
+    if (type === 'status' || type === 'action-status') {
+      return STATUS_STYLES[value] ?? DEFAULT_STYLE;
     }
     return PRIORITY_STYLES[value as TicketPriority] ?? DEFAULT_STYLE;
   };

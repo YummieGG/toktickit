@@ -5,6 +5,7 @@ import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { TicketAttachmentSection } from '../components/tickets/TicketAttachmentSection';
+import { ActionsTakenSection } from '../components/tickets/ActionsTakenSection';
 import { useAuth } from '../contexts/auth';
 import type { TicketAttachment, TicketDetail } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
@@ -296,6 +297,17 @@ export function RequesterTicketDetail() {
             ticketId={ticket.id}
             attachments={ticket.attachments}
             onUpdateAttachments={updateAttachments}
+            onSessionExpired={() => navigate('/login', {
+              replace: true,
+              state: { from: `/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
+            })}
+          />
+
+          <ActionsTakenSection
+            ticketId={ticket.id}
+            ticketVersion={ticket.version ?? 1}
+            ticketStatus={ticket.currentStatus}
+            isReadOnly={true}
             onSessionExpired={() => navigate('/login', {
               replace: true,
               state: { from: `/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },

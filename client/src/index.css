@@ -566,3 +566,56 @@ textarea.form-control[readonly] {
     min-width: 44px;
   }
 }
+
+/* Actions Taken (Issue #58 / Lab 4-3) */
+.actions-taken-table-wrap {
+  overflow-x: auto;
+}
+
+.actions-taken-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.actions-taken-table th,
+.actions-taken-table td {
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.actions-taken-cards {
+  display: none;
+  gap: 1rem;
+}
+
+.actions-taken-card {
+  background-color: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.action-pre-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767.98px) {
+  .actions-taken-table-wrap {
+    display: none;
+  }
+
+  .actions-taken-cards {
+    display: grid !important;
+  }
+
+  .actions-taken-section .btn {
+    min-height: 44px;
+  }
+
+  .actions-taken-button-group {
+    flex-direction: column;
+    width: 100%;
+  }
+}
