@@ -353,13 +353,17 @@ ticketActionsTakenRouter.post(
         !Number.isSafeInteger(body.assigneeId) ||
         body.assigneeId < 1)
     ) {
-      details.push({ field: 'assigneeId', message: 'assigneeId must be a positive integer' });
+      details.push({ field: 'assigneeId', message: 'Assignee must be an active IT Staff or Administrator' });
     }
 
     validateActionVersions(body, details);
 
     if (details.length > 0) {
-      const code = details.some((d) => d.field === 'followUpNote') ? 'FOLLOW_UP_NOTE_REQUIRED' : 'VALIDATION_ERROR';
+      const code = details.some((d) => d.field === 'assigneeId')
+        ? 'ASSIGNEE_INELIGIBLE'
+        : details.some((d) => d.field === 'followUpNote')
+        ? 'FOLLOW_UP_NOTE_REQUIRED'
+        : 'VALIDATION_ERROR';
       validationError(response, details, code);
       return;
     }
@@ -506,7 +510,7 @@ ticketActionsTakenRouter.post(
             return conflictError(
               response,
               'An action with this idempotency key was already created with different content',
-              'CONFLICT',
+              'IDEMPOTENCY_CONFLICT',
             );
           }
         } catch {
@@ -731,7 +735,8 @@ ticketActionsTakenRouter.patch(
     validateActionVersions(body, details, { requireActionVersion: true });
 
     if (details.length > 0) {
-      validationError(response, details, 'VALIDATION_ERROR');
+      const code = details.some((d) => d.field === 'assigneeId') ? 'ASSIGNEE_INELIGIBLE' : 'VALIDATION_ERROR';
+      validationError(response, details, code);
       return;
     }
 

@@ -326,7 +326,7 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
       expect(res.body.error.code).toBe('IDEMPOTENCY_CONFLICT');
     });
 
-    it('rejects malformed non-integer assigneeId on creation with 400 VALIDATION_ERROR', async () => {
+    it('rejects malformed non-integer assigneeId on creation with 400 ASSIGNEE_INELIGIBLE', async () => {
       const res = await request(app)
         .post('/api/tickets/8/actions-taken')
         .set('Cookie', COOKIE)
@@ -338,7 +338,7 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.code).toBe('ASSIGNEE_INELIGIBLE');
       expect(res.body.error.fields).toHaveProperty('assigneeId');
     });
 
@@ -394,7 +394,7 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
         .send(validCreatePayload);
 
       expect(res.status).toBe(409);
-      expect(res.body.error.code).toBe('CONFLICT');
+      expect(res.body.error.code).toBe('IDEMPOTENCY_CONFLICT');
     });
   });
 
