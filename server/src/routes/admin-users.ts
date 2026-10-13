@@ -293,6 +293,46 @@ adminUsersRouter.patch('/:id', requireTrustedOrigin, async (request: Request, re
           where: { ownerId: userId },
           data: { ownerId: null },
         });
+
+        if (typeof transaction.actionTaken?.findMany === 'function') {
+          const activeAssignedActions = await transaction.actionTaken.findMany({
+            where: {
+              assigneeId: userId,
+              status: { in: ['PENDING', 'IN_PROGRESS'] },
+            },
+            select: { id: true, ticketId: true, version: true },
+          });
+
+          for (const action of activeAssignedActions) {
+            await transaction.actionTaken.update({
+              where: { id: action.id },
+              data: {
+                assigneeId: null,
+                version: { increment: 1 },
+              },
+            });
+
+            if (transaction.actionTakenEvent) {
+              await transaction.actionTakenEvent.create({
+                data: {
+                  actionId: action.id,
+                  actorId: request.auth!.user.id,
+                  type: 'UNASSIGNED',
+                  before: { assigneeId: userId },
+                  after: { assigneeId: null },
+                },
+              });
+            }
+
+            await transaction.ticket.update({
+              where: { id: action.ticketId },
+              data: {
+                version: { increment: 1 },
+                updatedAt: new Date(),
+              },
+            });
+          }
+        }
       }
       if (!nextIsActive) {
         await transaction.userSession.updateMany({

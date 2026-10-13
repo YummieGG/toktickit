@@ -1,4 +1,4 @@
-import { PrismaClient, type Prisma, type RequestedPriority, type TicketStatus, type UserRole } from '../generated/prisma';
+import { PrismaClient, type Prisma, type RequestedPriority, type TicketStatus, type UserRole, type ActionStatus, type ActionEventType } from '../generated/prisma';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
@@ -163,6 +163,148 @@ const seedEntries = [
   { ticketNumber: 'TK-SEED-006', type: 'note', authorEmail: 'araya.admin@toktickit.local', content: 'Closure confirmed after requester validation.' },
 ] as const;
 
+const seedActions = [
+  {
+    seedKey: 'ACT-SEED-001',
+    ticketNumber: 'TK-SEED-002',
+    description: 'Diagnosed hardware startup issue and inspected power supply unit',
+    result: null,
+    performedByEmail: 'narin.staff@toktickit.local',
+    assigneeEmail: 'narin.staff@toktickit.local',
+    status: 'PENDING' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-02T10:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-002',
+    ticketNumber: 'TK-SEED-003',
+    description: 'Investigated campus VPN gateway disconnect reports and firewall session timeouts',
+    result: null,
+    performedByEmail: 'pimchanok.staff@toktickit.local',
+    assigneeEmail: 'chaiwat.staff@toktickit.local',
+    status: 'IN_PROGRESS' as ActionStatus,
+    followUpRequired: true,
+    followUpNote: 'Monitor packet loss and recheck gateway routing during afternoon peak',
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-03T11:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-003',
+    ticketNumber: 'TK-SEED-003',
+    description: 'Replaced faulty Wi-Fi AP patch cord in Building 3 floor 2',
+    result: 'Patch cord replaced; link renegotiated successfully at 1Gbps full duplex',
+    performedByEmail: 'pimchanok.staff@toktickit.local',
+    assigneeEmail: 'pimchanok.staff@toktickit.local',
+    status: 'COMPLETED' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: 'Refer to port-status screenshot in attachments',
+    cancelReason: null,
+    createdAt: '2026-09-03T14:30:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-004',
+    ticketNumber: 'TK-SEED-004',
+    description: 'Reviewed grade submission web application access logs for section 102',
+    result: null,
+    performedByEmail: 'chaiwat.staff@toktickit.local',
+    assigneeEmail: 'chaiwat.staff@toktickit.local',
+    status: 'PENDING' as ActionStatus,
+    followUpRequired: true,
+    followUpNote: 'Awaiting error screenshot and browser version from requester',
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-04T13:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-005',
+    ticketNumber: 'TK-SEED-005',
+    description: 'Installed updated PCL6 printer driver on department print server',
+    result: 'Test pages printed cleanly and print queue cleared',
+    performedByEmail: 'narin.staff@toktickit.local',
+    assigneeEmail: 'narin.staff@toktickit.local',
+    status: 'COMPLETED' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-05T14:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-006',
+    ticketNumber: 'TK-SEED-006',
+    description: 'Adjusted permissions on shared department mailbox and triggered directory sync',
+    result: 'Permissions propagated and access verified with requester',
+    performedByEmail: 'araya.admin@toktickit.local',
+    assigneeEmail: 'araya.admin@toktickit.local',
+    status: 'COMPLETED' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-06T15:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-007',
+    ticketNumber: 'TK-SEED-007',
+    description: 'Adjusted Wi-Fi 5GHz channel allocation for Science Building wing A',
+    result: 'Initial frequency set to channel 36 to reduce co-channel interference',
+    performedByEmail: 'pimchanok.staff@toktickit.local',
+    assigneeEmail: 'pimchanok.staff@toktickit.local',
+    status: 'COMPLETED' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-07T16:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-008',
+    ticketNumber: 'TK-SEED-007',
+    description: 'Investigating recurring interference on reopened Wi-Fi ticket',
+    result: null,
+    performedByEmail: 'pimchanok.staff@toktickit.local',
+    assigneeEmail: 'pimchanok.staff@toktickit.local',
+    status: 'PENDING' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    cancelReason: null,
+    createdAt: '2026-09-08T09:00:00.000Z',
+  },
+  {
+    seedKey: 'ACT-SEED-009',
+    ticketNumber: 'TK-SEED-008',
+    description: 'Verified duplicate software installation request against active ticket TK-SEED-004',
+    result: null,
+    performedByEmail: 'chaiwat.staff@toktickit.local',
+    assigneeEmail: null,
+    status: 'CANCELLED' as ActionStatus,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    cancelReason: 'Ticket cancelled by IT Staff as duplicate request',
+    createdAt: '2026-09-08T17:00:00.000Z',
+  },
+] satisfies ReadonlyArray<{
+  seedKey: string;
+  ticketNumber: string;
+  description: string;
+  result: string | null;
+  performedByEmail: string;
+  assigneeEmail: string | null;
+  status: ActionStatus;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+}>;
+
 async function getInitialPassword(): Promise<string> {
   const value = process.env.SEED_INITIAL_PASSWORD;
   if (!value || validatePassword(value)) {
@@ -291,9 +433,92 @@ export async function main(): Promise<void> {
         }
       }
     }
+
+    for (const action of seedActions) {
+      const ticketId = ticketIds.get(action.ticketNumber)!;
+      const performedById = userIds.get(action.performedByEmail)!;
+      const assigneeId = action.assigneeEmail ? userIds.get(action.assigneeEmail)! : null;
+      const createdAt = new Date(action.createdAt);
+
+      const seededAction = await transaction.actionTaken.upsert({
+        where: { seedKey: action.seedKey },
+        update: {},
+        create: {
+          seedKey: action.seedKey,
+          ticketId,
+          description: action.description,
+          result: action.result,
+          performedById,
+          assigneeId,
+          status: action.status,
+          followUpRequired: action.followUpRequired,
+          followUpNote: action.followUpNote,
+          attachmentNotes: action.attachmentNotes,
+          cancelReason: action.cancelReason,
+          createdAt,
+          updatedAt: createdAt,
+          version: 1,
+        },
+      });
+
+      const existingCreatedEvent = await transaction.actionTakenEvent.findFirst({
+        where: { actionId: seededAction.id, type: 'CREATED' },
+        select: { id: true },
+      });
+      if (!existingCreatedEvent) {
+        await transaction.actionTakenEvent.create({
+          data: {
+            actionId: seededAction.id,
+            actorId: performedById,
+            type: 'CREATED',
+            createdAt,
+            after: {
+              description: action.description,
+              status: 'PENDING',
+              assigneeId,
+            },
+          },
+        });
+
+        if (action.status === 'IN_PROGRESS') {
+          await transaction.actionTakenEvent.create({
+            data: {
+              actionId: seededAction.id,
+              actorId: assigneeId ?? performedById,
+              type: 'STARTED',
+              createdAt: new Date(createdAt.getTime() + 1000),
+              before: { status: 'PENDING' },
+              after: { status: 'IN_PROGRESS' },
+            },
+          });
+        } else if (action.status === 'COMPLETED') {
+          await transaction.actionTakenEvent.create({
+            data: {
+              actionId: seededAction.id,
+              actorId: assigneeId ?? performedById,
+              type: 'COMPLETED',
+              createdAt: new Date(createdAt.getTime() + 2000),
+              before: { status: 'IN_PROGRESS' },
+              after: { status: 'COMPLETED', result: action.result },
+            },
+          });
+        } else if (action.status === 'CANCELLED') {
+          await transaction.actionTakenEvent.create({
+            data: {
+              actionId: seededAction.id,
+              actorId: performedById,
+              type: 'CANCELLED',
+              createdAt: new Date(createdAt.getTime() + 1000),
+              before: { status: 'PENDING' },
+              after: { status: 'CANCELLED', cancelReason: action.cancelReason },
+            },
+          });
+        }
+      }
+    }
   });
 
-  console.log(`Seeded ${initialUsers.length} deterministic users and ${seedTickets.length} workflow tickets; preserved existing password hashes and ticket changes.`);
+  console.log(`Seeded ${initialUsers.length} deterministic users, ${seedTickets.length} workflow tickets, and ${seedActions.length} actions taken; preserved existing password hashes and ticket changes.`);
 }
 
 main()

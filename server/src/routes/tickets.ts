@@ -417,12 +417,12 @@ function parseStaffTicketId(request: Request, response: Response): number | unde
 }
 
 async function findStaffTicketOr404(request: Request, response: Response, ticketId: number) {
-  const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, { id: true });
+  const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, { id: true, version: true });
   if (!ticket) {
     sendNotFound(response);
     return null;
   }
-  return ticket;
+  return ticket as { id: number; version?: number };
 }
 
 // Public comments are part of the shared ticket surface in Issue #40.
@@ -573,10 +573,19 @@ ticketsRouter.patch(
     )) {
       details.push({ field: 'ownerId', message: 'ownerId must be a positive integer or null' });
     }
+    if (body.expectedTicketVersion !== undefined) {
+      if (typeof body.expectedTicketVersion !== 'number' || !Number.isSafeInteger(body.expectedTicketVersion) || body.expectedTicketVersion < 1) {
+        details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
+      }
+    }
     if (details.length > 0) return validationError(response, details);
 
     try {
-      if (!(await findStaffTicketOr404(request, response, ticketId))) return;
+      const existing = await findStaffTicketOr404(request, response, ticketId);
+      if (!existing) return;
+      if (body.expectedTicketVersion !== undefined && existing.version !== undefined && existing.version !== body.expectedTicketVersion) {
+        return conflictError(response);
+      }
       if (body.ownerId !== null) {
         const owner = await prisma.user.findUnique({
           where: { id: body.ownerId as number },
@@ -588,7 +597,10 @@ ticketsRouter.patch(
       }
       const ticket = await prisma.ticket.update({
         where: { id: ticketId },
-        data: { ownerId: body.ownerId as number | null },
+        data: {
+          ownerId: body.ownerId as number | null,
+          ...(body.expectedTicketVersion !== undefined ? { version: { increment: 1 } } : {}),
+        },
         select: staffTicketDetailSelect,
       });
       return response.status(200).json({ data: ticket });
@@ -606,18 +618,31 @@ ticketsRouter.patch(
   async (request: Request, response: Response) => {
     const ticketId = parseStaffTicketId(request, response);
     if (ticketId === undefined) return;
+    const body = getBodyObject(request.body);
     const details: ValidationErrorDetail[] = [];
-    const itPriority = getBodyObject(request.body).itPriority;
+    const itPriority = body.itPriority;
     if (typeof itPriority !== 'string' || !STAFF_PRIORITIES.includes(itPriority as (typeof STAFF_PRIORITIES)[number])) {
       details.push({ field: 'itPriority', message: `itPriority must be one of ${STAFF_PRIORITIES.join(', ')}` });
+    }
+    if (body.expectedTicketVersion !== undefined) {
+      if (typeof body.expectedTicketVersion !== 'number' || !Number.isSafeInteger(body.expectedTicketVersion) || body.expectedTicketVersion < 1) {
+        details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
+      }
     }
     if (details.length > 0) return validationError(response, details);
 
     try {
-      if (!(await findStaffTicketOr404(request, response, ticketId))) return;
+      const existing = await findStaffTicketOr404(request, response, ticketId);
+      if (!existing) return;
+      if (body.expectedTicketVersion !== undefined && existing.version !== undefined && existing.version !== body.expectedTicketVersion) {
+        return conflictError(response);
+      }
       const ticket = await prisma.ticket.update({
         where: { id: ticketId },
-        data: { itPriority: itPriority as (typeof STAFF_PRIORITIES)[number] },
+        data: {
+          itPriority: itPriority as (typeof STAFF_PRIORITIES)[number],
+          ...(body.expectedTicketVersion !== undefined ? { version: { increment: 1 } } : {}),
+        },
         select: staffTicketDetailSelect,
       });
       return response.status(200).json({ data: ticket });
