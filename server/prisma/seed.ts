@@ -226,7 +226,7 @@ const seedActions = [
     description: 'Installed updated PCL6 printer driver on department print server',
     result: 'Test pages printed cleanly and print queue cleared',
     performedByEmail: 'narin.staff@toktickit.local',
-    assigneeEmail: 'narin.staff@toktickit.local',
+    assigneeEmail: 'somsak.staff@toktickit.local',
     status: 'COMPLETED' as ActionStatus,
     followUpRequired: false,
     followUpNote: null,

@@ -555,4 +555,132 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
       expect(res.body.error.code).toBe('INVALID_ACTION_TRANSITION');
     });
   });
+
+  describe('API-03: Authorization Boundaries, Concurrency & Resource Isolation (AUTHZ-04, VALIDATION-01, BR-06, BR-20)', () => {
+    it('rejects unknown fields on action create with 400 VALIDATION_ERROR', async () => {
+      const res = await request(app)
+        .post('/api/tickets/8/actions-taken')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .set('Idempotency-Key', 'test-key-unknown-fields')
+        .send({
+          description: 'Valid description',
+          expectedTicketVersion: 3,
+          forgedField: 'malicious-data',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.fields).toHaveProperty('forgedField');
+    });
+
+    it('rejects unknown fields on action edit with 400 VALIDATION_ERROR', async () => {
+      const res = await request(app)
+        .patch('/api/tickets/8/actions-taken/101')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({
+          description: 'Valid update',
+          expectedTicketVersion: 3,
+          expectedActionVersion: 1,
+          unknownParam: 'not-allowed',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.fields).toHaveProperty('unknownParam');
+    });
+
+    it('returns standard 404 Resource not found when actionId belongs to a different ticket', async () => {
+      vi.mocked(prisma.actionTaken.findUnique).mockResolvedValue({
+        ...sampleAction,
+        ticketId: 99, // Mismatched parent ticket
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/8/actions-taken/101')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({
+          description: 'Attempted cross-ticket mutation',
+          expectedTicketVersion: 3,
+          expectedActionVersion: 1,
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+      expect(res.body.error.message).toBe('Resource not found');
+    });
+
+    it('preserves historical follow-up note when setting followUpRequired to false (BR-06)', async () => {
+      vi.mocked(prisma.actionTaken.findUnique).mockResolvedValue({
+        ...sampleAction,
+        followUpRequired: true,
+        followUpNote: 'Historical follow-up instruction',
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/8/actions-taken/101')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({
+          followUpRequired: false,
+          followUpNote: null,
+          expectedTicketVersion: 3,
+          expectedActionVersion: 1,
+        });
+
+      expect(res.status).toBe(200);
+      expect(prisma.actionTaken.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 101 },
+        data: expect.objectContaining({
+          followUpRequired: false,
+        }),
+      }));
+      // Verify followUpNote was NOT set to null
+      const updateCallData = vi.mocked(prisma.actionTaken.update).mock.calls[0]?.[0]?.data;
+      expect(updateCallData).not.toHaveProperty('followUpNote', null);
+    });
+
+    it('forbids Administrator from modifying Ticket owner and IT Priority (AUTHZ-04)', async () => {
+      vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session('ADMINISTRATOR') as never);
+
+      const ownerRes = await request(app)
+        .patch('/api/tickets/8/owner')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ ownerId: 20, expectedTicketVersion: 1 });
+      expect(ownerRes.status).toBe(403);
+
+      const itPriorityRes = await request(app)
+        .patch('/api/tickets/8/it-priority')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ itPriority: 'CRITICAL', expectedTicketVersion: 1 });
+      expect(itPriorityRes.status).toBe(403);
+    });
+
+    it('requires expectedTicketVersion on Ticket owner and IT Priority mutations and detects stale writes', async () => {
+      vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session('IT_STAFF') as never);
+
+      // Missing expectedTicketVersion
+      const missingVersion = await request(app)
+        .patch('/api/tickets/8/owner')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ ownerId: 20 });
+      expect(missingVersion.status).toBe(400);
+      expect(missingVersion.body.error.code).toBe('VALIDATION_ERROR');
+
+      // Stale expectedTicketVersion
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({ id: 8, version: 5 } as never);
+      const staleVersion = await request(app)
+        .patch('/api/tickets/8/owner')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ ownerId: 20, expectedTicketVersion: 4 });
+      expect(staleVersion.status).toBe(409);
+      expect(staleVersion.body.error.code).toBe('CONFLICT');
+    });
+  });
 });

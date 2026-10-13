@@ -294,44 +294,43 @@ adminUsersRouter.patch('/:id', requireTrustedOrigin, async (request: Request, re
           data: { ownerId: null },
         });
 
-        if (typeof transaction.actionTaken?.findMany === 'function') {
-          const activeAssignedActions = await transaction.actionTaken.findMany({
-            where: {
-              assigneeId: userId,
-              status: { in: ['PENDING', 'IN_PROGRESS'] },
+        const activeAssignedActions = await transaction.actionTaken.findMany({
+          where: {
+            assigneeId: userId,
+            status: { in: ['PENDING', 'IN_PROGRESS'] },
+          },
+          select: { id: true, ticketId: true, version: true },
+        });
+
+        for (const action of activeAssignedActions) {
+          await transaction.actionTaken.update({
+            where: { id: action.id },
+            data: {
+              assigneeId: null,
+              version: { increment: 1 },
             },
-            select: { id: true, ticketId: true, version: true },
           });
 
-          for (const action of activeAssignedActions) {
-            await transaction.actionTaken.update({
-              where: { id: action.id },
-              data: {
-                assigneeId: null,
-                version: { increment: 1 },
-              },
-            });
+          await transaction.actionTakenEvent.create({
+            data: {
+              actionId: action.id,
+              actorId: request.auth!.user.id,
+              type: 'UNASSIGNED',
+              before: { assigneeId: userId },
+              after: { assigneeId: null },
+            },
+          });
+        }
 
-            if (transaction.actionTakenEvent) {
-              await transaction.actionTakenEvent.create({
-                data: {
-                  actionId: action.id,
-                  actorId: request.auth!.user.id,
-                  type: 'UNASSIGNED',
-                  before: { assigneeId: userId },
-                  after: { assigneeId: null },
-                },
-              });
-            }
-
-            await transaction.ticket.update({
-              where: { id: action.ticketId },
-              data: {
-                version: { increment: 1 },
-                updatedAt: new Date(),
-              },
-            });
-          }
+        const affectedTicketIds = Array.from(new Set(activeAssignedActions.map((a) => a.ticketId)));
+        for (const ticketId of affectedTicketIds) {
+          await transaction.ticket.update({
+            where: { id: ticketId },
+            data: {
+              version: { increment: 1 },
+              updatedAt: new Date(),
+            },
+          });
         }
       }
       if (!nextIsActive) {

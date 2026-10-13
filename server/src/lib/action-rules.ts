@@ -140,3 +140,15 @@ export function projectAction(action: {
     version: action.version,
   };
 }
+
+export function isEligibleActionAssignee(user: { role: UserRole; isActive: boolean } | null | undefined): boolean {
+  if (!user || !user.isActive) return false;
+  return user.role === 'IT_STAFF' || user.role === 'ADMINISTRATOR';
+}
+
+export function mapActionStatusToEventType(status: ActionStatus): 'STARTED' | 'COMPLETED' | 'CANCELLED' {
+  if (status === 'COMPLETED') return 'COMPLETED';
+  if (status === 'CANCELLED') return 'CANCELLED';
+  return 'STARTED';
+}
+

@@ -3,7 +3,9 @@ import {
   computeActionFingerprint,
   isActionParentReadOnly,
   isAllowedActionTransition,
+  isEligibleActionAssignee,
   isValidIdempotencyKey,
+  mapActionStatusToEventType,
   normalizeActionText,
   projectAction,
   type ActionProjection,
@@ -169,6 +171,43 @@ describe('UNIT-01: Action Taken Business Rules & Utilities (FR-04-06, BR-05, BR-
 
       expect(projected).not.toHaveProperty('creationKey');
       expect(projected).not.toHaveProperty('creationFingerprint');
+    });
+  });
+
+  describe('Assignee Eligibility (BR-04, ELIGIBILITY-04)', () => {
+    it('accepts active IT Staff and active Administrator as eligible assignees', () => {
+      expect(isEligibleActionAssignee({ role: 'IT_STAFF', isActive: true })).toBe(true);
+      expect(isEligibleActionAssignee({ role: 'ADMINISTRATOR', isActive: true })).toBe(true);
+    });
+
+    it('rejects inactive Staff and inactive Administrator', () => {
+      expect(isEligibleActionAssignee({ role: 'IT_STAFF', isActive: false })).toBe(false);
+      expect(isEligibleActionAssignee({ role: 'ADMINISTRATOR', isActive: false })).toBe(false);
+    });
+
+    it('rejects Requester even if active', () => {
+      expect(isEligibleActionAssignee({ role: 'REQUESTER', isActive: true })).toBe(false);
+      expect(isEligibleActionAssignee({ role: 'REQUESTER', isActive: false })).toBe(false);
+    });
+
+    it('rejects null and undefined users', () => {
+      expect(isEligibleActionAssignee(null)).toBe(false);
+      expect(isEligibleActionAssignee(undefined)).toBe(false);
+    });
+  });
+
+  describe('Status to Event Type Mapping (BR-08)', () => {
+    it('maps COMPLETED to COMPLETED event type', () => {
+      expect(mapActionStatusToEventType('COMPLETED')).toBe('COMPLETED');
+    });
+
+    it('maps CANCELLED to CANCELLED event type', () => {
+      expect(mapActionStatusToEventType('CANCELLED')).toBe('CANCELLED');
+    });
+
+    it('maps PENDING and IN_PROGRESS to STARTED event type', () => {
+      expect(mapActionStatusToEventType('IN_PROGRESS')).toBe('STARTED');
+      expect(mapActionStatusToEventType('PENDING')).toBe('STARTED');
     });
   });
 });

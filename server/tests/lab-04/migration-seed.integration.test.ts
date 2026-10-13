@@ -139,6 +139,11 @@ describe('PG-02: Lab 4 Migration, Schema & Repeatable Seed Integration (MIGRATIO
     expect(statusMap['IN_PROGRESS']).toBeGreaterThanOrEqual(1);
     expect(statusMap['COMPLETED']).toBeGreaterThanOrEqual(1);
     expect(statusMap['CANCELLED']).toBeGreaterThanOrEqual(1);
+
+    const inactiveAssignee = await databaseClient!.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM "ActionTaken" a JOIN "User" u ON a."assigneeId" = u.id WHERE u."isActive" = false',
+    );
+    expect(Number(inactiveAssignee.rows[0].count)).toBeGreaterThanOrEqual(1);
   });
 
   it('keeps seed data repeatable without duplicating rows on rerun (SEED-04)', async () => {

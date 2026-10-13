@@ -13,7 +13,9 @@ import {
   computeActionFingerprint,
   isActionParentReadOnly,
   isAllowedActionTransition,
+  isEligibleActionAssignee,
   isValidIdempotencyKey,
+  mapActionStatusToEventType,
   normalizeActionText,
   projectAction,
   ALL_ACTION_STATUSES,
@@ -47,6 +49,10 @@ function isKnownPrismaError(error: unknown, code: string): boolean {
 
 function handleActionError(error: unknown, response: Response): void {
   if (error instanceof ActionError) {
+    if (error.status === 404) {
+      sendNotFound(response);
+      return;
+    }
     if (error.fields) {
       validationError(
         response,
@@ -65,6 +71,113 @@ function handleActionError(error: unknown, response: Response): void {
   console.error('Unexpected error in action handler:', error);
   internalError(response);
 }
+
+const ACTION_CREATE_KEYS = [
+  'description',
+  'result',
+  'assigneeId',
+  'followUpRequired',
+  'followUpNote',
+  'attachmentNotes',
+  'expectedTicketVersion',
+] as const;
+
+const ACTION_EDIT_KEYS = [
+  'description',
+  'result',
+  'followUpRequired',
+  'followUpNote',
+  'attachmentNotes',
+  'expectedTicketVersion',
+  'expectedActionVersion',
+] as const;
+
+const ACTION_ASSIGNEE_KEYS = [
+  'assigneeId',
+  'expectedTicketVersion',
+  'expectedActionVersion',
+] as const;
+
+const ACTION_STATUS_KEYS = [
+  'status',
+  'cancelReason',
+  'result',
+  'expectedTicketVersion',
+  'expectedActionVersion',
+] as const;
+
+function validateUnknownFields(
+  body: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  details: ValidationErrorDetail[],
+): void {
+  for (const key of Object.keys(body)) {
+    if (!allowedKeys.includes(key)) {
+      details.push({ field: key, message: `Unknown field '${key}' is not allowed` });
+    }
+  }
+}
+
+function validateActionVersions(
+  body: Record<string, unknown>,
+  details: ValidationErrorDetail[],
+  options: { requireActionVersion?: boolean } = {},
+): void {
+  if (
+    body.expectedTicketVersion === undefined ||
+    typeof body.expectedTicketVersion !== 'number' ||
+    !Number.isSafeInteger(body.expectedTicketVersion) ||
+    body.expectedTicketVersion < 1
+  ) {
+    details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
+  }
+
+  if (options.requireActionVersion) {
+    if (
+      body.expectedActionVersion === undefined ||
+      typeof body.expectedActionVersion !== 'number' ||
+      !Number.isSafeInteger(body.expectedActionVersion) ||
+      body.expectedActionVersion < 1
+    ) {
+      details.push({ field: 'expectedActionVersion', message: 'expectedActionVersion must be a positive integer' });
+    }
+  }
+}
+
+async function assertParentTicketActive(tx: Prisma.TransactionClient, ticketId: number) {
+  const parentTicket = await tx.ticket.findUnique({
+    where: { id: ticketId },
+    select: { id: true, currentStatus: true, version: true },
+  });
+
+  if (!parentTicket) {
+    throw new ActionError(404, 'NOT_FOUND', 'Resource not found');
+  }
+
+  if (isActionParentReadOnly(parentTicket.currentStatus)) {
+    throw new ActionError(
+      400,
+      'ACTION_PARENT_READ_ONLY',
+      'Actions cannot be modified on a resolved, closed, or cancelled ticket',
+    );
+  }
+
+  return parentTicket;
+}
+
+async function assertActionOnTicket(tx: Prisma.TransactionClient, ticketId: number, actionId: number) {
+  const existingAction = await tx.actionTaken.findUnique({
+    where: { id: actionId },
+    select: ACTION_SELECT,
+  });
+
+  if (!existingAction || existingAction.ticketId !== ticketId) {
+    throw new ActionError(404, 'NOT_FOUND', 'Resource not found');
+  }
+
+  return existingAction;
+}
+
 
 function parseTicketIdParam(request: Request, response: Response): number | undefined {
   const details: ValidationErrorDetail[] = [];
@@ -210,6 +323,8 @@ ticketActionsTakenRouter.post(
     const body = request.body ?? {};
     const details: ValidationErrorDetail[] = [];
 
+    validateUnknownFields(body, ACTION_CREATE_KEYS, details);
+
     const description = normalizeActionText(body.description);
     if (!description || description.length < 1 || description.length > 2000) {
       details.push({ field: 'description', message: 'Action description is required (1-2,000 characters)' });
@@ -231,14 +346,7 @@ ticketActionsTakenRouter.post(
       details.push({ field: 'attachmentNotes', message: 'Attachment notes must not exceed 2,000 characters' });
     }
 
-    if (
-      body.expectedTicketVersion === undefined ||
-      typeof body.expectedTicketVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedTicketVersion) ||
-      body.expectedTicketVersion < 1
-    ) {
-      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
-    }
+    validateActionVersions(body, details);
 
     if (details.length > 0) {
       const code = details.some((d) => d.field === 'followUpNote') ? 'FOLLOW_UP_NOTE_REQUIRED' : 'VALIDATION_ERROR';
@@ -261,29 +369,14 @@ ticketActionsTakenRouter.post(
     try {
       const txResult = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
-          const parentTicket = await tx.ticket.findUnique({
-            where: { id: ticketId },
-            select: { id: true, currentStatus: true, version: true },
-          });
-
-          if (!parentTicket) {
-            throw new ActionError(404, 'NOT_FOUND', 'Parent ticket not found');
-          }
-
-          if (isActionParentReadOnly(parentTicket.currentStatus)) {
-            throw new ActionError(
-              400,
-              'ACTION_PARENT_READ_ONLY',
-              'Actions cannot be modified on a resolved, closed, or cancelled ticket',
-            );
-          }
+          const parentTicket = await assertParentTicketActive(tx, ticketId);
 
           // Assignee eligibility check
           const assignee = await tx.user.findUnique({
             where: { id: assigneeId },
             select: { id: true, role: true, isActive: true },
           });
-          if (!assignee || !assignee.isActive || (assignee.role !== 'IT_STAFF' && assignee.role !== 'ADMINISTRATOR')) {
+          if (!isEligibleActionAssignee(assignee)) {
             throw new ActionError(400, 'ASSIGNEE_INELIGIBLE', 'Assignee must be an active IT Staff or Administrator', {
               assigneeId: 'Assignee must be an active IT Staff or Administrator',
             });
@@ -395,23 +488,8 @@ ticketActionsTakenRouter.patch(
     const body = request.body ?? {};
     const details: ValidationErrorDetail[] = [];
 
-    if (
-      body.expectedTicketVersion === undefined ||
-      typeof body.expectedTicketVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedTicketVersion) ||
-      body.expectedTicketVersion < 1
-    ) {
-      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
-    }
-
-    if (
-      body.expectedActionVersion === undefined ||
-      typeof body.expectedActionVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedActionVersion) ||
-      body.expectedActionVersion < 1
-    ) {
-      details.push({ field: 'expectedActionVersion', message: 'expectedActionVersion must be a positive integer' });
-    }
+    validateUnknownFields(body, ACTION_EDIT_KEYS, details);
+    validateActionVersions(body, details, { requireActionVersion: true });
 
     const hasDescription = Object.prototype.hasOwnProperty.call(body, 'description');
     const hasResult = Object.prototype.hasOwnProperty.call(body, 'result');
@@ -453,31 +531,8 @@ ticketActionsTakenRouter.patch(
     try {
       const txResult = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
-          const parentTicket = await tx.ticket.findUnique({
-            where: { id: ticketId },
-            select: { id: true, currentStatus: true, version: true },
-          });
-
-          if (!parentTicket) {
-            throw new ActionError(404, 'NOT_FOUND', 'Parent ticket not found');
-          }
-
-          if (isActionParentReadOnly(parentTicket.currentStatus)) {
-            throw new ActionError(
-              400,
-              'ACTION_PARENT_READ_ONLY',
-              'Actions cannot be modified on a resolved, closed, or cancelled ticket',
-            );
-          }
-
-          const existingAction = await tx.actionTaken.findUnique({
-            where: { id: actionId },
-            select: ACTION_SELECT,
-          });
-
-          if (!existingAction || existingAction.ticketId !== ticketId) {
-            throw new ActionError(404, 'NOT_FOUND', 'Action not found on ticket');
-          }
+          const parentTicket = await assertParentTicketActive(tx, ticketId);
+          const existingAction = await assertActionOnTicket(tx, ticketId, actionId);
 
           if (existingAction.status === 'CANCELLED') {
             throw new ActionError(400, 'ACTION_CANCELLED_READ_ONLY', 'Cancelled actions cannot be modified');
@@ -493,9 +548,22 @@ ticketActionsTakenRouter.patch(
             }
           }
 
-          // Follow up requirement check
+          // Follow up requirement check with note preservation (BR-06)
           const nextFollowUpRequired = hasFollowUpRequired ? Boolean(body.followUpRequired) : existingAction.followUpRequired;
-          const nextFollowUpNote = hasFollowUpNote ? followUpNote : existingAction.followUpNote;
+          let nextFollowUpNote = existingAction.followUpNote;
+          let noteModified = false;
+
+          if (hasFollowUpRequired && !nextFollowUpRequired) {
+            // Setting followUpRequired=false does not erase historical note text.
+            if (hasFollowUpNote && followUpNote !== null && followUpNote.trim().length > 0) {
+              nextFollowUpNote = followUpNote;
+              noteModified = true;
+            }
+          } else if (hasFollowUpNote) {
+            nextFollowUpNote = followUpNote;
+            noteModified = true;
+          }
+
           if (nextFollowUpRequired && (!nextFollowUpNote || nextFollowUpNote.trim().length === 0)) {
             throw new ActionError(400, 'FOLLOW_UP_NOTE_REQUIRED', 'Follow-up note is required when follow-up is required', {
               followUpNote: 'Follow-up note is required when follow-up is required',
@@ -515,7 +583,7 @@ ticketActionsTakenRouter.patch(
             ...(hasDescription && description ? { description } : {}),
             ...(hasResult ? { result: result ?? null } : {}),
             ...(hasFollowUpRequired ? { followUpRequired: nextFollowUpRequired } : {}),
-            ...(hasFollowUpNote ? { followUpNote: nextFollowUpNote ?? null } : {}),
+            ...(noteModified ? { followUpNote: nextFollowUpNote ?? null } : {}),
             ...(hasAttachmentNotes ? { attachmentNotes: attachmentNotes ?? null } : {}),
             version: { increment: 1 },
           };
@@ -535,7 +603,7 @@ ticketActionsTakenRouter.patch(
             beforeSnapshot.followUpRequired = existingAction.followUpRequired;
             afterSnapshot.followUpRequired = nextFollowUpRequired;
           }
-          if (hasFollowUpNote) {
+          if (noteModified) {
             beforeSnapshot.followUpNote = existingAction.followUpNote;
             afterSnapshot.followUpNote = nextFollowUpNote;
           }
@@ -600,6 +668,8 @@ ticketActionsTakenRouter.patch(
     const body = request.body ?? {};
     const details: ValidationErrorDetail[] = [];
 
+    validateUnknownFields(body, ACTION_ASSIGNEE_KEYS, details);
+
     if (
       body.assigneeId === undefined ||
       typeof body.assigneeId !== 'number' ||
@@ -609,23 +679,7 @@ ticketActionsTakenRouter.patch(
       details.push({ field: 'assigneeId', message: 'assigneeId must be a positive integer' });
     }
 
-    if (
-      body.expectedTicketVersion === undefined ||
-      typeof body.expectedTicketVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedTicketVersion) ||
-      body.expectedTicketVersion < 1
-    ) {
-      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
-    }
-
-    if (
-      body.expectedActionVersion === undefined ||
-      typeof body.expectedActionVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedActionVersion) ||
-      body.expectedActionVersion < 1
-    ) {
-      details.push({ field: 'expectedActionVersion', message: 'expectedActionVersion must be a positive integer' });
-    }
+    validateActionVersions(body, details, { requireActionVersion: true });
 
     if (details.length > 0) {
       validationError(response, details, 'VALIDATION_ERROR');
@@ -638,31 +692,8 @@ ticketActionsTakenRouter.patch(
     try {
       const txResult = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
-          const parentTicket = await tx.ticket.findUnique({
-            where: { id: ticketId },
-            select: { id: true, currentStatus: true, version: true },
-          });
-
-          if (!parentTicket) {
-            throw new ActionError(404, 'NOT_FOUND', 'Parent ticket not found');
-          }
-
-          if (isActionParentReadOnly(parentTicket.currentStatus)) {
-            throw new ActionError(
-              400,
-              'ACTION_PARENT_READ_ONLY',
-              'Actions cannot be modified on a resolved, closed, or cancelled ticket',
-            );
-          }
-
-          const existingAction = await tx.actionTaken.findUnique({
-            where: { id: actionId },
-            select: ACTION_SELECT,
-          });
-
-          if (!existingAction || existingAction.ticketId !== ticketId) {
-            throw new ActionError(404, 'NOT_FOUND', 'Action not found on ticket');
-          }
+          const parentTicket = await assertParentTicketActive(tx, ticketId);
+          const existingAction = await assertActionOnTicket(tx, ticketId, actionId);
 
           if (existingAction.status === 'CANCELLED') {
             throw new ActionError(400, 'ACTION_CANCELLED_READ_ONLY', 'Cancelled actions cannot be modified');
@@ -673,7 +704,7 @@ ticketActionsTakenRouter.patch(
             select: { id: true, role: true, isActive: true },
           });
 
-          if (!assignee || !assignee.isActive || (assignee.role !== 'IT_STAFF' && assignee.role !== 'ADMINISTRATOR')) {
+          if (!isEligibleActionAssignee(assignee)) {
             throw new ActionError(400, 'ASSIGNEE_INELIGIBLE', 'Assignee must be an active IT Staff or Administrator', {
               assigneeId: 'Assignee must be an active IT Staff or Administrator',
             });
@@ -746,6 +777,8 @@ ticketActionsTakenRouter.patch(
     const body = request.body ?? {};
     const details: ValidationErrorDetail[] = [];
 
+    validateUnknownFields(body, ACTION_STATUS_KEYS, details);
+
     const targetStatus = body.status as ActionStatus;
     if (!ALL_ACTION_STATUSES.includes(targetStatus)) {
       details.push({
@@ -754,23 +787,7 @@ ticketActionsTakenRouter.patch(
       });
     }
 
-    if (
-      body.expectedTicketVersion === undefined ||
-      typeof body.expectedTicketVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedTicketVersion) ||
-      body.expectedTicketVersion < 1
-    ) {
-      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
-    }
-
-    if (
-      body.expectedActionVersion === undefined ||
-      typeof body.expectedActionVersion !== 'number' ||
-      !Number.isSafeInteger(body.expectedActionVersion) ||
-      body.expectedActionVersion < 1
-    ) {
-      details.push({ field: 'expectedActionVersion', message: 'expectedActionVersion must be a positive integer' });
-    }
+    validateActionVersions(body, details, { requireActionVersion: true });
 
     const cancelReason = normalizeActionText(body.cancelReason);
     if (targetStatus === 'CANCELLED') {
@@ -797,31 +814,8 @@ ticketActionsTakenRouter.patch(
     try {
       const txResult = await prisma.$transaction(
         async (tx: Prisma.TransactionClient) => {
-          const parentTicket = await tx.ticket.findUnique({
-            where: { id: ticketId },
-            select: { id: true, currentStatus: true, version: true },
-          });
-
-          if (!parentTicket) {
-            throw new ActionError(404, 'NOT_FOUND', 'Parent ticket not found');
-          }
-
-          if (isActionParentReadOnly(parentTicket.currentStatus)) {
-            throw new ActionError(
-              400,
-              'ACTION_PARENT_READ_ONLY',
-              'Actions cannot be modified on a resolved, closed, or cancelled ticket',
-            );
-          }
-
-          const existingAction = await tx.actionTaken.findUnique({
-            where: { id: actionId },
-            select: ACTION_SELECT,
-          });
-
-          if (!existingAction || existingAction.ticketId !== ticketId) {
-            throw new ActionError(404, 'NOT_FOUND', 'Action not found on ticket');
-          }
+          const parentTicket = await assertParentTicketActive(tx, ticketId);
+          const existingAction = await assertActionOnTicket(tx, ticketId, actionId);
 
           if (!isAllowedActionTransition(existingAction.status, targetStatus)) {
             throw new ActionError(
@@ -862,9 +856,7 @@ ticketActionsTakenRouter.patch(
             select: ACTION_SELECT,
           });
 
-          let eventType: ActionEventType = 'STARTED';
-          if (targetStatus === 'COMPLETED') eventType = 'COMPLETED';
-          else if (targetStatus === 'CANCELLED') eventType = 'CANCELLED';
+          const eventType = mapActionStatusToEventType(targetStatus);
 
           await tx.actionTakenEvent.create({
             data: {
