@@ -332,11 +332,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
       if (body.data) {
         const newAction = body.data.action;
-        setActions((prev) => {
-          const updated = sortActions([...prev, newAction]);
-          const limit = pagination?.pageSize ?? 20;
-          return updated.slice(0, limit);
-        });
+        setActions((prev) => sortActions([...prev, newAction]));
         setPagination((prev) => {
           if (!prev) return null;
           const nextTotal = prev.totalItems + 1;
@@ -434,15 +430,21 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     setConflictNotice(null);
     setSuccessNotice(null);
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       description: trimmedDesc,
       result: editResult.trim() || null,
       followUpRequired: editFollowUpRequired,
-      followUpNote: editFollowUpRequired ? editFollowUpNote.trim() : null,
       attachmentNotes: editAttachmentNotes.trim() || null,
       expectedTicketVersion: currentTicketVersion,
       expectedActionVersion: editingAction.version,
     };
+
+    if (editFollowUpRequired) {
+      payload.followUpNote = editFollowUpNote.trim();
+    } else if (editingAction.followUpNote || editFollowUpNote.trim()) {
+      // Per BR-06: setting followUpRequired=false does not erase historical note text
+      payload.followUpNote = editFollowUpNote.trim() || editingAction.followUpNote;
+    }
 
     try {
       const response = await fetch(`/api/tickets/${ticketId}/actions-taken/${editingAction.id}`, {
@@ -1329,12 +1331,17 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               <span className="action-pre-wrap">{act.result}</span>
                             </div>
                           )}
-                          {act.followUpRequired && (
+                          {act.followUpRequired ? (
                             <div className="small text-warning-emphasis mt-1">
                               <strong>Follow-up:</strong>{' '}
                               <span className="action-pre-wrap">{act.followUpNote || 'Required'}</span>
                             </div>
-                          )}
+                          ) : act.followUpNote ? (
+                            <div className="small text-muted mt-1">
+                              <strong>Follow-up:</strong>{' '}
+                              <span className="action-pre-wrap">{act.followUpNote}</span>
+                            </div>
+                          ) : null}
                           {act.attachmentNotes && (
                             <div className="small text-muted mt-1">
                               <strong>Attachments:</strong>{' '}
@@ -1479,12 +1486,17 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                         <strong>Result:</strong> <span className="action-pre-wrap">{act.result}</span>
                       </div>
                     )}
-                    {act.followUpRequired && (
+                    {act.followUpRequired ? (
                       <div className="small text-warning-emphasis mb-1">
                         <strong>Follow-up:</strong>{' '}
                         <span className="action-pre-wrap">{act.followUpNote || 'Required'}</span>
                       </div>
-                    )}
+                    ) : act.followUpNote ? (
+                      <div className="small text-muted mb-1">
+                        <strong>Follow-up:</strong>{' '}
+                        <span className="action-pre-wrap">{act.followUpNote}</span>
+                      </div>
+                    ) : null}
                     {act.attachmentNotes && (
                       <div className="small text-muted mb-1">
                         <strong>Attachments:</strong>{' '}

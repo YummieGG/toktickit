@@ -1028,4 +1028,128 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(select).toHaveAttribute('aria-invalid', 'true');
     expect(document.activeElement).toBe(select);
   });
+
+  it('preserves historical follow-up note text in payload when unchecking follow-up required (BR-06)', async () => {
+    let capturedEditBody: Record<string, unknown> | undefined;
+
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/102') && init?.method === 'PATCH') {
+        capturedEditBody = JSON.parse(String(init.body));
+        return jsonResponse({
+          data: {
+            action: {
+              ...mockActionInProgress,
+              followUpRequired: false,
+              followUpNote: 'Monitor for 10 minutes after daemon restart',
+              version: 2,
+            },
+            ticketVersion: 3,
+          },
+        }, 200);
+      }
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [mockActionInProgress],
+          ticketVersion: 2,
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={2}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    const editBtn = (await screen.findAllByRole('button', { name: /Edit/i }))[0];
+    fireEvent.click(editBtn);
+
+    // Uncheck follow-up required
+    const followUpCheck = screen.getByLabelText(/Follow-Up Required/i);
+    expect(followUpCheck).toBeChecked();
+    fireEvent.click(followUpCheck);
+    expect(followUpCheck).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Action updated successfully.')).toBeInTheDocument();
+    });
+
+    expect(capturedEditBody).toEqual(expect.objectContaining({
+      followUpRequired: false,
+      followUpNote: 'Monitor for 10 minutes after daemon restart',
+    }));
+  });
+
+  it('keeps newly created action in list without truncating even when list reaches pageSize', async () => {
+    const existingTwentyActions: ActionProjection[] = Array.from({ length: 20 }, (_, i) => ({
+      ...mockActionPending,
+      id: 1000 + i,
+      description: `Action number ${i + 1}`,
+      createdAt: `2026-10-14T01:${String(i).padStart(2, '0')}:00.000Z`,
+    }));
+
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/actions-taken') && init?.method === 'POST') {
+        return jsonResponse({
+          data: {
+            action: {
+              ...mockActionPending,
+              id: 1099,
+              description: 'Twenty-first action created',
+              createdAt: '2026-10-14T02:00:00.000Z',
+            },
+            ticketVersion: 2,
+          },
+        }, 201);
+      }
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: existingTwentyActions,
+          ticketVersion: 1,
+          pagination: { totalItems: 20, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add Action/i }));
+    fireEvent.change(screen.getByLabelText('Description *'), {
+      target: { value: 'Twenty-first action created' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Action created successfully.')).toBeInTheDocument();
+    });
+
+    // The newly created 21st action must NOT be sliced away
+    expect(screen.getAllByText('Twenty-first action created')[0]).toBeInTheDocument();
+  });
 });
