@@ -886,6 +886,42 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     }));
   });
 
+  it('validates maximum length for result when editing non-completed action', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [mockActionPending],
+          ticketVersion: 2,
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={2}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /Edit/i }))[0]);
+
+    const resultInput = screen.getByLabelText('Result');
+    fireEvent.change(resultInput, { target: { value: 'A'.repeat(2001) } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByText('Result must not exceed 2,000 characters.')).toBeInTheDocument();
+  });
+
   it('renders timestamps in Asia/Bangkok time format and formats pre-wrap plain text correctly', async () => {
     const textWithNewlines = 'Line 1: Diagnosed\nLine 2: Fixed\n  Indented note';
     const actionWithText: ActionProjection = {
@@ -1200,9 +1236,66 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
 
     const activeBadges = screen.getAllByText('Active');
     expect(activeBadges.length).toBeGreaterThanOrEqual(1);
+    expect(activeBadges[0]).toHaveClass('user-status-badge', 'is-active');
 
     const inactiveBadges = screen.getAllByText('Inactive');
     expect(inactiveBadges.length).toBeGreaterThanOrEqual(1);
+    expect(inactiveBadges[0]).toHaveClass('user-status-badge', 'is-inactive');
+  });
+
+  it('renders Follow-up Required and Follow-up Resolved indicators clearly (UI-Spec §6.1)', async () => {
+    const actionsWithFollowUps: ActionProjection[] = [
+      {
+        ...mockActionPending,
+        id: 301,
+        description: 'Action with required follow-up',
+        followUpRequired: true,
+        followUpNote: 'Pending router check',
+      },
+      {
+        ...mockActionPending,
+        id: 302,
+        description: 'Action with resolved follow-up',
+        followUpRequired: false,
+        followUpNote: 'Historical note after clearing follow-up requirement',
+      },
+    ];
+
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: actionsWithFollowUps,
+          ticketVersion: 1,
+          pagination: { totalItems: 2, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    expect((await screen.findAllByText('Action with required follow-up')).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Action with resolved follow-up').length).toBeGreaterThanOrEqual(1);
+
+    const requiredBadges = screen.getAllByText('Required');
+    expect(requiredBadges.length).toBeGreaterThanOrEqual(1);
+    expect(requiredBadges[0]).toHaveClass('followup-badge', 'is-required');
+
+    const resolvedBadges = screen.getAllByText('Resolved');
+    expect(resolvedBadges.length).toBeGreaterThanOrEqual(1);
+    expect(resolvedBadges[0]).toHaveClass('followup-badge', 'is-resolved');
   });
 
   it('calls onTicketRefresh callback upon action mutation and conflict reconcile (BR-17, UI-Spec §3)', async () => {

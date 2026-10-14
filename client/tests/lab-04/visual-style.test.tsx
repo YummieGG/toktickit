@@ -78,6 +78,19 @@ describe('Lab 4 Actions Taken visual and accessibility style contract (UI-05)', 
       const ratio = contrastRatio(pair.foreground, pair.background);
       expect(ratio, `Contrast ratio for action status ${pair.status} must be >= 4.5:1`).toBeGreaterThanOrEqual(4.5);
     }
+
+    // Assignee active/inactive and follow-up badge color contrast pairs (Zen Green tokens)
+    const zenTokenPairs = [
+      { name: 'user-status-badge is-active', foreground: '#2E7D32', background: '#E8F5E9' },
+      { name: 'user-status-badge is-inactive', foreground: '#4A5D4A', background: '#E8EDE8' },
+      { name: 'followup-badge is-required', foreground: '#8A2E00', background: '#FFF3E0' },
+      { name: 'followup-badge is-resolved', foreground: '#4A5D4A', background: '#E8EDE8' },
+    ] as const;
+
+    for (const pair of zenTokenPairs) {
+      const ratio = contrastRatio(pair.foreground, pair.background);
+      expect(ratio, `Contrast ratio for ${pair.name} must be >= 4.5:1`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('renders ActionStatus badges with verified WCAG-compliant styling and semantic text', () => {

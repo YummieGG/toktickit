@@ -607,6 +607,28 @@ textarea.form-control[readonly] {
   margin-right: 0.25rem;
 }
 
+.followup-badge {
+  border: 1px solid;
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+}
+
+.followup-badge.is-required {
+  background-color: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.followup-badge.is-resolved {
+  background-color: var(--disabled-bg);
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+}
+
 @media (max-width: 767.98px) {
   .actions-taken-table-wrap {
     display: none;

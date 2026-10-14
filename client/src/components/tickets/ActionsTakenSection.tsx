@@ -409,6 +409,8 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       } else if (trimmedRes.length > 2000) {
         errors.result = 'Result must not exceed 2,000 characters.';
       }
+    } else if (editResult && editResult.length > 2000) {
+      errors.result = 'Result must not exceed 2,000 characters.';
     }
 
     if (editFollowUpRequired) {
@@ -1365,11 +1367,13 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                           {act.followUpRequired ? (
                             <div className="small text-warning-emphasis mt-1">
                               <strong>Follow-up:</strong>{' '}
-                              <span className="action-pre-wrap">{act.followUpNote || 'Required'}</span>
+                              <span className="followup-badge is-required me-1">Required</span>
+                              {act.followUpNote && <span className="action-pre-wrap">{act.followUpNote}</span>}
                             </div>
                           ) : act.followUpNote ? (
                             <div className="small text-muted mt-1">
                               <strong>Follow-up:</strong>{' '}
+                              <span className="followup-badge is-resolved me-1">Resolved</span>
                               <span className="action-pre-wrap">{act.followUpNote}</span>
                             </div>
                           ) : null}
@@ -1398,9 +1402,9 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                                 {act.assignee.name}{' '}
                                 <span className="text-muted">({ROLE_LABELS[act.assignee.role as UserRole] ?? act.assignee.role})</span>
                                 {act.assignee.isActive === false ? (
-                                  <span className="badge bg-secondary ms-1">Inactive</span>
+                                  <span className="user-status-badge is-inactive ms-1">Inactive</span>
                                 ) : (
-                                  <span className="badge bg-success-subtle text-success ms-1">Active</span>
+                                  <span className="user-status-badge is-active ms-1">Active</span>
                                 )}
                               </span>
                             ) : (
@@ -1522,11 +1526,13 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                     {act.followUpRequired ? (
                       <div className="small text-warning-emphasis mb-1">
                         <strong>Follow-up:</strong>{' '}
-                        <span className="action-pre-wrap">{act.followUpNote || 'Required'}</span>
+                        <span className="followup-badge is-required me-1">Required</span>
+                        {act.followUpNote && <span className="action-pre-wrap">{act.followUpNote}</span>}
                       </div>
                     ) : act.followUpNote ? (
                       <div className="small text-muted mb-1">
                         <strong>Follow-up:</strong>{' '}
+                        <span className="followup-badge is-resolved me-1">Resolved</span>
                         <span className="action-pre-wrap">{act.followUpNote}</span>
                       </div>
                     ) : null}
@@ -1553,9 +1559,9 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                           <span>
                             {act.assignee.name} ({ROLE_LABELS[act.assignee.role as UserRole] ?? act.assignee.role}){' '}
                             {act.assignee.isActive === false ? (
-                              <span className="badge bg-secondary ms-1">Inactive</span>
+                              <span className="user-status-badge is-inactive ms-1">Inactive</span>
                             ) : (
-                              <span className="badge bg-success-subtle text-success ms-1">Active</span>
+                              <span className="user-status-badge is-active ms-1">Active</span>
                             )}
                           </span>
                         ) : (
