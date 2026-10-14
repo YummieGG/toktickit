@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { useAuth } from '../../contexts/auth';
+import { ROLE_LABELS, useAuth, type UserRole } from '../../contexts/auth';
 import type {
   ActionProjection,
   ActionListResponse,
@@ -282,7 +282,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     const payload: Record<string, unknown> = {
       description: trimmedDesc,
       result: createResult.trim() || null,
-      assigneeId: createAssigneeId ? Number(createAssigneeId) : null,
+      assigneeId: createAssigneeId ? Number(createAssigneeId) : (user?.id ?? null),
       followUpRequired: createFollowUpRequired,
       followUpNote: createFollowUpRequired ? createFollowUpNote.trim() : null,
       attachmentNotes: createAttachmentNotes.trim() || null,
@@ -332,7 +332,22 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
       if (body.data) {
         const newAction = body.data.action;
-        setActions((prev) => sortActions([...prev, newAction]));
+        setActions((prev) => {
+          const updated = sortActions([...prev, newAction]);
+          const limit = pagination?.pageSize ?? 20;
+          return updated.slice(0, limit);
+        });
+        setPagination((prev) => {
+          if (!prev) return null;
+          const nextTotal = prev.totalItems + 1;
+          const nextPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize));
+          return {
+            ...prev,
+            totalItems: nextTotal,
+            totalPages: nextPages,
+            hasNextPage: prev.page < nextPages,
+          };
+        });
         setCurrentTicketVersion(body.data.ticketVersion);
         onTicketVersionChangeRef.current?.(body.data.ticketVersion);
         setSuccessNotice('Action created successfully.');
@@ -699,7 +714,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
               Actions Taken
             </h2>
             <span className="badge rounded-pill bg-light text-dark border">
-              {actions.length}
+              {pagination?.totalItems ?? actions.length}
             </span>
           </div>
           {canMutate && !isCreating && (
@@ -796,17 +811,34 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 </label>
                 <select
                   id="action-create-assignee"
-                  className="form-select"
+                  className={`form-select ${createValidationErrors.assigneeId ? 'is-invalid' : ''}`}
                   value={createAssigneeId}
-                  onChange={(e) => setCreateAssigneeId(e.target.value)}
+                  onChange={(e) => {
+                    setCreateAssigneeId(e.target.value);
+                    if (createValidationErrors.assigneeId) {
+                      setCreateValidationErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.assigneeId;
+                        return copy;
+                      });
+                    }
+                  }}
+                  aria-invalid={createValidationErrors.assigneeId ? true : undefined}
+                  aria-describedby={
+                    createValidationErrors.assigneeId ? 'action-create-assignee-error' : undefined
+                  }
                 >
-                  <option value="">Unassigned</option>
                   {assigneeOptions.map((opt) => (
                     <option key={opt.id} value={opt.id}>
                       {opt.name} ({opt.role === 'ADMINISTRATOR' ? 'Administrator' : 'IT Staff'})
                     </option>
                   ))}
                 </select>
+                {createValidationErrors.assigneeId && (
+                  <div id="action-create-assignee-error" className="invalid-feedback-custom" role="alert">
+                    {createValidationErrors.assigneeId}
+                  </div>
+                )}
                 <div className="form-text">Defaults to current authenticated user.</div>
               </div>
 
@@ -956,7 +988,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             className="border rounded p-3 mb-4 bg-light"
             aria-label="Edit Action Form"
           >
-            <h3 className="h5 mb-3 text-primary">Edit Action #{editingAction.id}</h3>
+            <h3 className="h5 mb-3 text-success">Edit Action #{editingAction.id}</h3>
             {editValidationErrors.general && (
               <div className="alert alert-danger py-2 px-3 mb-3" role="alert">
                 {editValidationErrors.general}
@@ -1099,7 +1131,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             className="border rounded p-3 mb-4 bg-light"
             aria-label="Reassign Action Form"
           >
-            <h3 className="h5 mb-3 text-primary">Reassign Action #{reassigningAction.id}</h3>
+            <h3 className="h5 mb-3 text-success">Reassign Action #{reassigningAction.id}</h3>
             <div className="mb-3">
               <label htmlFor="action-reassign-select" className="form-label">
                 New Assignee <span className="text-danger">*</span>
@@ -1276,7 +1308,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 </thead>
                 <tbody>
                   {actions.map((act) => {
-                    const isTerminal = act.status === 'COMPLETED' || act.status === 'CANCELLED';
+                    const isCancelled = act.status === 'CANCELLED';
                     const canEdit = canMutate && act.status !== 'CANCELLED';
                     const canReassign = canMutate && (act.status === 'PENDING' || act.status === 'IN_PROGRESS');
                     return (
@@ -1319,13 +1351,14 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                         <td className="small">
                           <div>
                             <span className="text-muted">By:</span> {act.performedBy.name}{' '}
-                            <span className="text-muted">({act.performedBy.role})</span>
+                            <span className="text-muted">({ROLE_LABELS[act.performedBy.role as UserRole] ?? act.performedBy.role})</span>
                           </div>
                           <div className="mt-1">
                             <span className="text-muted">Assignee:</span>{' '}
                             {act.assignee ? (
                               <span>
                                 {act.assignee.name}{' '}
+                                <span className="text-muted">({ROLE_LABELS[act.assignee.role as UserRole] ?? act.assignee.role})</span>
                                 {!act.assignee.isActive && (
                                   <span className="badge bg-secondary ms-1">Inactive</span>
                                 )}
@@ -1413,7 +1446,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                                   </Button>
                                 </>
                               )}
-                              {isTerminal && (
+                              {isCancelled && (
                                 <span className="small text-muted align-self-center">Locked</span>
                               )}
                             </div>
@@ -1429,7 +1462,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             {/* Mobile Stacked Card View */}
             <div className="actions-taken-cards d-md-none">
               {actions.map((act) => {
-                const isTerminal = act.status === 'COMPLETED' || act.status === 'CANCELLED';
+                const isCancelled = act.status === 'CANCELLED';
                 const canEdit = canMutate && act.status !== 'CANCELLED';
                 const canReassign = canMutate && (act.status === 'PENDING' || act.status === 'IN_PROGRESS');
                 return (
@@ -1467,13 +1500,13 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
                     <div className="small text-muted border-top pt-2 mt-2">
                       <div>
-                        By: {act.performedBy.name} ({act.performedBy.role})
+                        By: {act.performedBy.name} ({ROLE_LABELS[act.performedBy.role as UserRole] ?? act.performedBy.role})
                       </div>
                       <div>
                         Assignee:{' '}
                         {act.assignee ? (
                           <span>
-                            {act.assignee.name}{' '}
+                            {act.assignee.name} ({ROLE_LABELS[act.assignee.role as UserRole] ?? act.assignee.role}){' '}
                             {!act.assignee.isActive && (
                               <span className="badge bg-secondary ms-1">Inactive</span>
                             )}
@@ -1549,7 +1582,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                             </Button>
                           </>
                         )}
-                        {isTerminal && (
+                        {isCancelled && (
                           <div className="text-center text-muted small py-1">Action Locked</div>
                         )}
                       </div>

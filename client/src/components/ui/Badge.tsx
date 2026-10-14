@@ -38,9 +38,11 @@ export const Badge: React.FC<BadgeProps> = ({ type, value, className = '' }) => 
     return PRIORITY_STYLES[value as TicketPriority] ?? DEFAULT_STYLE;
   };
 
+  const actionClass = type === 'action-status' ? 'badge-action-status' : '';
+
   return (
     <span
-      className={`badge rounded-pill fw-semibold px-2 py-1 ${className}`}
+      className={`badge rounded-pill fw-semibold px-2 py-1 ${actionClass} ${className}`.trim()}
       style={getStyle()}
     >
       {value}

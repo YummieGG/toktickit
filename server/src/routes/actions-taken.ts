@@ -608,11 +608,11 @@ ticketActionsTakenRouter.patch(
 
           if (hasFollowUpRequired && !nextFollowUpRequired) {
             // Setting followUpRequired=false does not erase historical note text.
-            if (hasFollowUpNote && followUpNote !== null && followUpNote !== undefined && followUpNote.trim().length > 0) {
+            if (hasFollowUpNote && followUpNote !== null && followUpNote.trim().length > 0) {
               nextFollowUpNote = followUpNote;
               noteModified = true;
             }
-          } else if (hasFollowUpNote && followUpNote !== undefined) {
+          } else if (hasFollowUpNote) {
             nextFollowUpNote = followUpNote;
             noteModified = true;
           }

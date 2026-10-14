@@ -601,6 +601,12 @@ textarea.form-control[readonly] {
   overflow-wrap: anywhere;
 }
 
+.badge-action-status::before {
+  content: '● ';
+  font-size: 0.75em;
+  margin-right: 0.25rem;
+}
+
 @media (max-width: 767.98px) {
   .actions-taken-table-wrap {
     display: none;

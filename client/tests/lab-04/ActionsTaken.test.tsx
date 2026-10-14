@@ -417,24 +417,17 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(screen.getAllByText('Checked DNS configuration')[0]).toBeInTheDocument();
   });
 
-  it('creates an action with assigneeId null when Unassigned is selected', async () => {
-    let capturedBody: Record<string, unknown> | undefined;
-
+  it('displays validation error below assignee control when server returns ASSIGNEE_INELIGIBLE', async () => {
     global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes('/actions-taken') && init?.method === 'POST') {
-        capturedBody = JSON.parse(String(init.body));
         return jsonResponse({
-          data: {
-            action: {
-              ...mockActionPending,
-              id: 106,
-              description: 'Triage ticket without direct owner',
-              assignee: null,
-            },
-            ticketVersion: 2,
+          error: {
+            code: 'ASSIGNEE_INELIGIBLE',
+            message: 'Assignee is not eligible to work on actions',
+            fields: { assigneeId: 'Selected user is ineligible' },
           },
-        }, 201);
+        }, 400);
       }
       if (url.includes('/actions-taken')) {
         return jsonResponse({
@@ -463,22 +456,17 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     fireEvent.change(screen.getByLabelText('Description *'), {
       target: { value: 'Triage ticket without direct owner' },
     });
-    // Explicitly select Unassigned
-    fireEvent.change(screen.getByLabelText('Assignee'), {
-      target: { value: '' },
-    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Action created successfully.')).toBeInTheDocument();
+      expect(screen.getByText('Selected user is ineligible')).toBeInTheDocument();
     });
 
-    expect(capturedBody).toEqual(expect.objectContaining({
-      description: 'Triage ticket without direct owner',
-      assigneeId: null,
-      expectedTicketVersion: 1,
-    }));
+    const assigneeSelect = screen.getByLabelText('Assignee');
+    expect(assigneeSelect).toHaveClass('is-invalid');
+    expect(assigneeSelect).toHaveAttribute('aria-invalid', 'true');
+    expect(assigneeSelect).toHaveAttribute('aria-describedby', 'action-create-assignee-error');
   });
 
   it('preserves draft and displays conflict banner on 409 conflict', async () => {
