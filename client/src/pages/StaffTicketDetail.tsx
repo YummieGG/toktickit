@@ -100,6 +100,24 @@ export function StaffTicketDetail() {
     return () => controller.abort();
   }, [handleExpiredSession, id, retry, user]);
 
+  const refreshTicket = useCallback(async () => {
+    if (!user || !id) return;
+    try {
+      const response = await fetch(`/api/tickets/${encodeURIComponent(id)}`, { credentials: 'include' });
+      if (!response.ok) {
+        const failure = await readError(response, 'Unable to load ticket detail.');
+        throw new DetailRequestError(response.status, failure.message, failure.fields);
+      }
+      const payload = await response.json() as { data?: TicketDetail };
+      if (!payload.data) throw new DetailRequestError(500, 'Unable to load ticket detail.');
+      setTicket(payload.data);
+      setOwnerInput(payload.data.owner ? String(payload.data.owner.id) : '');
+    } catch (requestError) {
+      if (handleExpiredSession(requestError)) return;
+    }
+  }, [handleExpiredSession, id, user]);
+
+
   useEffect(() => {
     if (!user || isAdministrator) return;
     const controller = new AbortController();
@@ -231,6 +249,7 @@ export function StaffTicketDetail() {
         onTicketVersionChange={newVersion => {
           setTicket(previous => previous ? { ...previous, version: newVersion } : previous);
         }}
+        onTicketRefresh={refreshTicket}
         onSessionExpired={redirectToLogin}
       />
 

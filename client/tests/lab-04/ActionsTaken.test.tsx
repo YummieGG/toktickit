@@ -44,7 +44,7 @@ const mockActionPending: ActionProjection = {
   cancelReason: null,
   version: 1,
   performedBy: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' },
-  assignee: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' },
+  assignee: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF', isActive: true },
   createdAt: '2026-10-14T03:00:00.000Z',
   updatedAt: '2026-10-14T03:00:00.000Z',
 };
@@ -61,7 +61,7 @@ const mockActionInProgress: ActionProjection = {
   cancelReason: null,
   version: 2,
   performedBy: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' },
-  assignee: { id: 21, name: 'Staff Two', email: 'staff2@example.com', role: 'IT_STAFF' },
+  assignee: { id: 21, name: 'Staff Two', email: 'staff2@example.com', role: 'IT_STAFF', isActive: true },
   createdAt: '2026-10-14T03:30:00.000Z',
   updatedAt: '2026-10-14T03:45:00.000Z',
 };
@@ -78,7 +78,7 @@ const mockActionCompleted: ActionProjection = {
   cancelReason: null,
   version: 3,
   performedBy: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' },
-  assignee: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF' },
+  assignee: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF', isActive: true },
   createdAt: '2026-10-14T04:00:00.000Z',
   updatedAt: '2026-10-14T04:15:00.000Z',
 };
@@ -754,7 +754,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
           data: {
             action: {
               ...mockActionPending,
-              assignee: { id: 21, name: 'Staff Two', email: 'staff2@example.com', role: 'IT_STAFF' },
+              assignee: { id: 21, name: 'Staff Two', email: 'staff2@example.com', role: 'IT_STAFF', isActive: true },
               version: 2,
             },
             ticketVersion: 3,
@@ -986,6 +986,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         name: 'Deactivated Staff',
         email: 'deactivated@example.com',
         role: 'IT_STAFF',
+        isActive: false,
       },
     };
 
@@ -1151,5 +1152,113 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
 
     // The newly created 21st action must NOT be sliced away
     expect(screen.getAllByText('Twenty-first action created')[0]).toBeInTheDocument();
+  });
+
+  it('renders Active badge for active assignee and Inactive badge for inactive assignee (UI-Spec §6.1)', async () => {
+    const activeAndInactiveActions: ActionProjection[] = [
+      {
+        ...mockActionPending,
+        id: 201,
+        description: 'Active assignee action item',
+        assignee: { id: 20, name: 'Staff One', email: 'staff@example.com', role: 'IT_STAFF', isActive: true },
+      },
+      {
+        ...mockActionPending,
+        id: 202,
+        description: 'Inactive assignee action item',
+        assignee: { id: 99, name: 'Deactivated Staff', email: 'deactivated@example.com', role: 'IT_STAFF', isActive: false },
+      },
+    ];
+
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: activeAndInactiveActions,
+          ticketVersion: 1,
+          pagination: { totalItems: 2, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    expect((await screen.findAllByText('Active assignee action item')).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Inactive assignee action item').length).toBeGreaterThanOrEqual(1);
+
+    const activeBadges = screen.getAllByText('Active');
+    expect(activeBadges.length).toBeGreaterThanOrEqual(1);
+
+    const inactiveBadges = screen.getAllByText('Inactive');
+    expect(inactiveBadges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('calls onTicketRefresh callback upon action mutation and conflict reconcile (BR-17, UI-Spec §3)', async () => {
+    const onTicketRefresh = vi.fn();
+    const onVersionChange = vi.fn();
+
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/actions-taken') && init?.method === 'POST') {
+        return jsonResponse({
+          data: {
+            action: {
+              ...mockActionPending,
+              id: 105,
+              description: 'Created new diagnostic action',
+            },
+            ticketVersion: 2,
+          },
+        }, 201);
+      }
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [mockActionPending],
+          ticketVersion: 1,
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+        onTicketVersionChange={onVersionChange}
+        onTicketRefresh={onTicketRefresh}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add Action/i }));
+    fireEvent.change(screen.getByLabelText('Description *'), {
+      target: { value: 'Created new diagnostic action' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Action created successfully.')).toBeInTheDocument();
+    });
+
+    expect(onVersionChange).toHaveBeenCalledWith(2);
+    expect(onTicketRefresh).toHaveBeenCalled();
   });
 });

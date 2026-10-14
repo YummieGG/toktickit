@@ -15,6 +15,7 @@ export interface ActionsTakenSectionProps {
   ticketStatus: TicketStatus;
   isReadOnly?: boolean;
   onTicketVersionChange?: (newVersion: number) => void;
+  onTicketRefresh?: () => Promise<void> | void;
   onSessionExpired?: () => void;
 }
 
@@ -57,11 +58,14 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
   ticketStatus,
   isReadOnly = false,
   onTicketVersionChange,
+  onTicketRefresh,
   onSessionExpired,
 }) => {
   const { user } = useAuth();
   const onTicketVersionChangeRef = useRef(onTicketVersionChange);
   onTicketVersionChangeRef.current = onTicketVersionChange;
+  const onTicketRefreshRef = useRef(onTicketRefresh);
+  onTicketRefreshRef.current = onTicketRefresh;
   const onSessionExpiredRef = useRef(onSessionExpired);
   onSessionExpiredRef.current = onSessionExpired;
   const isParentTerminal = TERMINAL_PARENT_STATUSES.includes(ticketStatus);
@@ -147,6 +151,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         setCurrentTicketVersion(payload.ticketVersion);
         if (payload.ticketVersion !== ticketVersion) {
           onTicketVersionChangeRef.current?.(payload.ticketVersion);
+          void onTicketRefreshRef.current?.();
         }
       }
       // Reconcile open mutation subforms with updated action version while preserving user's form inputs
@@ -346,6 +351,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         });
         setCurrentTicketVersion(body.data.ticketVersion);
         onTicketVersionChangeRef.current?.(body.data.ticketVersion);
+        void onTicketRefreshRef.current?.();
         setSuccessNotice('Action created successfully.');
         setIsCreating(false);
       }
@@ -488,6 +494,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         setActions((prev) => sortActions(prev.map((a) => (a.id === updated.id ? updated : a))));
         setCurrentTicketVersion(body.data.ticketVersion);
         onTicketVersionChangeRef.current?.(body.data.ticketVersion);
+        void onTicketRefreshRef.current?.();
         setSuccessNotice('Action updated successfully.');
         setEditingAction(null);
       }
@@ -579,6 +586,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         setActions((prev) => sortActions(prev.map((a) => (a.id === updated.id ? updated : a))));
         setCurrentTicketVersion(body.data.ticketVersion);
         onTicketVersionChangeRef.current?.(body.data.ticketVersion);
+        void onTicketRefreshRef.current?.();
         setSuccessNotice('Action reassigned successfully.');
         setReassigningAction(null);
       }
@@ -693,6 +701,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         setActions((prev) => sortActions(prev.map((a) => (a.id === updated.id ? updated : a))));
         setCurrentTicketVersion(body.data.ticketVersion);
         onTicketVersionChangeRef.current?.(body.data.ticketVersion);
+        void onTicketRefreshRef.current?.();
         setSuccessNotice(`Action status changed to ${targetStatus}.`);
         setStatusAction(null);
       }
@@ -744,7 +753,10 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => void fetchActions()}
+              onClick={() => {
+                void fetchActions();
+                void onTicketRefreshRef.current?.();
+              }}
             >
               Reload Actions & Reconcile
             </Button>
@@ -1366,8 +1378,10 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               <span>
                                 {act.assignee.name}{' '}
                                 <span className="text-muted">({ROLE_LABELS[act.assignee.role as UserRole] ?? act.assignee.role})</span>
-                                {!act.assignee.isActive && (
+                                {act.assignee.isActive === false ? (
                                   <span className="badge bg-secondary ms-1">Inactive</span>
+                                ) : (
+                                  <span className="badge bg-success-subtle text-success ms-1">Active</span>
                                 )}
                               </span>
                             ) : (
@@ -1519,8 +1533,10 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                         {act.assignee ? (
                           <span>
                             {act.assignee.name} ({ROLE_LABELS[act.assignee.role as UserRole] ?? act.assignee.role}){' '}
-                            {!act.assignee.isActive && (
+                            {act.assignee.isActive === false ? (
                               <span className="badge bg-secondary ms-1">Inactive</span>
+                            ) : (
+                              <span className="badge bg-success-subtle text-success ms-1">Active</span>
                             )}
                           </span>
                         ) : (
