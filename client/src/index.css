@@ -566,3 +566,84 @@ textarea.form-control[readonly] {
     min-width: 44px;
   }
 }
+
+/* Actions Taken (Issue #58 / Lab 4-3) */
+.actions-taken-table-wrap {
+  overflow-x: auto;
+}
+
+.actions-taken-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.actions-taken-table th,
+.actions-taken-table td {
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.actions-taken-cards {
+  display: none;
+  gap: 1rem;
+}
+
+.actions-taken-card {
+  background-color: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.action-pre-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.badge-action-status::before {
+  content: '● ';
+  font-size: 0.75em;
+  margin-right: 0.25rem;
+}
+
+.followup-badge {
+  border: 1px solid;
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+}
+
+.followup-badge.is-required {
+  background-color: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.followup-badge.is-resolved {
+  background-color: var(--disabled-bg);
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 767.98px) {
+  .actions-taken-table-wrap {
+    display: none;
+  }
+
+  .actions-taken-cards {
+    display: grid !important;
+  }
+
+  .actions-taken-section .btn {
+    min-height: 44px;
+  }
+
+  .actions-taken-button-group {
+    flex-direction: column;
+    width: 100%;
+  }
+}

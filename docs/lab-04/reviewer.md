@@ -17,8 +17,8 @@
 | PR # | Title | Branch | Commit SHA | Status | Reviewer |
 |:---|:---|:---|:---|:---|:---|
 | [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | `da2426b` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| [#66](https://github.com/YummieGG/toktickit/pull/66) | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | `87acf65` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
+| [#67](https://github.com/YummieGG/toktickit/pull/67) | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | `07a215d` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-4: Ticket workflow resolution gate and child action lifecycle | `lab4-4-resolution-workflow` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-dashboards` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-6: Cross-cutting verification, QA test suite, and visual evidence | `lab4-6-verification-qa` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |

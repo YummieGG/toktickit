@@ -65,6 +65,8 @@ export interface TicketSummary {
   requester: TicketRequester;
   updatedAt: string;
   problemAppearsResolvedAt: string | null;
+  version?: number;
+  resolvedAt?: string | null;
 }
 
 export interface TicketComment {
@@ -96,6 +98,10 @@ export interface TicketDetail {
   comments: TicketComment[];
   internalNotes?: TicketInternalNote[];
   problemAppearsResolvedAt: string | null;
+  version?: number;
+  resolvedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export * from './action';
