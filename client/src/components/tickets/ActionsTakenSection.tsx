@@ -806,9 +806,30 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   rows={2}
                   maxLength={2000}
                   value={createResult}
-                  onChange={(e) => setCreateResult(e.target.value)}
+                  onChange={(e) => {
+                    setCreateResult(e.target.value);
+                    if (createValidationErrors.result) {
+                      setCreateValidationErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.result;
+                        return copy;
+                      });
+                    }
+                  }}
                   placeholder="Can be filled now or upon completion"
+                  aria-describedby={
+                    createValidationErrors.result ? 'action-create-result-error' : undefined
+                  }
                 />
+                {createValidationErrors.result && (
+                  <div
+                    id="action-create-result-error"
+                    className="invalid-feedback-custom"
+                    role="alert"
+                  >
+                    {createValidationErrors.result}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -864,13 +885,34 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
               </label>
               <textarea
                 id="action-create-attachments"
-                className="form-control"
+                className={`form-control ${createValidationErrors.attachmentNotes ? 'is-invalid' : ''}`}
                 rows={2}
                 maxLength={2000}
                 value={createAttachmentNotes}
-                onChange={(e) => setCreateAttachmentNotes(e.target.value)}
+                onChange={(e) => {
+                  setCreateAttachmentNotes(e.target.value);
+                  if (createValidationErrors.attachmentNotes) {
+                    setCreateValidationErrors((prev) => {
+                      const copy = { ...prev };
+                      delete copy.attachmentNotes;
+                      return copy;
+                    });
+                  }
+                }}
                 placeholder="Plain text references to existing ticket attachments"
+                aria-describedby={
+                  createValidationErrors.attachmentNotes ? 'action-create-attachments-error' : undefined
+                }
               />
+              {createValidationErrors.attachmentNotes && (
+                <div
+                  id="action-create-attachments-error"
+                  className="invalid-feedback-custom"
+                  role="alert"
+                >
+                  {createValidationErrors.attachmentNotes}
+                </div>
+              )}
             </div>
 
             <div className="d-flex gap-2 justify-content-end">
@@ -1036,24 +1078,22 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             className="border rounded p-3 mb-4 bg-light"
             aria-label="Reassign Action Form"
           >
-            <h3 className="h5 mb-2 text-primary">Reassign Action #{reassigningAction.id}</h3>
-            {reassignError && (
-              <div id="action-reassign-error" className="alert alert-danger py-2 px-3 mb-3" role="alert">
-                {reassignError}
-              </div>
-            )}
+            <h3 className="h5 mb-3 text-primary">Reassign Action #{reassigningAction.id}</h3>
             <div className="mb-3">
               <label htmlFor="action-reassign-select" className="form-label">
                 New Assignee <span className="text-danger">*</span>
               </label>
               <select
                 id="action-reassign-select"
-                className="form-select"
+                className={`form-select ${reassignError ? 'is-invalid' : ''}`}
                 value={reassignTargetId}
                 required
                 aria-required="true"
                 aria-describedby={reassignError ? 'action-reassign-error' : undefined}
-                onChange={(e) => setReassignTargetId(e.target.value)}
+                onChange={(e) => {
+                  setReassignTargetId(e.target.value);
+                  if (reassignError) setReassignError(null);
+                }}
               >
                 <option value="">Select an active IT Staff or Administrator</option>
                 {assigneeOptions.map((opt) => (
@@ -1062,6 +1102,11 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   </option>
                 ))}
               </select>
+              {reassignError && (
+                <div id="action-reassign-error" className="invalid-feedback-custom" role="alert">
+                  {reassignError}
+                </div>
+              )}
             </div>
 
             <div className="d-flex gap-2 justify-content-end">
@@ -1088,16 +1133,10 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             className="border rounded p-3 mb-4 bg-light"
             aria-label="Action Status Transition Form"
           >
-            <h3 className="h5 mb-2 text-dark">
+            <h3 className="h5 mb-3 text-dark">
               Change Status of Action #{statusAction.action.id} to{' '}
               <Badge type="action-status" value={statusAction.targetStatus} />
             </h3>
-
-            {statusError && (
-              <div id="action-status-error" className="alert alert-danger py-2 px-3 mb-3" role="alert">
-                {statusError}
-              </div>
-            )}
 
             {statusAction.targetStatus === 'COMPLETED' && (
               <div className="mb-3">
@@ -1106,16 +1145,24 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 </label>
                 <textarea
                   id="action-status-result"
-                  className="form-control"
+                  className={`form-control ${statusError ? 'is-invalid' : ''}`}
                   rows={3}
                   maxLength={2000}
                   required
                   aria-required="true"
                   aria-describedby={statusError ? 'action-status-error' : undefined}
                   value={statusResultInput}
-                  onChange={(e) => setStatusResultInput(e.target.value)}
+                  onChange={(e) => {
+                    setStatusResultInput(e.target.value);
+                    if (statusError) setStatusError(null);
+                  }}
                   placeholder="Describe the completed work or solution"
                 />
+                {statusError && (
+                  <div id="action-status-error" className="invalid-feedback-custom" role="alert">
+                    {statusError}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1126,21 +1173,36 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 </label>
                 <textarea
                   id="action-status-cancel-reason"
-                  className="form-control"
+                  className={`form-control ${statusError ? 'is-invalid' : ''}`}
                   rows={3}
                   maxLength={2000}
                   required
                   aria-required="true"
                   aria-describedby={statusError ? 'action-status-error' : undefined}
                   value={statusCancelReasonInput}
-                  onChange={(e) => setStatusCancelReasonInput(e.target.value)}
+                  onChange={(e) => {
+                    setStatusCancelReasonInput(e.target.value);
+                    if (statusError) setStatusError(null);
+                  }}
                   placeholder="Provide an explanation for cancelling this action"
                 />
+                {statusError && (
+                  <div id="action-status-error" className="invalid-feedback-custom" role="alert">
+                    {statusError}
+                  </div>
+                )}
               </div>
             )}
 
             {statusAction.targetStatus === 'IN_PROGRESS' && (
-              <p className="mb-3">Start working on this action and set status to In Progress?</p>
+              <div className="mb-3">
+                <p className="mb-2">Start working on this action and set status to In Progress?</p>
+                {statusError && (
+                  <div id="action-status-error" className="alert alert-danger py-2 px-3 mb-0" role="alert">
+                    {statusError}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="d-flex gap-2 justify-content-end">

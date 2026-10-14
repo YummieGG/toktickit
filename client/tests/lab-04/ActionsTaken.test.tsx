@@ -129,7 +129,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionPending],
           ticketVersion: 2,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -165,7 +165,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionInProgress],
           ticketVersion: 3,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -199,7 +199,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionCompleted],
           ticketVersion: 4,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       return jsonResponse({ error: 'Not found' }, 404);
@@ -233,7 +233,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionCompleted],
           ticketVersion: 5,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -267,7 +267,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [],
           ticketVersion: 1,
-          pagination: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 0, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -305,6 +305,50 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(screen.getByLabelText('Description *')).toHaveAttribute('aria-describedby', 'action-create-desc-error');
   });
 
+  it('validates maximum length for result and attachmentNotes on create', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [],
+          ticketVersion: 1,
+          pagination: { totalItems: 0, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add Action/i }));
+    fireEvent.change(screen.getByLabelText('Description *'), { target: { value: 'Valid description' } });
+    fireEvent.change(screen.getByLabelText(/Result \(Optional\)/i), { target: { value: 'a'.repeat(2001) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+
+    expect(await screen.findByText('Result must not exceed 2,000 characters.')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText(/Result \(Optional\)/i));
+    expect(screen.getByLabelText(/Result \(Optional\)/i)).toHaveAttribute('aria-describedby', 'action-create-result-error');
+
+    fireEvent.change(screen.getByLabelText(/Result \(Optional\)/i), { target: { value: 'Valid result' } });
+    fireEvent.change(screen.getByLabelText(/Attachment Notes \(Optional\)/i), { target: { value: 'b'.repeat(2001) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+
+    expect(await screen.findByText('Attachment notes must not exceed 2,000 characters.')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText(/Attachment Notes \(Optional\)/i));
+    expect(screen.getByLabelText(/Attachment Notes \(Optional\)/i)).toHaveAttribute('aria-describedby', 'action-create-attachments-error');
+  });
+
   it('creates an action submitting Idempotency-Key and expectedTicketVersion', async () => {
     let capturedHeaders: HeadersInit | undefined;
     let capturedBody: Record<string, unknown> | undefined;
@@ -329,7 +373,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [],
           ticketVersion: 1,
-          pagination: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 0, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -395,7 +439,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [],
           ticketVersion: 1,
-          pagination: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 0, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -451,7 +495,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [],
           ticketVersion: 1,
-          pagination: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 0, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -519,7 +563,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [{ ...mockActionPending, version: currentVer }],
           ticketVersion: currentVer,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -592,7 +636,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionInProgress],
           ticketVersion: 2,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -618,6 +662,8 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     // Submit empty result
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(await screen.findByText(/Result is required to complete an action/i)).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText(/Completion Result/i));
+    expect(screen.getByLabelText(/Completion Result/i)).toHaveAttribute('aria-describedby', 'action-status-error');
 
     // Fill valid result
     fireEvent.change(screen.getByLabelText(/Completion Result/i), {
@@ -659,7 +705,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionPending],
           ticketVersion: 2,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -685,6 +731,8 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     // Submit empty cancel reason
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(await screen.findByText(/Cancel reason is required to cancel an action/i)).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText(/Cancellation Reason/i));
+    expect(screen.getByLabelText(/Cancellation Reason/i)).toHaveAttribute('aria-describedby', 'action-status-error');
 
     // Fill valid reason
     fireEvent.change(screen.getByLabelText(/Cancellation Reason/i), {
@@ -726,7 +774,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionPending],
           ticketVersion: 2,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -748,6 +796,15 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     fireEvent.click(await screen.findAllByRole('button', { name: /Reassign/i }).then(btns => btns[0]));
 
     expect(screen.getByRole('heading', { name: /Reassign Action/i })).toBeInTheDocument();
+
+    // Submit invalid/empty assignee
+    fireEvent.change(screen.getByLabelText(/New Assignee/i), {
+      target: { value: '' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Assignment' }));
+    expect(await screen.findByText('Please select a valid active staff or administrator.')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText(/New Assignee/i));
+    expect(screen.getByLabelText(/New Assignee/i)).toHaveAttribute('aria-describedby', 'action-reassign-error');
 
     fireEvent.change(screen.getByLabelText(/New Assignee/i), {
       target: { value: '21' },
@@ -790,7 +847,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [mockActionPending],
           ticketVersion: 2,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       if (url.includes('/staff/tickets/owners')) {
@@ -851,7 +908,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         return jsonResponse({
           data: [actionWithText],
           ticketVersion: 2,
-          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
         });
       }
       return jsonResponse({ error: 'Not found' }, 404);

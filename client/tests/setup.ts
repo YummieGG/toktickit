@@ -41,7 +41,14 @@ function actionsTakenBootstrapResponse() {
     json: async () => ({
       data: [],
       ticketVersion: 1,
-      pagination: { total: 0, page: 1, limit: 20, totalPages: 1 },
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
     }),
   });
 }
