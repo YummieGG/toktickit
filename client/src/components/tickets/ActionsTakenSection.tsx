@@ -68,6 +68,8 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
   onTicketRefreshRef.current = onTicketRefresh;
   const onSessionExpiredRef = useRef(onSessionExpired);
   onSessionExpiredRef.current = onSessionExpired;
+  const ticketVersionRef = useRef(ticketVersion);
+  ticketVersionRef.current = ticketVersion;
   const isParentTerminal = TERMINAL_PARENT_STATUSES.includes(ticketStatus);
   const canMutate = !isReadOnly && !isParentTerminal && (user?.role === 'IT_STAFF' || user?.role === 'ADMINISTRATOR');
 
@@ -80,6 +82,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
   // Eligible assignees for Staff/Admin
   const [assigneeOptions, setAssigneeOptions] = useState<ActionAssigneeOption[]>([]);
+  const [assigneeLoadError, setAssigneeLoadError] = useState<string | null>(null);
 
   // Create Action Form State
   const [isCreating, setIsCreating] = useState(false);
@@ -149,7 +152,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       setConflictNotice(null);
       if (typeof payload.ticketVersion === 'number') {
         setCurrentTicketVersion(payload.ticketVersion);
-        if (payload.ticketVersion !== ticketVersion) {
+        if (payload.ticketVersion !== ticketVersionRef.current) {
           onTicketVersionChangeRef.current?.(payload.ticketVersion);
           void onTicketRefreshRef.current?.();
         }
@@ -158,21 +161,21 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       setEditingAction((prev) => {
         if (!prev) return null;
         const latest = fetchedActions.find((a) => a.id === prev.id);
-        if (!latest) return null;
+        if (!latest) return prev;
         if (latest.status === 'CANCELLED') return null;
         return { ...prev, version: latest.version, status: latest.status };
       });
       setReassigningAction((prev) => {
         if (!prev) return null;
         const latest = fetchedActions.find((a) => a.id === prev.id);
-        if (!latest) return null;
+        if (!latest) return prev;
         if (latest.status === 'COMPLETED' || latest.status === 'CANCELLED') return null;
         return { ...prev, version: latest.version, status: latest.status };
       });
       setStatusAction((prev) => {
         if (!prev) return null;
         const latest = fetchedActions.find((a) => a.id === prev.action.id);
-        if (!latest) return null;
+        if (!latest) return prev;
         if (latest.status === prev.targetStatus || latest.status === 'COMPLETED' || latest.status === 'CANCELLED') {
           return null;
         }
@@ -183,15 +186,14 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [ticketId, ticketVersion]);
+  }, [ticketId]);
 
-  // Load eligible assignees for staff/admin
-  useEffect(() => {
+  // Load eligible assignees for staff/admin with error and retry support
+  const loadAssignees = useCallback(() => {
     if (isReadOnly || !user || user.role === 'REQUESTER') return;
-    const controller = new AbortController();
+    setAssigneeLoadError(null);
     fetch('/api/staff/tickets/owners', {
       credentials: 'include',
-      signal: controller.signal,
     })
       .then(async (res) => {
         if (res.status === 401) {
@@ -201,18 +203,23 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         if (res.ok) {
           const body = (await res.json()) as { data?: ActionAssigneeOption[] };
           setAssigneeOptions(body.data || []);
+        } else {
+          setAssigneeLoadError('Unable to load assignee options.');
         }
       })
       .catch((err) => {
         if ((err as Error).name !== 'AbortError') {
-          console.error('Failed to load eligible action assignees', err);
+          setAssigneeLoadError('Unable to load assignee options.');
         }
       });
-    return () => controller.abort();
   }, [isReadOnly, user]);
 
   useEffect(() => {
-    void fetchActions();
+    loadAssignees();
+  }, [loadAssignees]);
+
+  useEffect(() => {
+    void fetchActions(1);
   }, [fetchActions]);
 
   // Open Create Form
@@ -489,7 +496,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         return;
       }
 
-      if (body.data) {
+      if (body.data?.action) {
         const updated = body.data.action;
         setActions((prev) => sortActions(prev.map((a) => (a.id === updated.id ? updated : a))));
         setCurrentTicketVersion(body.data.ticketVersion);
@@ -581,7 +588,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         return;
       }
 
-      if (body.data) {
+      if (body.data?.action) {
         const updated = body.data.action;
         setActions((prev) => sortActions(prev.map((a) => (a.id === updated.id ? updated : a))));
         setCurrentTicketVersion(body.data.ticketVersion);
@@ -696,7 +703,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         return;
       }
 
-      if (body.data) {
+      if (body.data?.action) {
         const updated = body.data.action;
         setActions((prev) => sortActions(prev.map((a) => (a.id === updated.id ? updated : a))));
         setCurrentTicketVersion(body.data.ticketVersion);
@@ -754,7 +761,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
               type="button"
               variant="secondary"
               onClick={() => {
-                void fetchActions();
+                void fetchActions(pagination?.page ?? 1);
                 void onTicketRefreshRef.current?.();
               }}
             >
@@ -854,6 +861,12 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   </div>
                 )}
                 <div className="form-text">Defaults to current authenticated user.</div>
+                {assigneeLoadError && (
+                  <div className="form-text text-danger d-flex align-items-center justify-content-between mt-1" role="status">
+                    <span>{assigneeLoadError}</span>
+                    <button type="button" className="btn btn-link btn-sm p-0 text-decoration-none" onClick={loadAssignees}>Retry</button>
+                  </div>
+                )}
               </div>
 
               <div className="col-12 col-md-6">
@@ -1173,6 +1186,12 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
               {reassignError && (
                 <div id="action-reassign-error" className="invalid-feedback-custom" role="alert">
                   {reassignError}
+                </div>
+              )}
+              {assigneeLoadError && (
+                <div className="form-text text-danger d-flex align-items-center justify-content-between mt-1" role="status">
+                  <span>{assigneeLoadError}</span>
+                  <button type="button" className="btn btn-link btn-sm p-0 text-decoration-none" onClick={loadAssignees}>Retry</button>
                 </div>
               )}
             </div>

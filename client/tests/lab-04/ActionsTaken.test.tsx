@@ -1261,4 +1261,100 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(onVersionChange).toHaveBeenCalledWith(2);
     expect(onTicketRefresh).toHaveBeenCalled();
   });
+
+  it('displays error and allows retry when fetching assignees fails', async () => {
+    let failOwners = true;
+
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [mockActionPending],
+          ticketVersion: 1,
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        if (failOwners) {
+          return jsonResponse({ error: 'Database unavailable' }, 500);
+        }
+        return jsonResponse({ data: mockOwners }, 200);
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add Action/i }));
+
+    expect(await screen.findByText('Unable to load assignee options.')).toBeInTheDocument();
+
+    failOwners = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Unable to load assignee options.')).not.toBeInTheDocument();
+    });
+  });
+
+  it('preserves open edit draft during conflict reload even when item is not on current page', async () => {
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/actions-taken/') && init?.method === 'PATCH') {
+        return jsonResponse({
+          error: { message: 'Conflict: Stale version detected.' },
+        }, 409);
+      }
+      if (url.includes('/actions-taken')) {
+        // Return a different set of actions (as if page shifted or item not in page 1 slice)
+        return jsonResponse({
+          data: [mockActionPending],
+          ticketVersion: 3,
+          pagination: { totalItems: 10, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    // Open edit on mockActionPending (simulate action that is edited)
+    const editBtn = (await screen.findAllByRole('button', { name: /Edit/i }))[0];
+    fireEvent.click(editBtn);
+
+    const descInput = screen.getByLabelText('Description *');
+    fireEvent.change(descInput, { target: { value: 'Modified draft in progress' } });
+
+    // Submit edit to trigger 409 conflict
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByText(/Version Conflict Detected/i)).toBeInTheDocument();
+
+    // Click Reload Actions & Reconcile
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Actions & Reconcile' }));
+
+    // The edit modal must NOT be unmounted or have its draft cleared
+    await waitFor(() => {
+      expect(screen.getByLabelText('Description *')).toHaveValue('Modified draft in progress');
+    });
+  });
 });
