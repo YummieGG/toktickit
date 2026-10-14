@@ -1,9 +1,10 @@
 import React from 'react';
 import type { TicketPriority, TicketStatus } from '../../types/ticket';
+import type { ActionStatus } from '../../types/action';
 
 interface BadgeProps {
   type: 'priority' | 'status' | 'action-status';
-  value: TicketPriority | TicketStatus | string;
+  value: TicketPriority | TicketStatus | ActionStatus | string;
   className?: string;
 }
 

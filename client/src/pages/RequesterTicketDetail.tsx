@@ -293,21 +293,21 @@ export function RequesterTicketDetail() {
             </div>
           </div>
 
-          <TicketAttachmentSection
+          <ActionsTakenSection
             ticketId={ticket.id}
-            attachments={ticket.attachments}
-            onUpdateAttachments={updateAttachments}
+            ticketVersion={ticket.version ?? 1}
+            ticketStatus={ticket.currentStatus}
+            isReadOnly={true}
             onSessionExpired={() => navigate('/login', {
               replace: true,
               state: { from: `/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },
             })}
           />
 
-          <ActionsTakenSection
+          <TicketAttachmentSection
             ticketId={ticket.id}
-            ticketVersion={ticket.version ?? 1}
-            ticketStatus={ticket.currentStatus}
-            isReadOnly={true}
+            attachments={ticket.attachments}
+            onUpdateAttachments={updateAttachments}
             onSessionExpired={() => navigate('/login', {
               replace: true,
               state: { from: `/tickets/${id}`, notice: 'Your session has expired. Please sign in again.' },

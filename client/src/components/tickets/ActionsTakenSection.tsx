@@ -138,13 +138,31 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         throw new Error(body.error?.message || 'Unable to load actions taken.');
       }
       const payload = (await response.json()) as ActionListResponse;
-      setActions(sortActions(payload.data || []));
+      const fetchedActions = payload.data || [];
+      setActions(sortActions(fetchedActions));
+      setConflictNotice(null);
       if (typeof payload.ticketVersion === 'number') {
         setCurrentTicketVersion(payload.ticketVersion);
         if (payload.ticketVersion !== ticketVersion) {
           onTicketVersionChangeRef.current?.(payload.ticketVersion);
         }
       }
+      // Reconcile open mutation subforms with updated action version while preserving user's form inputs
+      setEditingAction((prev) => {
+        if (!prev) return null;
+        const latest = fetchedActions.find((a) => a.id === prev.id);
+        return latest ? { ...prev, version: latest.version } : prev;
+      });
+      setReassigningAction((prev) => {
+        if (!prev) return null;
+        const latest = fetchedActions.find((a) => a.id === prev.id);
+        return latest ? { ...prev, version: latest.version } : prev;
+      });
+      setStatusAction((prev) => {
+        if (!prev) return null;
+        const latest = fetchedActions.find((a) => a.id === prev.action.id);
+        return latest ? { ...prev, action: { ...prev.action, version: latest.version } } : prev;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load actions taken.');
     } finally {
@@ -234,6 +252,15 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
     if (Object.keys(errors).length > 0) {
       setCreateValidationErrors(errors);
+      if (errors.description) {
+        document.getElementById('action-create-desc')?.focus();
+      } else if (errors.followUpNote) {
+        document.getElementById('action-create-followup-note')?.focus();
+      } else if (errors.result) {
+        document.getElementById('action-create-result')?.focus();
+      } else if (errors.attachmentNotes) {
+        document.getElementById('action-create-attachments')?.focus();
+      }
       return;
     }
 
@@ -245,7 +272,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     const payload: Record<string, unknown> = {
       description: trimmedDesc,
       result: createResult.trim() || null,
-      assigneeId: createAssigneeId ? Number(createAssigneeId) : user?.id,
+      assigneeId: createAssigneeId ? Number(createAssigneeId) : null,
       followUpRequired: createFollowUpRequired,
       followUpNote: createFollowUpRequired ? createFollowUpNote.trim() : null,
       attachmentNotes: createAttachmentNotes.trim() || null,
@@ -365,6 +392,15 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
     if (Object.keys(errors).length > 0) {
       setEditValidationErrors(errors);
+      if (errors.description) {
+        document.getElementById('action-edit-desc')?.focus();
+      } else if (errors.result) {
+        document.getElementById('action-edit-result')?.focus();
+      } else if (errors.followUpNote) {
+        document.getElementById('action-edit-followup-note')?.focus();
+      } else if (errors.attachmentNotes) {
+        document.getElementById('action-edit-attachments')?.focus();
+      }
       return;
     }
 
@@ -459,6 +495,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     const targetIdNum = Number(reassignTargetId);
     if (!reassignTargetId || !Number.isSafeInteger(targetIdNum) || targetIdNum < 1) {
       setReassignError('Please select a valid active staff or administrator.');
+      document.getElementById('action-reassign-select')?.focus();
       return;
     }
 
@@ -553,10 +590,12 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       const trimmedResult = statusResultInput.trim();
       if (!trimmedResult) {
         setStatusError('Result is required to complete an action (1–2,000 characters).');
+        document.getElementById('action-status-result')?.focus();
         return;
       }
       if (trimmedResult.length > 2000) {
         setStatusError('Result must not exceed 2,000 characters.');
+        document.getElementById('action-status-result')?.focus();
         return;
       }
       resultPayload = trimmedResult;
@@ -564,10 +603,12 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       const trimmedReason = statusCancelReasonInput.trim();
       if (!trimmedReason) {
         setStatusError('Cancel reason is required to cancel an action (1–2,000 characters).');
+        document.getElementById('action-status-cancel-reason')?.focus();
         return;
       }
       if (trimmedReason.length > 2000) {
         setStatusError('Cancel reason must not exceed 2,000 characters.');
+        document.getElementById('action-status-cancel-reason')?.focus();
         return;
       }
       cancelReasonPayload = trimmedReason;
@@ -879,11 +920,12 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 maxLength={2000}
                 required
                 aria-required="true"
+                aria-describedby={editValidationErrors.description ? 'action-edit-desc-error' : undefined}
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
               />
               {editValidationErrors.description && (
-                <div className="invalid-feedback-custom" role="alert">
+                <div id="action-edit-desc-error" className="invalid-feedback-custom" role="alert">
                   {editValidationErrors.description}
                 </div>
               )}
@@ -899,11 +941,13 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 rows={2}
                 maxLength={2000}
                 required={editingAction.status === 'COMPLETED'}
+                aria-required={editingAction.status === 'COMPLETED' ? 'true' : undefined}
+                aria-describedby={editValidationErrors.result ? 'action-edit-result-error' : undefined}
                 value={editResult}
                 onChange={(e) => setEditResult(e.target.value)}
               />
               {editValidationErrors.result && (
-                <div className="invalid-feedback-custom" role="alert">
+                <div id="action-edit-result-error" className="invalid-feedback-custom" role="alert">
                   {editValidationErrors.result}
                 </div>
               )}
@@ -934,11 +978,13 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                     rows={2}
                     maxLength={2000}
                     required
+                    aria-required="true"
+                    aria-describedby={editValidationErrors.followUpNote ? 'action-edit-followup-error' : undefined}
                     value={editFollowUpNote}
                     onChange={(e) => setEditFollowUpNote(e.target.value)}
                   />
                   {editValidationErrors.followUpNote && (
-                    <div className="invalid-feedback-custom" role="alert">
+                    <div id="action-edit-followup-error" className="invalid-feedback-custom" role="alert">
                       {editValidationErrors.followUpNote}
                     </div>
                   )}
@@ -952,12 +998,18 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
               </label>
               <textarea
                 id="action-edit-attachments"
-                className="form-control"
+                className={`form-control ${editValidationErrors.attachmentNotes ? 'is-invalid' : ''}`}
                 rows={2}
                 maxLength={2000}
+                aria-describedby={editValidationErrors.attachmentNotes ? 'action-edit-attachments-error' : undefined}
                 value={editAttachmentNotes}
                 onChange={(e) => setEditAttachmentNotes(e.target.value)}
               />
+              {editValidationErrors.attachmentNotes && (
+                <div id="action-edit-attachments-error" className="invalid-feedback-custom" role="alert">
+                  {editValidationErrors.attachmentNotes}
+                </div>
+              )}
             </div>
 
             <div className="d-flex gap-2 justify-content-end">
@@ -986,7 +1038,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
           >
             <h3 className="h5 mb-2 text-primary">Reassign Action #{reassigningAction.id}</h3>
             {reassignError && (
-              <div className="alert alert-danger py-2 px-3 mb-3" role="alert">
+              <div id="action-reassign-error" className="alert alert-danger py-2 px-3 mb-3" role="alert">
                 {reassignError}
               </div>
             )}
@@ -999,6 +1051,8 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 className="form-select"
                 value={reassignTargetId}
                 required
+                aria-required="true"
+                aria-describedby={reassignError ? 'action-reassign-error' : undefined}
                 onChange={(e) => setReassignTargetId(e.target.value)}
               >
                 <option value="">Select an active IT Staff or Administrator</option>
@@ -1040,7 +1094,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             </h3>
 
             {statusError && (
-              <div className="alert alert-danger py-2 px-3 mb-3" role="alert">
+              <div id="action-status-error" className="alert alert-danger py-2 px-3 mb-3" role="alert">
                 {statusError}
               </div>
             )}
@@ -1057,6 +1111,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   maxLength={2000}
                   required
                   aria-required="true"
+                  aria-describedby={statusError ? 'action-status-error' : undefined}
                   value={statusResultInput}
                   onChange={(e) => setStatusResultInput(e.target.value)}
                   placeholder="Describe the completed work or solution"
@@ -1076,6 +1131,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   maxLength={2000}
                   required
                   aria-required="true"
+                  aria-describedby={statusError ? 'action-status-error' : undefined}
                   value={statusCancelReasonInput}
                   onChange={(e) => setStatusCancelReasonInput(e.target.value)}
                   placeholder="Provide an explanation for cancelling this action"

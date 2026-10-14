@@ -301,6 +301,8 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
 
     expect(await screen.findByText('Action description is required (1–2,000 characters).')).toBeInTheDocument();
     expect(screen.getByText('Follow-up note is required when follow-up is requested.')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText('Description *'));
+    expect(screen.getByLabelText('Description *')).toHaveAttribute('aria-describedby', 'action-create-desc-error');
   });
 
   it('creates an action submitting Idempotency-Key and expectedTicketVersion', async () => {
@@ -370,6 +372,70 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(screen.getAllByText('Checked DNS configuration')[0]).toBeInTheDocument();
   });
 
+  it('creates an action with assigneeId null when Unassigned is selected', async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/actions-taken') && init?.method === 'POST') {
+        capturedBody = JSON.parse(String(init.body));
+        return jsonResponse({
+          data: {
+            action: {
+              ...mockActionPending,
+              id: 106,
+              description: 'Triage ticket without direct owner',
+              assignee: null,
+            },
+            ticketVersion: 2,
+          },
+        }, 201);
+      }
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [],
+          ticketVersion: 1,
+          pagination: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={1}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add Action/i }));
+    fireEvent.change(screen.getByLabelText('Description *'), {
+      target: { value: 'Triage ticket without direct owner' },
+    });
+    // Explicitly select Unassigned
+    fireEvent.change(screen.getByLabelText('Assignee'), {
+      target: { value: '' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Action created successfully.')).toBeInTheDocument();
+    });
+
+    expect(capturedBody).toEqual(expect.objectContaining({
+      description: 'Triage ticket without direct owner',
+      assigneeId: null,
+      expectedTicketVersion: 1,
+    }));
+  });
+
   it('preserves draft and displays conflict banner on 409 conflict', async () => {
     global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -415,6 +481,93 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(await screen.findByText(/Conflict: The ticket was updated by another request/)).toBeInTheDocument();
     // Draft remains preserved in the textarea
     expect(descTextarea).toHaveValue('Attempted gateway reset with unsaved work');
+  });
+
+  it('reconciles action version on 409 conflict reload allowing subsequent successful resubmission', async () => {
+    let callCount = 0;
+    const editBodies: Record<string, unknown>[] = [];
+
+    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/101') && init?.method === 'PATCH') {
+        callCount++;
+        const parsedBody = JSON.parse(String(init.body));
+        editBodies.push(parsedBody);
+        if (callCount === 1) {
+          // Stale version conflict
+          return jsonResponse({
+            error: {
+              code: 'CONFLICT',
+              message: 'Conflict: The action was updated by another request. Please reload to see latest state.',
+            },
+          }, 409);
+        }
+        // Second call after reload succeeds
+        return jsonResponse({
+          data: {
+            action: {
+              ...mockActionPending,
+              description: 'Draft preserved across reload and saved',
+              version: 3,
+            },
+            ticketVersion: 3,
+          },
+        }, 200);
+      }
+      if (url.includes('/actions-taken')) {
+        const currentVer = callCount === 0 ? 1 : 2;
+        return jsonResponse({
+          data: [{ ...mockActionPending, version: currentVer }],
+          ticketVersion: currentVer,
+          pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={2}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    fireEvent.click(await screen.findAllByRole('button', { name: /Edit/i }).then(btns => btns[0]));
+
+    const desc = screen.getByLabelText('Description *');
+    fireEvent.change(desc, { target: { value: 'Draft preserved across reload and saved' } });
+
+    // First submit fails with 409
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByText(/Conflict: The action was updated by another request/)).toBeInTheDocument();
+    expect(desc).toHaveValue('Draft preserved across reload and saved');
+
+    // Click Reload Actions & Reconcile
+    fireEvent.click(screen.getByRole('button', { name: /Reload Actions & Reconcile/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Conflict: The action was updated by another request/)).not.toBeInTheDocument();
+    });
+
+    // Verify draft is still preserved in textarea
+    expect(desc).toHaveValue('Draft preserved across reload and saved');
+
+    // Resubmit succeeds with reconciled version 2
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Action updated successfully.')).toBeInTheDocument();
+    });
+
+    expect(editBodies[0].expectedActionVersion).toBe(1);
+    expect(editBodies[1].expectedActionVersion).toBe(2);
   });
 
   it('performs action status transition to COMPLETED requiring a result', async () => {
