@@ -334,6 +334,17 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       if (!response.ok) {
         if (body.error?.fields) {
           setCreateValidationErrors(body.error.fields);
+          if (body.error.fields.assigneeId || body.error.fields.assignee) {
+            document.getElementById('action-create-assignee')?.focus();
+          } else if (body.error.fields.description) {
+            document.getElementById('action-create-desc')?.focus();
+          } else if (body.error.fields.followUpNote) {
+            document.getElementById('action-create-followup-note')?.focus();
+          } else if (body.error.fields.result) {
+            document.getElementById('action-create-result')?.focus();
+          } else if (body.error.fields.attachmentNotes) {
+            document.getElementById('action-create-attachments')?.focus();
+          }
         } else {
           setCreateValidationErrors({
             general: body.error?.message || 'Failed to create action.',
@@ -344,16 +355,27 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
       if (body.data) {
         const newAction = body.data.action;
-        setActions((prev) => sortActions([...prev, newAction]));
+        const pageSize = pagination?.pageSize ?? 20;
+        const currentTotal = pagination?.totalItems ?? actions.length;
+        const nextTotal = currentTotal + 1;
+        const targetPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+
+        await fetchActions(targetPage);
+        setActions((prev) => {
+          if (prev.some((a) => a.id === newAction.id)) return prev;
+          if (prev.length < pageSize) return sortActions([...prev, newAction]);
+          return prev;
+        });
         setPagination((prev) => {
           if (!prev) return null;
-          const nextTotal = prev.totalItems + 1;
           const nextPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize));
           return {
             ...prev,
-            totalItems: nextTotal,
-            totalPages: nextPages,
-            hasNextPage: prev.page < nextPages,
+            totalItems: Math.max(prev.totalItems, nextTotal),
+            totalPages: Math.max(prev.totalPages, nextPages),
+            page: targetPage,
+            hasNextPage: targetPage < Math.max(prev.totalPages, nextPages),
+            hasPreviousPage: targetPage > 1,
           };
         });
         setCurrentTicketVersion(body.data.ticketVersion);
@@ -490,6 +512,15 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       if (!response.ok) {
         if (body.error?.fields) {
           setEditValidationErrors(body.error.fields);
+          if (body.error.fields.description) {
+            document.getElementById('action-edit-desc')?.focus();
+          } else if (body.error.fields.followUpNote) {
+            document.getElementById('action-edit-followup-note')?.focus();
+          } else if (body.error.fields.result) {
+            document.getElementById('action-edit-result')?.focus();
+          } else if (body.error.fields.attachmentNotes) {
+            document.getElementById('action-edit-attachments')?.focus();
+          }
         } else {
           setEditValidationErrors({
             general: body.error?.message || 'Failed to update action.',
@@ -587,6 +618,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
       if (!response.ok) {
         setReassignError(body.error?.message || 'Failed to reassign action.');
+        document.getElementById('action-reassign-select')?.focus();
         return;
       }
 
@@ -702,6 +734,11 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
       if (!response.ok) {
         setStatusError(body.error?.message || 'Failed to update action status.');
+        if (targetStatus === 'COMPLETED') {
+          document.getElementById('action-status-result')?.focus();
+        } else if (targetStatus === 'CANCELLED') {
+          document.getElementById('action-status-cancel-reason')?.focus();
+        }
         return;
       }
 
@@ -1025,7 +1062,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
             )}
 
             <div className="mb-2 text-muted small">
-              Performed by: <strong>{editingAction.performedBy.name}</strong> ({editingAction.performedBy.role}) · Created:{' '}
+              Performed by: <strong>{editingAction.performedBy.name}</strong> ({ROLE_LABELS[editingAction.performedBy.role as UserRole] ?? editingAction.performedBy.role}) · Created:{' '}
               {formatActionDateTime(editingAction.createdAt)}
             </div>
 
@@ -1577,6 +1614,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                             type="button"
                             variant="secondary"
                             onClick={() => handleOpenEdit(act)}
+                            aria-label={`Edit action ${act.id}`}
                           >
                             Edit
                           </Button>
@@ -1586,6 +1624,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                             type="button"
                             variant="tertiary"
                             onClick={() => handleOpenReassign(act)}
+                            aria-label={`Reassign action ${act.id}`}
                           >
                             Reassign
                           </Button>
@@ -1596,6 +1635,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               type="button"
                               variant="secondary"
                               onClick={() => handleOpenStatusTransition(act, 'IN_PROGRESS')}
+                              aria-label={`Start action ${act.id}`}
                             >
                               Start Work
                             </Button>
@@ -1603,6 +1643,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               type="button"
                               variant="primary"
                               onClick={() => handleOpenStatusTransition(act, 'COMPLETED')}
+                              aria-label={`Complete action ${act.id}`}
                             >
                               Complete Action
                             </Button>
@@ -1611,6 +1652,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               variant="tertiary"
                               className="text-danger"
                               onClick={() => handleOpenStatusTransition(act, 'CANCELLED')}
+                              aria-label={`Cancel action ${act.id}`}
                             >
                               Cancel Action
                             </Button>
@@ -1622,6 +1664,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               type="button"
                               variant="primary"
                               onClick={() => handleOpenStatusTransition(act, 'COMPLETED')}
+                              aria-label={`Complete action ${act.id}`}
                             >
                               Complete Action
                             </Button>
@@ -1630,6 +1673,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                               variant="tertiary"
                               className="text-danger"
                               onClick={() => handleOpenStatusTransition(act, 'CANCELLED')}
+                              aria-label={`Cancel action ${act.id}`}
                             >
                               Cancel Action
                             </Button>

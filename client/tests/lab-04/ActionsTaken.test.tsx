@@ -156,6 +156,11 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(screen.getAllByRole('button', { name: /Cancel/i })[0]).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Edit/i })[0]).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Reassign/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Edit action 101' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Reassign action 101' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Start action 101' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Complete action 101' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Cancel action 101' })).toHaveLength(2);
   });
 
   it('renders interactive controls for Administrator on active ticket', async () => {
@@ -467,6 +472,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(assigneeSelect).toHaveClass('is-invalid');
     expect(assigneeSelect).toHaveAttribute('aria-invalid', 'true');
     expect(assigneeSelect).toHaveAttribute('aria-describedby', 'action-create-assignee-error');
+    expect(document.activeElement).toBe(assigneeSelect);
   });
 
   it('preserves draft and displays conflict banner on 409 conflict', async () => {
@@ -861,6 +867,8 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     fireEvent.click(await screen.findAllByRole('button', { name: /Edit/i }).then(btns => btns[0]));
 
     expect(screen.getByRole('heading', { name: /Edit Action/i })).toBeInTheDocument();
+    expect(screen.getByText(/Performed by:/)).toHaveTextContent('(IT Staff)');
+    expect(screen.queryByText('(IT_STAFF)')).not.toBeInTheDocument();
 
     const desc = screen.getByLabelText('Description *');
     fireEvent.change(desc, { target: { value: 'Updated diagnosis details with traceroute' } });
@@ -1153,6 +1161,20 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
         }, 201);
       }
       if (url.includes('/actions-taken')) {
+        if (url.includes('page=2')) {
+          return jsonResponse({
+            data: [
+              {
+                ...mockActionPending,
+                id: 1099,
+                description: 'Twenty-first action created',
+                createdAt: '2026-10-14T02:00:00.000Z',
+              },
+            ],
+            ticketVersion: 2,
+            pagination: { totalItems: 21, page: 2, pageSize: 20, totalPages: 2, hasNextPage: false, hasPreviousPage: true },
+          });
+        }
         return jsonResponse({
           data: existingTwentyActions,
           ticketVersion: 1,
