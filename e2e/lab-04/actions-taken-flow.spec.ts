@@ -397,4 +397,56 @@ test.describe('Lab 4 Actions Taken Lifecycle E2E Flow (E2E-01)', () => {
       }
     }
   });
+
+  test('Multiple actions created by different staff members on the same ticket are visible to Requester with distinct authors (E2E-01)', async ({ page }) => {
+    const actionByStaffOne: ActionMock = {
+      id: 101,
+      ticketId: 8,
+      description: 'Initial network diagnostic run by Staff One',
+      result: 'Diagnostic logs captured',
+      status: 'COMPLETED',
+      followUpRequired: false,
+      followUpNote: null,
+      attachmentNotes: null,
+      cancelReason: null,
+      version: 1,
+      performedBy: staffOne,
+      assignee: staffOne,
+      createdAt: '2026-10-14T03:00:00.000Z',
+      updatedAt: '2026-10-14T03:30:00.000Z',
+    };
+    const actionByStaffTwo: ActionMock = {
+      id: 102,
+      ticketId: 8,
+      description: 'Firewall rules reconfigured by Staff Two',
+      result: null,
+      status: 'IN_PROGRESS',
+      followUpRequired: true,
+      followUpNote: 'Verify tunnel stability tomorrow',
+      attachmentNotes: 'Rules config attached',
+      cancelReason: null,
+      version: 1,
+      performedBy: staffTwo,
+      assignee: staffTwo,
+      createdAt: '2026-10-14T04:00:00.000Z',
+      updatedAt: '2026-10-14T04:15:00.000Z',
+    };
+
+    await installActionsMockApi(page, requester, [actionByStaffOne, actionByStaffTwo]);
+
+    await page.goto('/tickets/8');
+    await expect(page.getByRole('heading', { name: 'TK-0008' })).toBeVisible();
+
+    const actionsSection = page.getByTestId('actions-taken-section');
+    await expect(actionsSection).toBeVisible();
+    const actionsTable = actionsSection.locator('.actions-taken-table');
+    const firstRow = actionsTable.locator('tbody tr').nth(0);
+    const secondRow = actionsTable.locator('tbody tr').nth(1);
+
+    await expect(firstRow.getByText('Initial network diagnostic run by Staff One')).toBeVisible();
+    await expect(firstRow.getByText(/By: Staff One/)).toBeVisible();
+
+    await expect(secondRow.getByText('Firewall rules reconfigured by Staff Two')).toBeVisible();
+    await expect(secondRow.getByText(/By: Staff Two/)).toBeVisible();
+  });
 });

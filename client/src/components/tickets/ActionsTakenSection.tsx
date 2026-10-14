@@ -114,6 +114,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
   const [statusCancelReasonInput, setStatusCancelReasonInput] = useState('');
   const [statusError, setStatusError] = useState<string | null>(null);
   const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
+  const [pagination, setPagination] = useState<ActionListResponse['pagination'] | null>(null);
 
   // Keep internal ticketVersion updated if parent prop changes
   useEffect(() => {
@@ -121,12 +122,12 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
   }, [ticketVersion]);
 
   // Load actions
-  const fetchActions = useCallback(async () => {
+  const fetchActions = useCallback(async (targetPage = 1) => {
     if (!ticketId) return;
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/tickets/${ticketId}/actions-taken?page=1&pageSize=20`, {
+      const response = await fetch(`/api/tickets/${ticketId}/actions-taken?page=${targetPage}&pageSize=20`, {
         credentials: 'include',
       });
       if (response.status === 401) {
@@ -140,6 +141,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       const payload = (await response.json()) as ActionListResponse;
       const fetchedActions = payload.data || [];
       setActions(sortActions(fetchedActions));
+      setPagination(payload.pagination ?? null);
       setConflictNotice(null);
       if (typeof payload.ticketVersion === 'number') {
         setCurrentTicketVersion(payload.ticketVersion);
@@ -151,17 +153,25 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       setEditingAction((prev) => {
         if (!prev) return null;
         const latest = fetchedActions.find((a) => a.id === prev.id);
-        return latest ? { ...prev, version: latest.version } : prev;
+        if (!latest) return null;
+        if (latest.status === 'CANCELLED') return null;
+        return { ...prev, version: latest.version, status: latest.status };
       });
       setReassigningAction((prev) => {
         if (!prev) return null;
         const latest = fetchedActions.find((a) => a.id === prev.id);
-        return latest ? { ...prev, version: latest.version } : prev;
+        if (!latest) return null;
+        if (latest.status === 'COMPLETED' || latest.status === 'CANCELLED') return null;
+        return { ...prev, version: latest.version, status: latest.status };
       });
       setStatusAction((prev) => {
         if (!prev) return null;
         const latest = fetchedActions.find((a) => a.id === prev.action.id);
-        return latest ? { ...prev, action: { ...prev.action, version: latest.version } } : prev;
+        if (!latest) return null;
+        if (latest.status === prev.targetStatus || latest.status === 'COMPLETED' || latest.status === 'CANCELLED') {
+          return null;
+        }
+        return { ...prev, action: { ...prev.action, version: latest.version, status: latest.status } };
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load actions taken.');
@@ -476,7 +486,10 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
   // Open Reassign Form
   const handleOpenReassign = (action: ActionProjection) => {
     setReassigningAction(action);
-    setReassignTargetId(action.assignee ? String(action.assignee.id) : '');
+    const isCurrentAssigneeActive = action.assignee
+      ? assigneeOptions.some((opt) => opt.id === action.assignee?.id)
+      : false;
+    setReassignTargetId(isCurrentAssigneeActive && action.assignee ? String(action.assignee.id) : '');
     setReassignError(null);
     setConflictNotice(null);
     setSuccessNotice(null);
@@ -762,6 +775,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 maxLength={2000}
                 required
                 aria-required="true"
+                aria-invalid={createValidationErrors.description ? true : undefined}
                 value={createDescription}
                 onChange={(e) => setCreateDescription(e.target.value)}
                 aria-describedby={
@@ -805,6 +819,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   className={`form-control ${createValidationErrors.result ? 'is-invalid' : ''}`}
                   rows={2}
                   maxLength={2000}
+                  aria-invalid={createValidationErrors.result ? true : undefined}
                   value={createResult}
                   onChange={(e) => {
                     setCreateResult(e.target.value);
@@ -859,6 +874,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                     maxLength={2000}
                     required
                     aria-required="true"
+                    aria-invalid={createValidationErrors.followUpNote ? true : undefined}
                     value={createFollowUpNote}
                     onChange={(e) => setCreateFollowUpNote(e.target.value)}
                     placeholder="Specify the follow-up task or verification needed"
@@ -888,6 +904,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 className={`form-control ${createValidationErrors.attachmentNotes ? 'is-invalid' : ''}`}
                 rows={2}
                 maxLength={2000}
+                aria-invalid={createValidationErrors.attachmentNotes ? true : undefined}
                 value={createAttachmentNotes}
                 onChange={(e) => {
                   setCreateAttachmentNotes(e.target.value);
@@ -962,6 +979,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 maxLength={2000}
                 required
                 aria-required="true"
+                aria-invalid={editValidationErrors.description ? true : undefined}
                 aria-describedby={editValidationErrors.description ? 'action-edit-desc-error' : undefined}
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
@@ -984,6 +1002,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 maxLength={2000}
                 required={editingAction.status === 'COMPLETED'}
                 aria-required={editingAction.status === 'COMPLETED' ? 'true' : undefined}
+                aria-invalid={editValidationErrors.result ? true : undefined}
                 aria-describedby={editValidationErrors.result ? 'action-edit-result-error' : undefined}
                 value={editResult}
                 onChange={(e) => setEditResult(e.target.value)}
@@ -1021,6 +1040,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                     maxLength={2000}
                     required
                     aria-required="true"
+                    aria-invalid={editValidationErrors.followUpNote ? true : undefined}
                     aria-describedby={editValidationErrors.followUpNote ? 'action-edit-followup-error' : undefined}
                     value={editFollowUpNote}
                     onChange={(e) => setEditFollowUpNote(e.target.value)}
@@ -1043,6 +1063,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 className={`form-control ${editValidationErrors.attachmentNotes ? 'is-invalid' : ''}`}
                 rows={2}
                 maxLength={2000}
+                aria-invalid={editValidationErrors.attachmentNotes ? true : undefined}
                 aria-describedby={editValidationErrors.attachmentNotes ? 'action-edit-attachments-error' : undefined}
                 value={editAttachmentNotes}
                 onChange={(e) => setEditAttachmentNotes(e.target.value)}
@@ -1089,6 +1110,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 value={reassignTargetId}
                 required
                 aria-required="true"
+                aria-invalid={reassignError ? true : undefined}
                 aria-describedby={reassignError ? 'action-reassign-error' : undefined}
                 onChange={(e) => {
                   setReassignTargetId(e.target.value);
@@ -1150,6 +1172,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   maxLength={2000}
                   required
                   aria-required="true"
+                  aria-invalid={statusError ? true : undefined}
                   aria-describedby={statusError ? 'action-status-error' : undefined}
                   value={statusResultInput}
                   onChange={(e) => {
@@ -1178,6 +1201,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                   maxLength={2000}
                   required
                   aria-required="true"
+                  aria-invalid={statusError ? true : undefined}
                   aria-describedby={statusError ? 'action-status-error' : undefined}
                   value={statusCancelReasonInput}
                   onChange={(e) => {
@@ -1534,6 +1558,38 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 );
               })}
             </div>
+
+            {pagination && pagination.totalPages > 1 && (
+              <nav
+                className="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"
+                aria-label="Actions pagination"
+                data-testid="actions-pagination"
+              >
+                <small className="text-muted" id="actions-pagination-info">
+                  Page {pagination.page} of {pagination.totalPages} ({pagination.totalItems} actions)
+                </small>
+                <div className="btn-group btn-group-sm" role="group" aria-label="Pagination actions">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    id="actions-prev-page"
+                    disabled={!pagination.hasPreviousPage || isLoading}
+                    onClick={() => void fetchActions(pagination.page - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    id="actions-next-page"
+                    disabled={!pagination.hasNextPage || isLoading}
+                    onClick={() => void fetchActions(pagination.page + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </nav>
+            )}
           </>
         )}
       </div>

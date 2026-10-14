@@ -303,6 +303,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(screen.getByText('Follow-up note is required when follow-up is requested.')).toBeInTheDocument();
     expect(document.activeElement).toBe(screen.getByLabelText('Description *'));
     expect(screen.getByLabelText('Description *')).toHaveAttribute('aria-describedby', 'action-create-desc-error');
+    expect(screen.getByLabelText('Description *')).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('validates maximum length for result and attachmentNotes on create', async () => {
@@ -664,6 +665,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(await screen.findByText(/Result is required to complete an action/i)).toBeInTheDocument();
     expect(document.activeElement).toBe(screen.getByLabelText(/Completion Result/i));
     expect(screen.getByLabelText(/Completion Result/i)).toHaveAttribute('aria-describedby', 'action-status-error');
+    expect(screen.getByLabelText(/Completion Result/i)).toHaveAttribute('aria-invalid', 'true');
 
     // Fill valid result
     fireEvent.change(screen.getByLabelText(/Completion Result/i), {
@@ -733,6 +735,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(await screen.findByText(/Cancel reason is required to cancel an action/i)).toBeInTheDocument();
     expect(document.activeElement).toBe(screen.getByLabelText(/Cancellation Reason/i));
     expect(screen.getByLabelText(/Cancellation Reason/i)).toHaveAttribute('aria-describedby', 'action-status-error');
+    expect(screen.getByLabelText(/Cancellation Reason/i)).toHaveAttribute('aria-invalid', 'true');
 
     // Fill valid reason
     fireEvent.change(screen.getByLabelText(/Cancellation Reason/i), {
@@ -805,6 +808,7 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     expect(await screen.findByText('Please select a valid active staff or administrator.')).toBeInTheDocument();
     expect(document.activeElement).toBe(screen.getByLabelText(/New Assignee/i));
     expect(screen.getByLabelText(/New Assignee/i)).toHaveAttribute('aria-describedby', 'action-reassign-error');
+    expect(screen.getByLabelText(/New Assignee/i)).toHaveAttribute('aria-invalid', 'true');
 
     fireEvent.change(screen.getByLabelText(/New Assignee/i), {
       target: { value: '21' },
@@ -931,5 +935,109 @@ describe('UI-01 Actions Taken UI Component (Issue #58)', () => {
     const preWrapElem = document.querySelector('.action-pre-wrap');
     expect(preWrapElem).toBeInTheDocument();
     expect(preWrapElem?.textContent).toBe(textWithNewlines);
+  });
+
+  it('renders pagination controls when totalPages > 1 and requests page 2 on Next click', async () => {
+    let requestedPage = 1;
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        const urlObj = new URL(url, 'http://localhost');
+        requestedPage = Number(urlObj.searchParams.get('page') || '1');
+        return jsonResponse({
+          data: [{ ...mockActionPending, id: requestedPage === 1 ? 101 : 102 }],
+          ticketVersion: 2,
+          pagination: {
+            totalItems: 25,
+            page: requestedPage,
+            pageSize: 20,
+            totalPages: 2,
+            hasNextPage: requestedPage === 1,
+            hasPreviousPage: requestedPage === 2,
+          },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={2}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    expect(await screen.findByTestId('actions-pagination')).toBeInTheDocument();
+    expect(screen.getByText(/Page 1 of 2 \(25 actions\)/)).toBeInTheDocument();
+
+    const nextBtn = screen.getByRole('button', { name: 'Next' });
+    expect(nextBtn).toBeEnabled();
+    const prevBtn = screen.getByRole('button', { name: 'Previous' });
+    expect(prevBtn).toBeDisabled();
+
+    fireEvent.click(nextBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Page 2 of 2 \(25 actions\)/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    });
+  });
+
+  it('initializes Reassign modal with empty selection for inactive assignee and blocks submission until active user chosen', async () => {
+    const actionWithInactiveAssignee: ActionProjection = {
+      ...mockActionPending,
+      assignee: {
+        id: 99,
+        name: 'Deactivated Staff',
+        email: 'deactivated@example.com',
+        role: 'IT_STAFF',
+      },
+    };
+
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/actions-taken')) {
+        return jsonResponse({
+          data: [actionWithInactiveAssignee],
+          ticketVersion: 2,
+          pagination: { totalItems: 1, page: 1, pageSize: 20, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        });
+      }
+      if (url.includes('/staff/tickets/owners')) {
+        return jsonResponse({ data: mockOwners });
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    });
+
+    renderWithAuth(
+      <ActionsTakenSection
+        ticketId={8}
+        ticketVersion={2}
+        ticketStatus="OPEN"
+        isReadOnly={false}
+      />,
+      staffUser,
+    );
+
+    const reassignBtn = (await screen.findAllByRole('button', { name: /Reassign/i }))[0];
+    fireEvent.click(reassignBtn);
+
+    const select = screen.getByLabelText(/New Assignee/);
+    expect(select).toHaveValue('');
+    expect(select).not.toHaveAttribute('aria-invalid');
+
+    // Click confirm without selecting
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Assignment' }));
+
+    expect(await screen.findByText('Please select a valid active staff or administrator.')).toBeInTheDocument();
+    expect(select).toHaveAttribute('aria-invalid', 'true');
+    expect(document.activeElement).toBe(select);
   });
 });
