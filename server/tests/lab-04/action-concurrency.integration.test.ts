@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '../../generated/prisma';
 
 const ORIGIN = 'http://localhost:5173';
-const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/toktickit_db?schema=public';
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const suffix = `${Date.now()}-${process.pid}`;
 const passwordHash = 'concurrency-test-password-hash';
 
@@ -42,7 +42,7 @@ function cookie(token: string): string {
   return `tt_session=${encodeURIComponent(token)}`;
 }
 
-describe('PG-01: Action Concurrency, Idempotency & Eligibility Integration (CONCURRENCY-01, IDEMPOTENCY-01, ELIGIBILITY-04, AC-11)', () => {
+describe.skipIf(!TEST_DATABASE_URL)('PG-01: Action Concurrency, Idempotency & Eligibility Integration (CONCURRENCY-01, IDEMPOTENCY-01, ELIGIBILITY-04, AC-11)', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DATABASE_URL;
     process.env.PORT = '0';
@@ -246,4 +246,86 @@ describe('PG-01: Action Concurrency, Idempotency & Eligibility Integration (CONC
     });
     expect(updatedTicket?.version).toBeGreaterThan(ticket!.version);
   });
+
+  it('handles competing resolve vs concurrent status mutation with rollback/409 (CONCURRENCY-01, BR-14, AC-11)', async () => {
+    // Put ticket into IN_PROGRESS
+    const currentTicket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { version: true },
+    });
+
+    const statusRes = await request(app)
+      .patch(`/api/tickets/${ticketId}/status`)
+      .set('Cookie', cookie(staffToken))
+      .set('Origin', ORIGIN)
+      .send({
+        status: 'IN_PROGRESS',
+        confirmed: false,
+        expectedTicketVersion: currentTicket!.version,
+      });
+    expect(statusRes.status).toBe(200);
+
+    // Create and complete an action so ticket can be resolved
+    const actionRes = await request(app)
+      .post(`/api/tickets/${ticketId}/actions-taken`)
+      .set('Cookie', cookie(staffToken))
+      .set('Origin', ORIGIN)
+      .set('Idempotency-Key', `competing-resolve-action-${suffix}`)
+      .send({
+        description: 'Completed action to satisfy resolution gate',
+        result: 'Issue fully resolved',
+        assigneeId: staffId,
+        followUpRequired: false,
+        expectedTicketVersion: statusRes.body.data.version,
+      });
+    expect(actionRes.status).toBe(201);
+    const actionId = actionRes.body.data.action.id;
+
+    // Complete the action
+    const completeRes = await request(app)
+      .patch(`/api/tickets/${ticketId}/actions-taken/${actionId}/status`)
+      .set('Cookie', cookie(staffToken))
+      .set('Origin', ORIGIN)
+      .send({
+        status: 'COMPLETED',
+        result: 'Issue fully resolved',
+        expectedActionVersion: 1,
+        expectedTicketVersion: actionRes.body.data.ticketVersion,
+      });
+    expect(completeRes.status).toBe(200);
+
+    const ticketBeforeRace = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { version: true },
+    });
+    const staleVersion = ticketBeforeRace!.version;
+
+    // Two competing operations with the same stale version:
+    // One tries to resolve, one tries to transition to WAITING_FOR_REQUESTER
+    const [resA, resB] = await Promise.all([
+      request(app)
+        .patch(`/api/tickets/${ticketId}/status`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .send({
+          status: 'RESOLVED',
+          confirmed: true,
+          expectedTicketVersion: staleVersion,
+        }),
+      request(app)
+        .patch(`/api/tickets/${ticketId}/status`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .send({
+          status: 'WAITING_FOR_REQUESTER',
+          confirmed: false,
+          expectedTicketVersion: staleVersion,
+        }),
+    ]);
+
+    const results = [resA.status, resB.status].sort();
+    // Exactly one succeeds (200), and the other fails with 409 CONFLICT
+    expect(results).toEqual([200, 409]);
+  });
 });
+

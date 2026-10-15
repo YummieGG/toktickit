@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeActionFingerprint,
+  evaluateResolutionGate,
   isActionParentReadOnly,
   isAllowedActionTransition,
   isEligibleActionAssignee,
@@ -10,6 +11,12 @@ import {
   projectAction,
   type ActionProjection,
 } from '../../src/lib/action-rules';
+import {
+  ALL_STATUSES,
+  isAllowedTransition,
+  requiresConfirmation,
+  STATUS_TRANSITIONS,
+} from '../../src/lib/status-transition';
 
 describe('UNIT-01: Action Taken Business Rules & Utilities (FR-04-06, BR-05, BR-06, BR-07, AC-04)', () => {
   describe('Text Normalization (BR-05)', () => {
@@ -208,6 +215,162 @@ describe('UNIT-01: Action Taken Business Rules & Utilities (FR-04-06, BR-05, BR-
     it('maps PENDING and IN_PROGRESS to STARTED event type', () => {
       expect(mapActionStatusToEventType('IN_PROGRESS')).toBe('STARTED');
       expect(mapActionStatusToEventType('PENDING')).toBe('STARTED');
+    });
+  });
+});
+
+describe('UNIT-02: Ticket Lifecycle Transitions & Resolution Gate (FR-04-08, BR-12, BR-13, BR-14, AC-06)', () => {
+  describe('Resolution Gate Evaluation (BR-14)', () => {
+    it('blocks resolution when ticket has zero actions', () => {
+      const result = evaluateResolutionGate([]);
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reason).toBe('At least one completed action with a recorded result is required before resolution');
+      }
+    });
+
+    it('blocks resolution when all actions are cancelled', () => {
+      const result = evaluateResolutionGate([
+        { status: 'CANCELLED', result: null, followUpRequired: false },
+        { status: 'CANCELLED', result: 'Did not finish', followUpRequired: false },
+      ]);
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reason).toBe('At least one completed action with a recorded result is required before resolution');
+      }
+    });
+
+    it('blocks resolution when completed action has empty or whitespace-only result', () => {
+      expect(evaluateResolutionGate([
+        { status: 'COMPLETED', result: null, followUpRequired: false },
+      ]).allowed).toBe(false);
+
+      expect(evaluateResolutionGate([
+        { status: 'COMPLETED', result: '   ', followUpRequired: false },
+      ]).allowed).toBe(false);
+    });
+
+    it('blocks resolution when active actions (PENDING or IN_PROGRESS) are present', () => {
+      const resultPending = evaluateResolutionGate([
+        { status: 'COMPLETED', result: 'Replaced switch', followUpRequired: false },
+        { status: 'PENDING', result: null, followUpRequired: false },
+      ]);
+      expect(resultPending.allowed).toBe(false);
+      if (!resultPending.allowed) {
+        expect(resultPending.reason).toBe('All actions must be completed or cancelled before resolution');
+      }
+
+      const resultInProgress = evaluateResolutionGate([
+        { status: 'COMPLETED', result: 'Replaced switch', followUpRequired: false },
+        { status: 'IN_PROGRESS', result: null, followUpRequired: false },
+      ]);
+      expect(resultInProgress.allowed).toBe(false);
+      if (!resultInProgress.allowed) {
+        expect(resultInProgress.reason).toBe('All actions must be completed or cancelled before resolution');
+      }
+    });
+
+    it('blocks resolution when any non-cancelled action has followUpRequired=true', () => {
+      const result = evaluateResolutionGate([
+        { status: 'COMPLETED', result: 'Replaced switch', followUpRequired: true },
+      ]);
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.reason).toBe('All follow-up requirements must be resolved before resolution');
+      }
+    });
+
+    it('allows resolution when followUpRequired=true is on a CANCELLED action', () => {
+      const result = evaluateResolutionGate([
+        { status: 'COMPLETED', result: 'Fixed issue', followUpRequired: false },
+        { status: 'CANCELLED', result: null, followUpRequired: true },
+      ]);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('allows resolution when at least one completed action has result and no blockers exist', () => {
+      const result = evaluateResolutionGate([
+        { status: 'COMPLETED', result: 'Replaced bad RAM module', followUpRequired: false },
+        { status: 'CANCELLED', result: null, followUpRequired: false },
+      ]);
+      expect(result.allowed).toBe(true);
+    });
+  });
+
+  describe('Ticket 8-State Transition Matrix (BR-13)', () => {
+    it('enforces exact allowed transitions for NEW', () => {
+      expect(STATUS_TRANSITIONS.NEW).toEqual(['OPEN', 'CANCELLED']);
+      expect(isAllowedTransition('NEW', 'OPEN')).toBe(true);
+      expect(isAllowedTransition('NEW', 'CANCELLED')).toBe(true);
+      expect(isAllowedTransition('NEW', 'IN_PROGRESS')).toBe(false);
+      expect(isAllowedTransition('NEW', 'RESOLVED')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for OPEN', () => {
+      expect(STATUS_TRANSITIONS.OPEN).toEqual(['IN_PROGRESS', 'WAITING_FOR_REQUESTER', 'CANCELLED']);
+      expect(isAllowedTransition('OPEN', 'IN_PROGRESS')).toBe(true);
+      expect(isAllowedTransition('OPEN', 'WAITING_FOR_REQUESTER')).toBe(true);
+      expect(isAllowedTransition('OPEN', 'CANCELLED')).toBe(true);
+      expect(isAllowedTransition('OPEN', 'RESOLVED')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for IN_PROGRESS', () => {
+      expect(STATUS_TRANSITIONS.IN_PROGRESS).toEqual(['WAITING_FOR_REQUESTER', 'RESOLVED', 'CANCELLED']);
+      expect(isAllowedTransition('IN_PROGRESS', 'WAITING_FOR_REQUESTER')).toBe(true);
+      expect(isAllowedTransition('IN_PROGRESS', 'RESOLVED')).toBe(true);
+      expect(isAllowedTransition('IN_PROGRESS', 'CANCELLED')).toBe(true);
+      expect(isAllowedTransition('IN_PROGRESS', 'OPEN')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for WAITING_FOR_REQUESTER', () => {
+      expect(STATUS_TRANSITIONS.WAITING_FOR_REQUESTER).toEqual(['IN_PROGRESS', 'CANCELLED']);
+      expect(isAllowedTransition('WAITING_FOR_REQUESTER', 'IN_PROGRESS')).toBe(true);
+      expect(isAllowedTransition('WAITING_FOR_REQUESTER', 'CANCELLED')).toBe(true);
+      expect(isAllowedTransition('WAITING_FOR_REQUESTER', 'RESOLVED')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for RESOLVED', () => {
+      expect(STATUS_TRANSITIONS.RESOLVED).toEqual(['CLOSED', 'REOPENED']);
+      expect(isAllowedTransition('RESOLVED', 'CLOSED')).toBe(true);
+      expect(isAllowedTransition('RESOLVED', 'REOPENED')).toBe(true);
+      expect(isAllowedTransition('RESOLVED', 'CANCELLED')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for CLOSED', () => {
+      expect(STATUS_TRANSITIONS.CLOSED).toEqual(['REOPENED']);
+      expect(isAllowedTransition('CLOSED', 'REOPENED')).toBe(true);
+      expect(isAllowedTransition('CLOSED', 'RESOLVED')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for REOPENED', () => {
+      expect(STATUS_TRANSITIONS.REOPENED).toEqual(['IN_PROGRESS', 'CANCELLED']);
+      expect(isAllowedTransition('REOPENED', 'IN_PROGRESS')).toBe(true);
+      expect(isAllowedTransition('REOPENED', 'CANCELLED')).toBe(true);
+      expect(isAllowedTransition('REOPENED', 'RESOLVED')).toBe(false);
+    });
+
+    it('enforces exact allowed transitions for CANCELLED', () => {
+      expect(STATUS_TRANSITIONS.CANCELLED).toEqual(['REOPENED']);
+      expect(isAllowedTransition('CANCELLED', 'REOPENED')).toBe(true);
+      expect(isAllowedTransition('CANCELLED', 'IN_PROGRESS')).toBe(false);
+    });
+
+    it('rejects self-transitions for all 8 statuses', () => {
+      for (const status of ALL_STATUSES) {
+        expect(isAllowedTransition(status, status)).toBe(false);
+      }
+    });
+
+    it('enforces confirmation requirements for CANCELLED, RESOLVED, CLOSED, REOPENED', () => {
+      expect(requiresConfirmation('CANCELLED')).toBe(true);
+      expect(requiresConfirmation('RESOLVED')).toBe(true);
+      expect(requiresConfirmation('CLOSED')).toBe(true);
+      expect(requiresConfirmation('REOPENED')).toBe(true);
+
+      expect(requiresConfirmation('NEW')).toBe(false);
+      expect(requiresConfirmation('OPEN')).toBe(false);
+      expect(requiresConfirmation('IN_PROGRESS')).toBe(false);
+      expect(requiresConfirmation('WAITING_FOR_REQUESTER')).toBe(false);
     });
   });
 });

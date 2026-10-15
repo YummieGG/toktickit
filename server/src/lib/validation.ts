@@ -60,11 +60,12 @@ export function validationError(
     INVALID_STATUS_TRANSITION: 'Invalid status transition',
     CONTENT_REQUIRED: 'Content is required',
     CONTENT_TOO_LONG: 'Content is too long',
+    TICKET_RESOLUTION_BLOCKED: 'Ticket resolution is blocked by action requirements',
   };
   return res.status(400).json({
     error: {
       code,
-      message: messages[code] ?? 'Request is invalid',
+      message: (code === 'TICKET_RESOLUTION_BLOCKED' && details[0]?.message) ? details[0].message : (messages[code] ?? 'Request is invalid'),
       fields: Object.fromEntries(details.map(({ field, message }) => [field, message])),
     },
     // Retained for backward compatibility with Lab 2 clients.

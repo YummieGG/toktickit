@@ -145,10 +145,11 @@ export function StaffTicketDetail() {
         setValidationErrors(requestError.fields);
         setMutationError(requestError.message);
         setRetry(value => value + 1);
-        return;
+        throw requestError;
       }
       setValidationErrors(requestError instanceof DetailRequestError ? requestError.fields : {});
       setMutationError(requestError instanceof Error ? requestError.message : 'Unable to save changes.');
+      throw requestError;
     } finally { setSaving(null); }
   };
 
@@ -158,7 +159,7 @@ export function StaffTicketDetail() {
       void mutate('owner', `/api/tickets/${ticket?.id}/owner`, {
         ownerId: null,
         expectedTicketVersion: ticket?.version ?? 1,
-      }, 'Ticket is now unassigned.');
+      }, 'Ticket is now unassigned.').catch(() => {});
       return;
     }
     const ownerId = Number(trimmed);
@@ -170,16 +171,38 @@ export function StaffTicketDetail() {
     void mutate('owner', `/api/tickets/${ticket?.id}/owner`, {
       ownerId,
       expectedTicketVersion: ticket?.version ?? 1,
-    }, 'Owner updated.');
+    }, 'Owner updated.').catch(() => {});
   };
 
   const saveStatus = (status: TicketStatus, selectElement?: HTMLSelectElement) => {
     if (!ticket) return;
-    if (CONFIRM_STATUSES.has(status) && !window.confirm(`Confirm changing this ticket to ${displayStatus(status)}?`)) {
+    let message = `Confirm changing this ticket to ${displayStatus(status)}?`;
+    if (status === 'CANCELLED') {
+      message = 'Confirm changing this ticket to Cancelled? Cancelling this ticket will automatically cancel any active child actions (Pending or In Progress).';
+    } else if (status === 'REOPENED') {
+      message = 'Confirm changing this ticket to Reopened? Reopening this ticket will preserve all past action and event history, and clear past resolution timestamps.';
+    }
+
+    if (CONFIRM_STATUSES.has(status) && !window.confirm(message)) {
       if (selectElement) selectElement.value = ticket.currentStatus;
       return;
     }
-    void mutate('status', `/api/tickets/${ticket.id}/status`, { status, confirmed: CONFIRM_STATUSES.has(status) }, 'Ticket status updated.');
+    mutate(
+      'status',
+      `/api/tickets/${ticket.id}/status`,
+      {
+        status,
+        confirmed: CONFIRM_STATUSES.has(status),
+        expectedTicketVersion: ticket.version ?? 1,
+      },
+      'Ticket status updated.',
+    )
+      .then(() => {
+        void refreshTicket();
+      })
+      .catch(() => {
+        if (selectElement) selectElement.value = ticket.currentStatus;
+      });
   };
 
   const postComment = async (event: FormEvent) => {
@@ -236,7 +259,7 @@ export function StaffTicketDetail() {
   return (
     <section className="staff-ticket-detail" aria-labelledby="staff-ticket-detail-title">
       <Link className="btn btn-zen-tertiary mb-3 px-0" to="/staff/tickets">← Back to Staff Queue</Link>
-      <header className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><div className="d-flex flex-column flex-md-row justify-content-between gap-3"><div><p className="mb-1 small text-muted">Ticket Number</p><h1 id="staff-ticket-detail-title" className="ticket-detail-number mb-0">{ticket.ticketNumber}</h1></div><div className="ticket-detail-badges"><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Status</span><Badge type="status" value={ticket.currentStatus} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Requested Priority</span><Badge type="priority" value={ticket.requestedPriority} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">IT Priority</span><Badge type="priority" value={ticket.itPriority} /></div></div></div><dl className="row g-3 mt-2 mb-0"><ReadOnlyField label="Ticket Date">{formatTicketDateTime(ticket.ticketDate)}</ReadOnlyField><ReadOnlyField label="Last Updated">{formatTicketDateTime(ticket.updatedAt)}</ReadOnlyField><ReadOnlyField label="Requester">{ticket.requester.name} · {ticket.requester.email}</ReadOnlyField><ReadOnlyField label="Owner">{ticket.owner?.name ?? 'Unassigned'}</ReadOnlyField><ReadOnlyField label="Problem Appears Resolved">{ticket.problemAppearsResolvedAt ? formatTicketDateTime(ticket.problemAppearsResolvedAt) : 'Not indicated'}</ReadOnlyField></dl></div></header>
+      <header className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><div className="d-flex flex-column flex-md-row justify-content-between gap-3"><div><p className="mb-1 small text-muted">Ticket Number</p><h1 id="staff-ticket-detail-title" className="ticket-detail-number mb-0">{ticket.ticketNumber}</h1></div><div className="ticket-detail-badges"><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Status</span><Badge type="status" value={ticket.currentStatus} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Requested Priority</span><Badge type="priority" value={ticket.requestedPriority} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">IT Priority</span><Badge type="priority" value={ticket.itPriority} /></div></div></div><dl className="row g-3 mt-2 mb-0"><ReadOnlyField label="Ticket Date">{formatTicketDateTime(ticket.ticketDate)}</ReadOnlyField><ReadOnlyField label="Last Updated">{formatTicketDateTime(ticket.updatedAt)}</ReadOnlyField><ReadOnlyField label="Requester">{ticket.requester.name} · {ticket.requester.email}</ReadOnlyField><ReadOnlyField label="Owner">{ticket.owner?.name ?? 'Unassigned'}</ReadOnlyField><ReadOnlyField label="Problem Appears Resolved">{ticket.problemAppearsResolvedAt ? formatTicketDateTime(ticket.problemAppearsResolvedAt) : 'Not indicated'}</ReadOnlyField><ReadOnlyField label="Resolved At">{ticket.resolvedAt ? formatTicketDateTime(ticket.resolvedAt) : 'Not resolved'}</ReadOnlyField></dl></div></header>
 
       {(feedback || mutationError) && <div className={`alert ${mutationError ? 'alert-danger' : 'alert-success'}`} role="status" aria-live="polite">{mutationError ?? feedback}</div>}
       <div className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><h2 className="h3">Ticket information</h2><dl className="d-grid gap-3 mb-0"><ReadOnlyField label="Category">{ticket.category.name}</ReadOnlyField><ReadOnlyField label="Related System">{ticket.relatedSystem?.name ?? 'Not specified'}</ReadOnlyField><ReadOnlyField label="Summary">{ticket.summary}</ReadOnlyField><ReadOnlyField label="Description"><span className="ticket-detail-description">{ticket.description}</span></ReadOnlyField></dl></div></div>

@@ -152,3 +152,48 @@ export function mapActionStatusToEventType(status: ActionStatus): 'STARTED' | 'C
   return 'STARTED';
 }
 
+export interface ResolutionGateAction {
+  id?: number;
+  status: ActionStatus;
+  result: string | null;
+  followUpRequired: boolean;
+}
+
+export type ResolutionGateResult =
+  | { allowed: true }
+  | { allowed: false; reason: string };
+
+export function evaluateResolutionGate(actions: ResolutionGateAction[]): ResolutionGateResult {
+  const hasCompletedWithResult = actions.some(
+    (act) => act.status === 'COMPLETED' && typeof act.result === 'string' && act.result.trim().length > 0,
+  );
+  if (!hasCompletedWithResult) {
+    return {
+      allowed: false,
+      reason: 'At least one completed action with a recorded result is required before resolution',
+    };
+  }
+
+  const hasActiveActions = actions.some(
+    (act) => act.status === 'PENDING' || act.status === 'IN_PROGRESS',
+  );
+  if (hasActiveActions) {
+    return {
+      allowed: false,
+      reason: 'All actions must be completed or cancelled before resolution',
+    };
+  }
+
+  const hasUnresolvedFollowUp = actions.some(
+    (act) => act.status !== 'CANCELLED' && act.followUpRequired === true,
+  );
+  if (hasUnresolvedFollowUp) {
+    return {
+      allowed: false,
+      reason: 'All follow-up requirements must be resolved before resolution',
+    };
+  }
+
+  return { allowed: true };
+}
+
