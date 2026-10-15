@@ -267,8 +267,11 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     );
     expect(errorAlert).toBeInTheDocument();
 
-    // Dropdown value reverts to original status
+    // Dropdown value reverts to original status and displays validation error state
     expect(statusSelect.value).toBe('IN_PROGRESS');
+    expect(statusSelect).toHaveClass('is-invalid');
+    expect(statusSelect).toHaveAttribute('aria-invalid', 'true');
+    expect(statusSelect).toHaveAttribute('aria-describedby', 'ticket-status-error');
   });
 
   it('handles 409 CONFLICT gracefully and displays conflict alert', async () => {
