@@ -100,8 +100,8 @@ test('Staff can search the queue, open detail, and complete the Issue #41 workfl
   await expect(page.getByText('Owner updated.')).toBeVisible();
   await page.getByLabel('IT Priority').selectOption('CRITICAL');
   await expect(page.getByText('IT Priority updated.')).toBeVisible();
-  page.once('dialog', dialog => dialog.accept());
   await page.getByLabel('Status').selectOption('CANCELLED');
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('Ticket status updated.')).toBeVisible();
   await page.getByLabel('Add a public comment').fill('Staff reply');
   await page.getByRole('button', { name: 'Add public comment' }).click();

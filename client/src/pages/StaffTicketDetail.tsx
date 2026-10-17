@@ -286,8 +286,16 @@ export function StaffTicketDetail() {
       );
       setPendingStatus(null);
       await refreshTicket();
+      const select = document.getElementById('ticket-status');
+      if (select) {
+        select.focus();
+      }
     } catch {
       setPendingStatus(null);
+      const select = document.getElementById('ticket-status');
+      if (select) {
+        select.focus();
+      }
     }
   };
 

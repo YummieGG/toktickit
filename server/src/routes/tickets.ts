@@ -15,7 +15,6 @@ import {
   findTicketForUser,
   getAuthenticatedUser,
   sendNotFound,
-  type AuthenticatedUser,
 } from '../lib/authorization';
 import {
   getUploadsDirectory,

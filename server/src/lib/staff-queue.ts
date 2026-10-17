@@ -1,4 +1,4 @@
-import { Prisma, type TicketStatus, type RequestedPriority } from '../../generated/prisma';
+import { Prisma, type RequestedPriority } from '../../generated/prisma';
 import { getSingleStringParam, isPositiveIntegerString, type ValidationErrorDetail } from './validation';
 
 import { ALL_STATUSES } from './status-transition';

@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { Prisma, type ActionStatus, type ActionEventType, type TicketStatus } from '../../generated/prisma';
+import { Prisma, type ActionStatus } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
 import {
   apiError,
