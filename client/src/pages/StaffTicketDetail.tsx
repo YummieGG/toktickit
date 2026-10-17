@@ -59,6 +59,7 @@ export function StaffTicketDetail() {
   const [saving, setSaving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [isConflict, setIsConflict] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const redirectToLogin = useCallback(() => {
@@ -135,7 +136,7 @@ export function StaffTicketDetail() {
 
   const mutate = async (key: string, url: string, body: unknown, success: string) => {
     if (!ticket || saving) return;
-    setSaving(key); setFeedback(null); setMutationError(null); setValidationErrors({});
+    setSaving(key); setFeedback(null); setMutationError(null); setIsConflict(false); setValidationErrors({});
     try {
       const payload = await requestJson<{ data: TicketDetail }>(url, { method: 'PATCH', body: JSON.stringify(body) });
       setTicket(payload.data); setOwnerInput(payload.data.owner ? String(payload.data.owner.id) : ''); setFeedback(success);
@@ -144,13 +145,12 @@ export function StaffTicketDetail() {
       if (requestError instanceof DetailRequestError && requestError.status === 409) {
         setValidationErrors(requestError.fields);
         setMutationError(requestError.message);
-        setRetry(value => value + 1);
+        setIsConflict(true);
         throw requestError;
       }
       const fields = requestError instanceof DetailRequestError ? requestError.fields : {};
-      const hasFieldErrors = Object.keys(fields).length > 0;
       setValidationErrors(fields);
-      setMutationError(hasFieldErrors ? null : (requestError instanceof Error ? requestError.message : 'Unable to save changes.'));
+      setMutationError(requestError instanceof Error ? requestError.message : 'Unable to save changes.');
       throw requestError;
     } finally { setSaving(null); }
   };
@@ -260,13 +260,39 @@ export function StaffTicketDetail() {
   const ownerOptions = ticket.owner && !owners.some(owner => owner.id === ticket.owner?.id)
     ? [ticket.owner, ...owners]
     : owners;
-  const statusError = validationErrors.status || validationErrors.confirmed || validationErrors.resolutionGate;
+  const statusError =
+    validationErrors.status ||
+    validationErrors.confirmed ||
+    (validationErrors.resolutionGate ? 'Resolution requirement not met (see details above).' : undefined);
   return (
     <section className="staff-ticket-detail" aria-labelledby="staff-ticket-detail-title">
       <Link className="btn btn-zen-tertiary mb-3 px-0" to="/staff/tickets">← Back to Staff Queue</Link>
       <header className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><div className="d-flex flex-column flex-md-row justify-content-between gap-3"><div><p className="mb-1 small text-muted">Ticket Number</p><h1 id="staff-ticket-detail-title" className="ticket-detail-number mb-0">{ticket.ticketNumber}</h1></div><div className="ticket-detail-badges"><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Status</span><Badge type="status" value={ticket.currentStatus} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Requested Priority</span><Badge type="priority" value={ticket.requestedPriority} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">IT Priority</span><Badge type="priority" value={ticket.itPriority} /></div></div></div><dl className="row g-3 mt-2 mb-0"><ReadOnlyField label="Ticket Date">{formatTicketDateTime(ticket.ticketDate)}</ReadOnlyField><ReadOnlyField label="Last Updated">{formatTicketDateTime(ticket.updatedAt)}</ReadOnlyField><ReadOnlyField label="Requester">{ticket.requester.name} · {ticket.requester.email}</ReadOnlyField><ReadOnlyField label="Owner">{ticket.owner?.name ?? 'Unassigned'}</ReadOnlyField><ReadOnlyField label="Problem Appears Resolved">{ticket.problemAppearsResolvedAt ? formatTicketDateTime(ticket.problemAppearsResolvedAt) : 'Not indicated'}</ReadOnlyField><ReadOnlyField label="Resolved At">{ticket.resolvedAt ? formatTicketDateTime(ticket.resolvedAt) : 'Not resolved'}</ReadOnlyField></dl></div></header>
 
-      {(feedback || mutationError) && <div className={`alert ${mutationError ? 'alert-danger' : 'alert-success'}`} role="status" aria-live="polite">{mutationError ?? feedback}</div>}
+      {(feedback || mutationError) && (
+        <div className={`alert ${mutationError ? 'alert-danger' : 'alert-success'}`} role="status" aria-live="polite">
+          <p className="mb-0">{mutationError ?? feedback}</p>
+          {isConflict && (
+            <div className="mt-2 pt-2 border-top border-danger-subtle d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
+              <span className="small">Your draft has been preserved. Please reload to reconcile your view with the latest ticket version.</span>
+              <Button
+                type="button"
+                variant="secondary"
+                className="btn-sm text-nowrap"
+                onClick={() => {
+                  void refreshTicket().then(() => {
+                    setIsConflict(false);
+                    setMutationError(null);
+                    setValidationErrors({});
+                  });
+                }}
+              >
+                Reload & Reconcile
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
       <div className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><h2 className="h3">Ticket information</h2><dl className="d-grid gap-3 mb-0"><ReadOnlyField label="Category">{ticket.category.name}</ReadOnlyField><ReadOnlyField label="Related System">{ticket.relatedSystem?.name ?? 'Not specified'}</ReadOnlyField><ReadOnlyField label="Summary">{ticket.summary}</ReadOnlyField><ReadOnlyField label="Description"><span className="ticket-detail-description">{ticket.description}</span></ReadOnlyField></dl></div></div>
 
       <ActionsTakenSection

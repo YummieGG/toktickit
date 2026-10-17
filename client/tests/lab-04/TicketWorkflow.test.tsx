@@ -287,6 +287,16 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     const errorAlert = await screen.findByText(/The resource was modified by another user/i);
     expect(errorAlert).toBeInTheDocument();
     expect(statusSelect.value).toBe('IN_PROGRESS');
+
+    const reconcileBtn = await screen.findByRole('button', { name: /Reload & Reconcile/i });
+    expect(reconcileBtn).toBeInTheDocument();
+    expect(screen.getByText(/Your draft has been preserved/i)).toBeInTheDocument();
+
+    fireEvent.click(reconcileBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/The resource was modified by another user/i)).not.toBeInTheDocument();
+    });
   });
 
   it('displays Resolved At timestamp when ticket is resolved, and Not resolved when null', async () => {
