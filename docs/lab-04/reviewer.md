@@ -19,7 +19,7 @@
 | [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | `da2426b` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
 | [#66](https://github.com/YummieGG/toktickit/pull/66) | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | `87acf65` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
 | [#67](https://github.com/YummieGG/toktickit/pull/67) | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | `07a215d` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-4: Ticket workflow resolution gate and child action lifecycle | `lab4-4-resolution-workflow` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| [#68](https://github.com/YummieGG/toktickit/pull/68) | Lab 4-4: Enforce Ticket Workflow and Resolution Gate | `lab4-4-ticket-workflow` | `f3f2c1e` (Initial) | Changes Requested | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-dashboards` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-6: Cross-cutting verification, QA test suite, and visual evidence | `lab4-6-verification-qa` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-7: Staged integration and clean verification | `lab4-7-staging-integration` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
@@ -155,3 +155,53 @@
   > Awaiting peer review on the Lab 4 engineering contract package.
 - **How I responded (@YummieGG)**:
   > Ready for review.
+
+---
+
+### PR #68: Lab 4-4: Enforce Ticket Workflow and Resolution Gate
+- **Target PR**: [#68](https://github.com/YummieGG/toktickit/pull/68) (`lab4-4-ticket-workflow` → `lab4-staging`)
+- **Base Commit**: `774490a` (Merged PR #67)
+- **Initial Implementation Commit**: `f3f2c1e`
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Changes Requested → Addressed
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > ### Missing Specifications & Implementation Defects (PR #68)
+  >
+  > 1. **Test Failure: 409 Conflict Handling Unmounts UI (`docs/lab-04/ui-spec.md:17`) [BLOCKER]**
+  >    - **Spec**: *"Recoverable request errors preserve draft content; conflict errors (`409 CONFLICT`) show explicit reload and reconcile guidance without silently discarding user input."*
+  >    - **Finding**: Running `npm test` in `client/` fails on `client/tests/lab-04/TicketWorkflow.test.tsx:288`:
+  >      ```text
+  >      FAIL tests/lab-04/TicketWorkflow.test.tsx > UI-02: Ticket Workflow and Resolution Feedback > handles 409 CONFLICT gracefully and displays conflict alert
+  >      Error: expect(element).toBeInTheDocument()
+  >      element could not be found in the document
+  >      ```
+  >    - **Root Cause**: In `client/src/pages/StaffTicketDetail.tsx` (line 147), handling a `409` conflict calls `setRetry(value => value + 1)`. This triggers `useEffect` (`setIsLoading(true); setTicket(null)`), which completely unmounts the ticket view and the alert banner before the test assertion can evaluate.
+  >    - **Required Fix**: Avoid unmounting/full reload on 409 conflicts. Retain the current form state, display the conflict alert banner, and update ticket data in-place without clearing the view.
+  >
+  > 2. **Missing Reload / Reconcile Controls on 409 Conflict (`docs/lab-04/ui-spec.md:133`)**
+  >    - **Spec**: *"Stale update conflicts (`409 CONFLICT`) retain user draft and offer reload/reconcile controls."*
+  >    - **Finding**: `StaffTicketDetail.tsx` lacks dedicated reload/reconcile controls or guidance for stale ticket updates; triggering a retry resets the state instead of letting the user reconcile changes.
+  >
+  > 3. **Resolution Gate Error Banner Omitted (`docs/lab-04/ui-spec.md §7`)**
+  >    - **Spec**: *"Attempting to resolve a Ticket that does not meet the resolution gate displays an explicit error banner stating the blocking condition."*
+  >    - **Finding**: In `StaffTicketDetail.tsx` (lines 151–153), `mutationError` is explicitly suppressed (`null`) whenever field errors exist. When the server responds with `TICKET_RESOLUTION_BLOCKED` (`fields.resolutionGate`), the top-level error banner (`alert-danger`) is omitted, showing only the inline message below the status dropdown.
+  >
+  > 4. **Incomplete Live E2E Resolution Gate & Workflow Coverage (`docs/lab-04/tests.md:92` LIVE-01)**
+  >    - **Spec**: *"Browser to real API to PostgreSQL action and workflow flow | Real DB transactions enforce resolution gate, version check, and idempotency"*
+  >    - **Finding**: `e2e/lab-04/ticket-resolution.live.spec.ts` only executes direct API request assertions (stale version 409 and bad Origin 403). It omits testing the actual browser UI workflow, resolution gate blocking in the browser, and live DB transaction updates.
+- **How I responded (@YummieGG)**:
+  > Addressed all 4 review comments in `StaffTicketDetail.tsx`, `TicketWorkflow.test.tsx`, and `ticket-resolution.live.spec.ts`:
+  > 1. **409 Conflict In-place State Retention:** Removed `setRetry(value => value + 1)` from 409 handling in `StaffTicketDetail.tsx`. Draft states (comments, notes, inputs) are preserved, the conflict alert is retained without unmounting or view flashing, and in-place reconciliation is enabled.
+  > 2. **Explicit Reload & Reconcile Controls:** Added dedicated `Reload & Reconcile` button and draft-preservation guidance inside the conflict alert banner. Clicking it fetches the latest ticket version in-place and clears conflict state. Verified via automated test assertions in `TicketWorkflow.test.tsx`.
+  > 3. **Top-Level Resolution Gate Error Banner Restored:** Removed suppression of `mutationError` on field errors in `StaffTicketDetail.tsx`. Both the top-level `.alert-danger` stating the blocking condition and the inline `#ticket-status-error` with `aria-invalid` and `aria-describedby` are now simultaneously displayed without collision.
+  > 4. **Comprehensive Live E2E Workflow Coverage (LIVE-01):** Updated `e2e/lab-04/ticket-resolution.live.spec.ts` to execute end-to-end browser UI flows against live PostgreSQL: resolution gate blocking in browser UI, action recording, starting and completing with result in browser UI, successful resolution and timestamp verification, closing, reopening with timestamp resets, atomic child action cancellation on parent cancel, and API concurrency/origin security checks.
+  >
+  > All test suites (server: 394/394, client: 139/139, Playwright E2E: 24/24) pass cleanly with 0 regressions. Ready for re-review.
+  >
+  > **Iterative Code-Review Refinements (5 Rounds)**:
+  > - **Round 1 (Conflict & Reconcile Resilience)**: Enhanced `refreshTicket` to return a `Promise<boolean>` and made the `Reload & Reconcile` button verify successful data retrieval before dismissing the conflict banner; if the network or server fails, the conflict notice is safely retained and an explicit retry alert is displayed. Added `.catch(() => {})` on `it-priority` mutation promise.
+  > - **Round 2 (Accessibility & State Integrity)**: Set dynamic semantic ARIA role on top alert banner (`role={mutationError ? 'alert' : 'status'}`) ensuring screen readers announce error states as assertive alerts and success states politely. Removed premature clearance of validation and mutation errors at the start of `saveStatus` so that dismissing a confirmation modal leaves any existing resolution-gate or conflict banner intact.
+  > - **Round 3 (Live E2E Environment Fallback)**: Added transparent fallback in `ticket-resolution.live.spec.ts` to read `SEED_INITIAL_PASSWORD` from local `server/.env` if not exported in shell environment, ensuring local runs succeed while retaining strict CI environment variable overrides.
+  > - **Round 4 (Server Port Isolation)**: Guarded `app.listen` in `server/src/index.ts` behind `if (process.env.NODE_ENV !== 'test')` to prevent concurrent supertest processes from colliding on port 3000 during parallel Vitest runs.
+  > - **Round 5 (Test Verification)**: Expanded `TicketWorkflow.test.tsx` with automated coverage for reconcile failure retention and error preservation upon cancelled confirmation prompts (139/139 client tests green). Full regression suites pass cleanly with 0 violations.

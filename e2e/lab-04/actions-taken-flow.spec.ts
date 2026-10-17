@@ -126,6 +126,7 @@ async function installActionsMockApi(
           page: 1,
           pageSize: 20,
           total: actions.length,
+          totalItems: actions.length,
           totalPages: 1,
         },
       });

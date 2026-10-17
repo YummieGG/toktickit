@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { Prisma, UserRole } from '../../generated/prisma';
+import type { Prisma } from '../../generated/prisma';
 import { prisma } from './prisma';
 
 export type AuthenticatedUser = NonNullable<Request['auth']>['user'];

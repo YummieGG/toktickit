@@ -222,6 +222,15 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     void fetchActions(1);
   }, [fetchActions]);
 
+  const isFirstStatusRender = useRef(true);
+  useEffect(() => {
+    if (isFirstStatusRender.current) {
+      isFirstStatusRender.current = false;
+      return;
+    }
+    void fetchActions(pagination?.page ?? 1);
+  }, [ticketStatus, fetchActions, pagination?.page]);
+
   // Open Create Form
   const handleOpenCreate = () => {
     setIsCreating(true);
@@ -356,7 +365,9 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
       if (body.data) {
         const newAction = body.data.action;
         const pageSize = pagination?.pageSize ?? 20;
-        const currentTotal = pagination?.totalItems ?? actions.length;
+        const currentTotal = typeof pagination?.totalItems === 'number' && !Number.isNaN(pagination.totalItems)
+          ? pagination.totalItems
+          : actions.length;
         const nextTotal = currentTotal + 1;
         const targetPage = Math.max(1, Math.ceil(nextTotal / pageSize));
 
@@ -368,13 +379,15 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
         });
         setPagination((prev) => {
           if (!prev) return null;
+          const prevTotal = typeof prev.totalItems === 'number' && !Number.isNaN(prev.totalItems) ? prev.totalItems : actions.length;
+          const prevPages = typeof prev.totalPages === 'number' && !Number.isNaN(prev.totalPages) ? prev.totalPages : 1;
           const nextPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize));
           return {
             ...prev,
-            totalItems: Math.max(prev.totalItems, nextTotal),
-            totalPages: Math.max(prev.totalPages, nextPages),
+            totalItems: Math.max(prevTotal, nextTotal),
+            totalPages: Math.max(prevPages, nextPages),
             page: targetPage,
-            hasNextPage: targetPage < Math.max(prev.totalPages, nextPages),
+            hasNextPage: targetPage < Math.max(prevPages, nextPages),
             hasPreviousPage: targetPage > 1,
           };
         });
@@ -771,7 +784,9 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
               Actions Taken
             </h2>
             <span className="badge rounded-pill bg-light text-dark border">
-              {pagination?.totalItems ?? actions.length}
+              {(typeof pagination?.totalItems === 'number' && !Number.isNaN(pagination.totalItems))
+                ? pagination.totalItems
+                : actions.length}
             </span>
           </div>
           {canMutate && !isCreating && (

@@ -89,22 +89,22 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
 
   it('requires confirmation for terminal workflow changes and clears resolution when reopened', async () => {
     const fetchMock = installFetch(staff, 'RESOLVED');
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<App />);
     await screen.findByRole('heading', { name: 'TK-0008' });
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'REOPENED' } });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/tickets/8/status', expect.objectContaining({ method: 'PATCH' })));
-    expect(window.confirm).toHaveBeenCalled();
   });
 
   it('resets status dropdown when confirmation is cancelled', async () => {
     const fetchMock = installFetch(staff, 'OPEN');
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<App />);
     await screen.findByRole('heading', { name: 'TK-0008' });
     const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
     fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
-    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(fetchMock).not.toHaveBeenCalledWith('/api/tickets/8/status', expect.anything());
     expect(statusSelect.value).toBe('OPEN');
   });

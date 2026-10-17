@@ -5,7 +5,7 @@ const serverHealthUrl = 'http://127.0.0.1:3000/api/health';
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'lab-03/live-integration.spec.ts',
+  testMatch: ['lab-03/live-integration.spec.ts', '**/*.live.spec.ts'],
   fullyParallel: false,
   forbidOnly: true,
   retries: process.env.CI ? 2 : 0,

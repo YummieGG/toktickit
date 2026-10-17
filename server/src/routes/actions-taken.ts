@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { Prisma, type ActionStatus, type ActionEventType, type TicketStatus } from '../../generated/prisma';
+import { Prisma, type ActionStatus } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
 import {
   apiError,
@@ -608,11 +608,11 @@ ticketActionsTakenRouter.patch(
 
           if (hasFollowUpRequired && !nextFollowUpRequired) {
             // Setting followUpRequired=false does not erase historical note text.
-            if (hasFollowUpNote && followUpNote !== null && followUpNote.trim().length > 0) {
+            if (hasFollowUpNote && followUpNote !== undefined && followUpNote !== null && followUpNote.trim().length > 0) {
               nextFollowUpNote = followUpNote;
               noteModified = true;
             }
-          } else if (hasFollowUpNote) {
+          } else if (hasFollowUpNote && followUpNote !== undefined) {
             nextFollowUpNote = followUpNote;
             noteModified = true;
           }
