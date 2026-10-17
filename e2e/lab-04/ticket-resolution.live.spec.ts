@@ -1,11 +1,22 @@
+import fs from 'fs';
+import path from 'path';
 import { expect, request, test } from '@playwright/test';
 
 const APP_ORIGIN = 'http://127.0.0.1:5173';
 const STAFF_EMAIL = 'pimchanok.staff@toktickit.local';
 
-function requiredEnvironment(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required for the live E2E suite`);
+function resolveInitialPassword(): string {
+  if (process.env.E2E_STAFF_PASSWORD) return process.env.E2E_STAFF_PASSWORD;
+  if (process.env.SEED_INITIAL_PASSWORD) return process.env.SEED_INITIAL_PASSWORD;
+  try {
+    const envFile = path.resolve(__dirname, '../../server/.env');
+    if (fs.existsSync(envFile)) {
+      const match = fs.readFileSync(envFile, 'utf8').match(/^SEED_INITIAL_PASSWORD=["']?([^"'\r\n]+)["']?/m);
+      if (match?.[1]) return match[1];
+    }
+  } catch {}
+  const value = process.env.SEED_INITIAL_PASSWORD;
+  if (!value) throw new Error('SEED_INITIAL_PASSWORD is required for the live E2E suite');
   return value;
 }
 
@@ -13,7 +24,7 @@ test('LIVE-01: Live ticket resolution lifecycle, gate enforcement, version concu
   page,
   context,
 }) => {
-  const password = process.env.E2E_STAFF_PASSWORD || requiredEnvironment('SEED_INITIAL_PASSWORD');
+  const password = resolveInitialPassword();
 
   // 1. Staff Authentication
   await page.goto('/login');

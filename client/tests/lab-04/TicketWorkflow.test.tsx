@@ -50,6 +50,7 @@ function installFetch(
     resolvedAt?: string | null;
     resolutionBlocked?: boolean;
     conflict?: boolean;
+    reconcileFails?: boolean;
   } = {},
 ) {
   const currentTicket = {
@@ -68,6 +69,9 @@ function installFetch(
       return Promise.resolve(response({ data: [staff] }));
     }
     if (url === '/api/tickets/8' && (!init || !init.method || init.method === 'GET')) {
+      if (options.reconcileFails && fetchMock.mock.calls.filter(c => String(c[0]) === '/api/tickets/8').length > 1) {
+        return Promise.resolve(response({ error: { message: 'Network offline' } }, 500));
+      }
       return Promise.resolve(response({ data: currentTicket }));
     }
     if (url.includes('/actions-taken') && (!init || !init.method || init.method === 'GET')) {
@@ -297,6 +301,58 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     await waitFor(() => {
       expect(screen.queryByText(/The resource was modified by another user/i)).not.toBeInTheDocument();
     });
+  });
+
+  it('retains conflict notice and displays error when reconcile reload fails', async () => {
+    installFetch('IN_PROGRESS', { conflict: true, reconcileFails: true });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
+
+    const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
+    fireEvent.change(statusSelect, { target: { value: 'WAITING_FOR_REQUESTER' } });
+
+    const errorAlert = await screen.findByText(/The resource was modified by another user/i);
+    expect(errorAlert).toBeInTheDocument();
+
+    const reconcileBtn = await screen.findByRole('button', { name: /Reload & Reconcile/i });
+    fireEvent.click(reconcileBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Unable to reload ticket for reconciliation. Please try again.')).toBeInTheDocument();
+    });
+    // The conflict banner and reload button remain visible
+    expect(reconcileBtn).toBeInTheDocument();
+    expect(screen.getByText(/Your draft has been preserved/i)).toBeInTheDocument();
+  });
+
+  it('preserves existing resolution gate error when a subsequent confirmation dialog is cancelled', async () => {
+    installFetch('IN_PROGRESS', { resolutionBlocked: true });
+    const confirmSpy = vi.spyOn(window, 'confirm');
+
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
+
+    const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
+
+    // 1. Attempt resolve -> blocked by resolution gate
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.change(statusSelect, { target: { value: 'RESOLVED' } });
+
+    const gateError = await screen.findByText(
+      'At least one completed action with a recorded result is required before resolution',
+    );
+    expect(gateError).toBeInTheDocument();
+    expect(statusSelect).toHaveClass('is-invalid');
+
+    // 2. User tries to cancel ticket, but dismisses the confirmation modal
+    confirmSpy.mockReturnValueOnce(false);
+    fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
+
+    // The resolution gate error banner and invalid styling must remain intact
+    expect(screen.getByText('At least one completed action with a recorded result is required before resolution')).toBeInTheDocument();
+    expect(statusSelect.value).toBe('IN_PROGRESS');
   });
 
   it('displays Resolved At timestamp when ticket is resolved, and Not resolved when null', async () => {
