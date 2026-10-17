@@ -388,7 +388,7 @@ export function StaffTicketDetail() {
       <header className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><div className="d-flex flex-column flex-md-row justify-content-between gap-3"><div><p className="mb-1 small text-muted">Ticket Number</p><h1 id="staff-ticket-detail-title" className="ticket-detail-number mb-0">{ticket.ticketNumber}</h1></div><div className="ticket-detail-badges"><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Status</span><Badge type="status" value={ticket.currentStatus} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">Requested Priority</span><Badge type="priority" value={ticket.requestedPriority} /></div><div className="ticket-detail-badge"><span className="ticket-detail-badge-label">IT Priority</span><Badge type="priority" value={ticket.itPriority} /></div></div></div><dl className="row g-3 mt-2 mb-0"><ReadOnlyField label="Ticket Date">{formatTicketDateTime(ticket.ticketDate)}</ReadOnlyField><ReadOnlyField label="Last Updated">{formatTicketDateTime(ticket.updatedAt)}</ReadOnlyField><ReadOnlyField label="Requester">{ticket.requester.name} · {ticket.requester.email}</ReadOnlyField><ReadOnlyField label="Owner">{ticket.owner?.name ?? 'Unassigned'}</ReadOnlyField><ReadOnlyField label="Problem Appears Resolved">{ticket.problemAppearsResolvedAt ? formatTicketDateTime(ticket.problemAppearsResolvedAt) : 'Not indicated'}</ReadOnlyField><ReadOnlyField label="Resolved At">{ticket.resolvedAt ? formatTicketDateTime(ticket.resolvedAt) : 'Not resolved'}</ReadOnlyField></dl></div></header>
 
       {(feedback || mutationError) && (
-        <div className={`alert ${mutationError ? 'alert-danger' : 'alert-success'}`} role={mutationError ? 'alert' : 'status'} aria-live="polite">
+        <Alert variant={mutationError ? 'danger' : 'success'} role={mutationError ? 'alert' : 'status'} aria-live="polite">
           <p className="mb-0">{mutationError ?? feedback}</p>
           {isConflict && (
             <div className="mt-2 pt-2 border-top border-danger-subtle d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
@@ -413,7 +413,7 @@ export function StaffTicketDetail() {
               </Button>
             </div>
           )}
-        </div>
+        </Alert>
       )}
       <div className="card shadow-sm mb-4"><div className="card-body p-3 p-md-4"><h2 className="h3">Ticket information</h2><dl className="d-grid gap-3 mb-0"><ReadOnlyField label="Category">{ticket.category.name}</ReadOnlyField><ReadOnlyField label="Related System">{ticket.relatedSystem?.name ?? 'Not specified'}</ReadOnlyField><ReadOnlyField label="Summary">{ticket.summary}</ReadOnlyField><ReadOnlyField label="Description"><span className="ticket-detail-description">{ticket.description}</span></ReadOnlyField></dl></div></div>
 
@@ -474,7 +474,7 @@ export function StaffTicketDetail() {
               border: '1px solid var(--surface-border)',
             }}
           >
-            <h3 id="status-modal-title" className="h4 mb-3 text-dark">
+            <h3 id="status-modal-title" className="h4 mb-3" style={{ color: 'var(--text-dark, #0b2e1b)' }}>
               {modalConfig.title}
             </h3>
             <p id="status-modal-description" className="mb-2">

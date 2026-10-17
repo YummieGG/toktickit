@@ -595,4 +595,100 @@ describe('API-04: Ticket Workflow, 8-State Transitions, Resolution Gate & Child 
       expect(prisma.actionTakenEvent.create).not.toHaveBeenCalled();
     });
   });
+
+  describe('Legacy Ticket Workflow Transitions (BR-14, PLAN:532)', () => {
+    it('allows a legacy RESOLVED ticket with null resolvedAt to transition to CLOSED without guessing timestamps or inventing actions', async () => {
+      vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ id: 99, currentStatus: 'RESOLVED' } as never);
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 99,
+        currentStatus: 'RESOLVED',
+        version: 1,
+        resolvedAt: null, // Legacy record without resolution timestamp
+        problemAppearsResolvedAt: null,
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/99/status')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ status: 'CLOSED', confirmed: true, expectedTicketVersion: 1 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.currentStatus).toBe('CLOSED');
+      // Ensure resolvedAt is not overwritten with a guessed date or modified
+      expect(prisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 99 },
+          data: expect.objectContaining({
+            currentStatus: 'CLOSED',
+            version: { increment: 1 },
+          }),
+        }),
+      );
+      const updateData = vi.mocked(prisma.ticket.update).mock.calls.at(-1)?.[0].data;
+      expect(updateData).not.toHaveProperty('resolvedAt');
+    });
+
+    it('allows a legacy RESOLVED ticket with null resolvedAt to transition to REOPENED and clears timestamps safely', async () => {
+      vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ id: 99, currentStatus: 'RESOLVED' } as never);
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 99,
+        currentStatus: 'RESOLVED',
+        version: 1,
+        resolvedAt: null,
+        problemAppearsResolvedAt: null,
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/99/status')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ status: 'REOPENED', confirmed: true, expectedTicketVersion: 1 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.currentStatus).toBe('REOPENED');
+      expect(prisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 99 },
+          data: expect.objectContaining({
+            currentStatus: 'REOPENED',
+            resolvedAt: null,
+            problemAppearsResolvedAt: null,
+            version: { increment: 1 },
+          }),
+        }),
+      );
+    });
+
+    it('allows a legacy CLOSED ticket without actions to transition to REOPENED', async () => {
+      vi.mocked(prisma.ticket.findFirst).mockResolvedValue({ id: 99, currentStatus: 'CLOSED' } as never);
+      vi.mocked(prisma.ticket.findUnique).mockResolvedValue({
+        id: 99,
+        currentStatus: 'CLOSED',
+        version: 1,
+        resolvedAt: null,
+        problemAppearsResolvedAt: null,
+      } as never);
+
+      const res = await request(app)
+        .patch('/api/tickets/99/status')
+        .set('Cookie', COOKIE)
+        .set('Origin', ORIGIN)
+        .send({ status: 'REOPENED', confirmed: true, expectedTicketVersion: 1 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.currentStatus).toBe('REOPENED');
+      expect(prisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 99 },
+          data: expect.objectContaining({
+            currentStatus: 'REOPENED',
+            resolvedAt: null,
+            problemAppearsResolvedAt: null,
+            version: { increment: 1 },
+          }),
+        }),
+      );
+    });
+  });
 });
