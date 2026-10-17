@@ -213,10 +213,10 @@ function installResolutionMockApi(page: Page, currentUser: UserMock = staff) {
 
         if (!hasCompletedWithResult || hasActiveActions || hasUnresolvedFollowUp) {
           let reason = 'Ticket resolution is blocked by action requirements';
-          if (!hasCompletedWithResult) {
-            reason = 'At least one completed action with a recorded result is required before resolution';
-          } else if (hasActiveActions) {
+          if (hasActiveActions) {
             reason = 'All actions must be completed or cancelled before resolution';
+          } else if (!hasCompletedWithResult) {
+            reason = 'At least one completed action with a recorded result is required before resolution';
           } else if (hasUnresolvedFollowUp) {
             reason = 'All follow-up requirements must be resolved before resolution';
           }
@@ -291,8 +291,8 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     await expect(statusSelect).toHaveValue('IN_PROGRESS');
 
     // Attempt to resolve ticket with 0 actions
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('RESOLVED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     // Error banner displayed
     await expect(
@@ -314,11 +314,11 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     await page.getByRole('button', { name: 'Confirm' }).click();
     await expect(tableRow.getByText('IN_PROGRESS')).toBeVisible();
 
-    // Attempt to resolve while action is IN_PROGRESS -> BLOCKED because no completed action exists yet
-    page.once('dialog', (dialog) => dialog.accept());
+    // Attempt to resolve while action is IN_PROGRESS -> BLOCKED because active actions are in flight
     await statusSelect.selectOption('RESOLVED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
     await expect(
-      page.getByText('At least one completed action with a recorded result is required before resolution'),
+      page.getByText('All actions must be completed or cancelled before resolution'),
     ).toBeVisible();
 
     // 4. Complete the action with a valid result
@@ -338,8 +338,8 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     const secondRow = page.locator('.actions-taken-table tbody tr').nth(1);
     await expect(secondRow.getByText('Second action still pending inspection')).toBeVisible();
 
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('RESOLVED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
     await expect(
       page.getByText('All actions must be completed or cancelled before resolution'),
     ).toBeVisible();
@@ -352,26 +352,25 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     await expect(secondRow.getByText('CANCELLED')).toBeVisible();
 
     // 6. Resolve the ticket -> SUCCEEDS
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('RESOLVED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.getByText('Ticket status updated.')).toBeVisible();
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('RESOLVED');
     await expect(page.getByText('Resolved At')).toBeVisible();
 
     // 7. Close the ticket -> SUCCEEDS and preserves Resolved At
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('CLOSED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('CLOSED');
     await expect(page.getByText('Resolved At')).toBeVisible();
 
     // 8. Reopen the ticket -> clears Resolved At and Problem Appears Resolved
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toContain('preserve all past action and event history');
-      dialog.accept();
-    });
     await statusSelect.selectOption('REOPENED');
+    const reopenModal = page.getByRole('dialog');
+    await expect(reopenModal).toContainText('preserve all past action and event history');
+    await reopenModal.getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('REOPENED');
     await expect(page.getByText('Not resolved')).toBeVisible();
@@ -388,11 +387,10 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     await expect(thirdRow.getByText('Pending follow-up check on switch temperature')).toBeVisible();
 
     // Cancel ticket -> atomically cancels the active action
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toContain('cancel any active child actions');
-      dialog.accept();
-    });
     await statusSelect.selectOption('CANCELLED');
+    const cancelModal = page.getByRole('dialog');
+    await expect(cancelModal).toContainText('cancel any active child actions');
+    await cancelModal.getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('CANCELLED');
     await expect(thirdRow.getByText('Ticket cancelled by IT Staff')).toBeVisible();

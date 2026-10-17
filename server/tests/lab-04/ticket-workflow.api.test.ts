@@ -146,8 +146,8 @@ describe('API-04: Ticket Workflow, 8-State Transitions, Resolution Gate & Child 
     });
   });
 
-  describe('Payload and Concurrency Validation (BR-17)', () => {
-    it('rejects unknown fields with 400 INVALID_STATUS_TRANSITION', async () => {
+  describe('Payload and Concurrency Validation (BR-17, VALIDATION-01)', () => {
+    it('rejects unknown fields with 400 VALIDATION_ERROR', async () => {
       const res = await request(app)
         .patch('/api/tickets/5/status')
         .set('Cookie', COOKIE)
@@ -160,10 +160,10 @@ describe('API-04: Ticket Workflow, 8-State Transitions, Resolution Gate & Child 
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('INVALID_STATUS_TRANSITION');
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
 
-    it('validates status, confirmed, and expectedTicketVersion types', async () => {
+    it('validates status, confirmed, and expectedTicketVersion types with 400 VALIDATION_ERROR', async () => {
       const res = await request(app)
         .patch('/api/tickets/5/status')
         .set('Cookie', COOKIE)
@@ -175,7 +175,7 @@ describe('API-04: Ticket Workflow, 8-State Transitions, Resolution Gate & Child 
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('INVALID_STATUS_TRANSITION');
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
 
     it('returns 409 CONFLICT on stale expectedTicketVersion', async () => {

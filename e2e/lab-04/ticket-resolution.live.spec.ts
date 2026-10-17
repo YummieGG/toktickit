@@ -90,8 +90,8 @@ test('LIVE-01: Live ticket resolution lifecycle, gate enforcement, version concu
     await expect(liveActionRow.getByText('PENDING')).toBeVisible();
 
     // Attempt to resolve ticket with active child action -> BLOCKED by resolution gate
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('RESOLVED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     // Verify error banner is displayed in the browser
     await expect(page.locator('.alert.alert-danger')).toBeVisible();
@@ -127,27 +127,26 @@ test('LIVE-01: Live ticket resolution lifecycle, gate enforcement, version concu
     }
 
     // 5. Successful Resolution via Browser UI & Live DB Transaction
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('RESOLVED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.alert.alert-success')).toContainText('Ticket status updated.');
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('RESOLVED');
     await expect(page.getByText('Resolved At')).toBeVisible();
 
     // 6. Close Ticket via Browser UI
-    page.once('dialog', (dialog) => dialog.accept());
     await statusSelect.selectOption('CLOSED');
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.alert.alert-success')).toContainText('Ticket status updated.');
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('CLOSED');
     await expect(page.getByText('Resolved At')).toBeVisible();
 
     // 7. Reopen Ticket via Browser UI (Resets resolvedAt & problemAppearsResolvedAt)
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toContain('preserve all past action and event history');
-      dialog.accept();
-    });
     await statusSelect.selectOption('REOPENED');
+    const reopenModal = page.getByRole('dialog');
+    await expect(reopenModal).toContainText('preserve all past action and event history');
+    await reopenModal.getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.alert.alert-success')).toContainText('Ticket status updated.');
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('REOPENED');
@@ -166,11 +165,10 @@ test('LIVE-01: Live ticket resolution lifecycle, gate enforcement, version concu
     await expect(cancelCandidateRow.getByText('PENDING')).toBeVisible();
 
     // Cancel ticket -> atomically cancels active child actions
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toContain('cancel any active child actions');
-      dialog.accept();
-    });
     await statusSelect.selectOption('CANCELLED');
+    const cancelModal = page.getByRole('dialog');
+    await expect(cancelModal).toContainText('cancel any active child actions');
+    await cancelModal.getByRole('button', { name: 'Confirm' }).click();
 
     await expect(page.locator('.alert.alert-success')).toContainText('Ticket status updated.');
     await expect(page.locator('.ticket-detail-badge', { hasText: 'Status' })).toContainText('CANCELLED');

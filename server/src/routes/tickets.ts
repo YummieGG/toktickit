@@ -757,7 +757,7 @@ ticketsRouter.patch(
       details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
     }
 
-    if (details.length > 0) return validationError(response, details, 'INVALID_STATUS_TRANSITION');
+    if (details.length > 0) return validationError(response, details);
 
     const user = getAuthenticatedUser(request);
     const target = nextStatus as (typeof STAFF_STATUSES)[number];

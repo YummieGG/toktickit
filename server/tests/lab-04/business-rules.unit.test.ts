@@ -268,6 +268,15 @@ describe('UNIT-02: Ticket Lifecycle Transitions & Resolution Gate (FR-04-08, BR-
       if (!resultInProgress.allowed) {
         expect(resultInProgress.reason).toBe('All actions must be completed or cancelled before resolution');
       }
+
+      // Prioritize active action warning even if no completed action exists yet
+      const resultActiveOnly = evaluateResolutionGate([
+        { status: 'IN_PROGRESS', result: null, followUpRequired: false },
+      ]);
+      expect(resultActiveOnly.allowed).toBe(false);
+      if (!resultActiveOnly.allowed) {
+        expect(resultActiveOnly.reason).toBe('All actions must be completed or cancelled before resolution');
+      }
     });
 
     it('blocks resolution when any non-cancelled action has followUpRequired=true', () => {

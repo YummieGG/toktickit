@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
 
@@ -184,7 +184,6 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
 
   it('prompts confirmation modal for CANCELLED transition with child action warning and sends expectedTicketVersion', async () => {
     const fetchMock = installFetch('IN_PROGRESS', { ticketVersion: 3 });
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
@@ -192,9 +191,11 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
     fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Cancelling this ticket will automatically cancel any active child actions'),
-    );
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent(/Cancelling this ticket will automatically cancel any active child actions/i);
+
+    fireEvent.click(within(modal).getByRole('button', { name: 'Confirm' }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -213,7 +214,6 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
 
   it('prompts confirmation for REOPENED transition explaining history preservation and timestamp clear', async () => {
     const fetchMock = installFetch('RESOLVED');
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
@@ -221,9 +221,11 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
     fireEvent.change(statusSelect, { target: { value: 'REOPENED' } });
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Reopening this ticket will preserve all past action and event history, and clear past resolution timestamps.'),
-    );
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent(/preserve all past action and event history, and clear past resolution timestamps/i);
+
+    fireEvent.click(within(modal).getByRole('button', { name: 'Confirm' }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -242,7 +244,6 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
 
   it('resets select element to current status when user cancels confirmation prompt', async () => {
     const fetchMock = installFetch('IN_PROGRESS');
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
@@ -252,19 +253,30 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
 
     fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
 
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeInTheDocument();
+
+    fireEvent.click(within(modal).getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(statusSelect.value).toBe('IN_PROGRESS');
     expect(fetchMock).not.toHaveBeenCalledWith('/api/tickets/8/status', expect.anything());
   });
 
   it('displays resolution blocked error banner and reverts select when backend returns 400 TICKET_RESOLUTION_BLOCKED', async () => {
     installFetch('IN_PROGRESS', { resolutionBlocked: true });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
 
     const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
     fireEvent.change(statusSelect, { target: { value: 'RESOLVED' } });
+
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeInTheDocument();
+    expect(modal).toHaveTextContent(/Resolving this ticket confirms that all required child actions have been completed/i);
+
+    fireEvent.click(within(modal).getByRole('button', { name: 'Confirm' }));
 
     const errorAlert = await screen.findByText(
       'At least one completed action with a recorded result is required before resolution',
@@ -329,7 +341,6 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
 
   it('preserves existing resolution gate error when a subsequent confirmation dialog is cancelled', async () => {
     installFetch('IN_PROGRESS', { resolutionBlocked: true });
-    const confirmSpy = vi.spyOn(window, 'confirm');
 
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'TK-0008' })).toBeInTheDocument();
@@ -337,8 +348,9 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
 
     // 1. Attempt resolve -> blocked by resolution gate
-    confirmSpy.mockReturnValueOnce(true);
     fireEvent.change(statusSelect, { target: { value: 'RESOLVED' } });
+    const resolveModal = screen.getByRole('dialog');
+    fireEvent.click(within(resolveModal).getByRole('button', { name: 'Confirm' }));
 
     const gateError = await screen.findByText(
       'At least one completed action with a recorded result is required before resolution',
@@ -347,8 +359,10 @@ describe('UI-02: Ticket Workflow and Resolution Feedback (FR-04-08, BR-13, BR-14
     expect(statusSelect).toHaveClass('is-invalid');
 
     // 2. User tries to cancel ticket, but dismisses the confirmation modal
-    confirmSpy.mockReturnValueOnce(false);
     fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
+    const cancelModal = screen.getByRole('dialog');
+    expect(cancelModal).toBeInTheDocument();
+    fireEvent.click(within(cancelModal).getByRole('button', { name: 'Cancel' }));
 
     // The resolution gate error banner and invalid styling must remain intact
     expect(screen.getByText('At least one completed action with a recorded result is required before resolution')).toBeInTheDocument();
