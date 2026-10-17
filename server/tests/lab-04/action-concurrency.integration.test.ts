@@ -20,7 +20,7 @@ let ticketId: number;
 
 let adminToken: string;
 let staffToken: string;
-let requesterToken: string;
+let _requesterToken: string;
 
 function tokenHash(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
@@ -113,7 +113,7 @@ describe.skipIf(!TEST_DATABASE_URL)('PG-01: Action Concurrency, Idempotency & El
     staffToken = staffSession.token;
 
     const reqSession = await createSession(requesterId, 'req');
-    requesterToken = reqSession.token;
+    _requesterToken = reqSession.token;
   });
 
   afterAll(async () => {
@@ -245,9 +245,15 @@ describe.skipIf(!TEST_DATABASE_URL)('PG-01: Action Concurrency, Idempotency & El
       select: { version: true },
     });
     expect(updatedTicket?.version).toBeGreaterThan(ticket!.version);
+
+    // Reactivate staff user for subsequent concurrency tests
+    await prisma.user.update({
+      where: { id: staffId },
+      data: { isActive: true },
+    });
   });
 
-  it('handles competing resolve vs concurrent status mutation with rollback/409 (CONCURRENCY-01, BR-14, AC-11)', async () => {
+  it('handles competing resolve vs child action write with rollback/409 (PG-01, CONCURRENCY-01, BR-14, AC-11)', async () => {
     // Put ticket into IN_PROGRESS
     const currentTicket = await prisma.ticket.findUnique({
       where: { id: ticketId },
@@ -265,12 +271,12 @@ describe.skipIf(!TEST_DATABASE_URL)('PG-01: Action Concurrency, Idempotency & El
       });
     expect(statusRes.status).toBe(200);
 
-    // Create and complete an action so ticket can be resolved
-    const actionRes = await request(app)
+    // Create and complete an action so ticket meets resolution gate requirements
+    const actionSetupRes = await request(app)
       .post(`/api/tickets/${ticketId}/actions-taken`)
       .set('Cookie', cookie(staffToken))
       .set('Origin', ORIGIN)
-      .set('Idempotency-Key', `competing-resolve-action-${suffix}`)
+      .set('Idempotency-Key', `resolve-action-setup-${suffix}`)
       .send({
         description: 'Completed action to satisfy resolution gate',
         result: 'Issue fully resolved',
@@ -278,8 +284,8 @@ describe.skipIf(!TEST_DATABASE_URL)('PG-01: Action Concurrency, Idempotency & El
         followUpRequired: false,
         expectedTicketVersion: statusRes.body.data.version,
       });
-    expect(actionRes.status).toBe(201);
-    const actionId = actionRes.body.data.action.id;
+    expect(actionSetupRes.status).toBe(201);
+    const actionId = actionSetupRes.body.data.action.id;
 
     // Complete the action
     const completeRes = await request(app)
@@ -290,9 +296,120 @@ describe.skipIf(!TEST_DATABASE_URL)('PG-01: Action Concurrency, Idempotency & El
         status: 'COMPLETED',
         result: 'Issue fully resolved',
         expectedActionVersion: 1,
-        expectedTicketVersion: actionRes.body.data.ticketVersion,
+        expectedTicketVersion: actionSetupRes.body.data.ticketVersion,
       });
     expect(completeRes.status).toBe(200);
+
+    const ticketBeforeRace = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { version: true },
+    });
+    const staleVersion = ticketBeforeRace!.version;
+
+    const actionWriteKey = `competing-action-write-${suffix}`;
+
+    // Competing operations with the same stale ticket version:
+    // One tries to resolve the ticket, one tries to create a new child action on the ticket
+    const [resolveRes, actionRes] = await Promise.all([
+      request(app)
+        .patch(`/api/tickets/${ticketId}/status`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .send({
+          status: 'RESOLVED',
+          confirmed: true,
+          expectedTicketVersion: staleVersion,
+        }),
+      request(app)
+        .post(`/api/tickets/${ticketId}/actions-taken`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .set('Idempotency-Key', actionWriteKey)
+        .send({
+          description: 'Concurrent action write competing with resolve',
+          assigneeId: staffId,
+          followUpRequired: false,
+          expectedTicketVersion: staleVersion,
+        }),
+    ]);
+
+    // Exactly one operation succeeds and the competing operation rolls back with 409 CONFLICT
+    if (resolveRes.status === 200) {
+      expect(actionRes.status).toBe(409);
+      expect(actionRes.body.error?.code).toBe('CONFLICT');
+
+      const finalTicket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentStatus: true, resolvedAt: true, version: true },
+      });
+      expect(finalTicket?.currentStatus).toBe('RESOLVED');
+      expect(finalTicket?.resolvedAt).not.toBeNull();
+      expect(finalTicket?.version).toBe(staleVersion + 1);
+
+      const rolledBackAction = await prisma.actionTaken.findFirst({
+        where: { ticketId, creationKey: actionWriteKey },
+      });
+      expect(rolledBackAction).toBeNull();
+    } else {
+      expect([200, 201]).toContain(actionRes.status);
+      expect([409, 400]).toContain(resolveRes.status);
+
+      const finalTicket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { currentStatus: true, resolvedAt: true },
+      });
+      expect(finalTicket?.currentStatus).toBe('IN_PROGRESS');
+      expect(finalTicket?.resolvedAt).toBeNull();
+
+      const createdAction = await prisma.actionTaken.findFirst({
+        where: { ticketId, creationKey: actionWriteKey },
+      });
+      expect(createdAction).not.toBeNull();
+      expect(createdAction?.status).toBe('PENDING');
+    }
+  });
+
+  it('handles competing resolve vs concurrent status mutation with rollback/409 (CONCURRENCY-01, BR-13, AC-11)', async () => {
+    // Reopen/reset ticket to IN_PROGRESS if it was resolved
+    const currentTicket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { currentStatus: true, version: true },
+    });
+
+    if (currentTicket?.currentStatus === 'RESOLVED') {
+      const reopenRes = await request(app)
+        .patch(`/api/tickets/${ticketId}/status`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .send({
+          status: 'REOPENED',
+          confirmed: true,
+          expectedTicketVersion: currentTicket.version,
+        });
+      expect(reopenRes.status).toBe(200);
+
+      const inProgressRes = await request(app)
+        .patch(`/api/tickets/${ticketId}/status`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .send({
+          status: 'IN_PROGRESS',
+          confirmed: false,
+          expectedTicketVersion: reopenRes.body.data.version,
+        });
+      expect(inProgressRes.status).toBe(200);
+    } else if (currentTicket?.currentStatus !== 'IN_PROGRESS') {
+      const statusRes = await request(app)
+        .patch(`/api/tickets/${ticketId}/status`)
+        .set('Cookie', cookie(staffToken))
+        .set('Origin', ORIGIN)
+        .send({
+          status: 'IN_PROGRESS',
+          confirmed: false,
+          expectedTicketVersion: currentTicket!.version,
+        });
+      expect(statusRes.status).toBe(200);
+    }
 
     const ticketBeforeRace = await prisma.ticket.findUnique({
       where: { id: ticketId },
