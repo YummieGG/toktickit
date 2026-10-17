@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 import { TicketAttachmentSection } from '../components/tickets/TicketAttachmentSection';
 import { ActionsTakenSection } from '../components/tickets/ActionsTakenSection';
 import { useAuth } from '../contexts/auth';
@@ -109,7 +110,7 @@ export function StaffTicketDetail() {
   const [isConflict, setIsConflict] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const statusSelectRef = useRef<HTMLSelectElement>(null);
   const modalConfig = pendingStatus ? getStatusModalConfig(pendingStatus) : null;
 
   const redirectToLogin = useCallback(() => {
@@ -231,44 +232,8 @@ export function StaffTicketDetail() {
   const handleCancelStatusModal = useCallback(() => {
     if (saving === 'status') return;
     setPendingStatus(null);
-    const select = document.getElementById('ticket-status');
-    if (select) {
-      select.focus();
-    }
+    statusSelectRef.current?.focus();
   }, [saving]);
-
-  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Tab') {
-      const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      );
-      if (!focusable || focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (!pendingStatus) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && saving !== 'status') {
-        handleCancelStatusModal();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pendingStatus, saving, handleCancelStatusModal]);
 
   const handleConfirmStatusModal = async () => {
     if (!ticket || !pendingStatus || saving === 'status') return;
@@ -286,16 +251,10 @@ export function StaffTicketDetail() {
       );
       setPendingStatus(null);
       await refreshTicket();
-      const select = document.getElementById('ticket-status');
-      if (select) {
-        select.focus();
-      }
     } catch {
       setPendingStatus(null);
-      const select = document.getElementById('ticket-status');
-      if (select) {
-        select.focus();
-      }
+    } finally {
+      statusSelectRef.current?.focus();
     }
   };
 
@@ -322,8 +281,9 @@ export function StaffTicketDetail() {
         void refreshTicket();
       })
       .catch(() => {
-        const select = document.getElementById('ticket-status') as HTMLSelectElement | null;
-        if (select && ticket) select.value = ticket.currentStatus;
+        if (statusSelectRef.current && ticket) {
+          statusSelectRef.current.value = ticket.currentStatus;
+        }
       });
   };
 
@@ -381,7 +341,7 @@ export function StaffTicketDetail() {
   const statusError =
     validationErrors.status ||
     validationErrors.confirmed ||
-    (validationErrors.resolutionGate ? 'Resolution requirement not met (see details above).' : undefined);
+    (validationErrors.resolutionGate ? `Blocked: ${validationErrors.resolutionGate}` : undefined);
   return (
     <section className="staff-ticket-detail" aria-labelledby="staff-ticket-detail-title">
       <Link className="btn btn-zen-tertiary mb-3 px-0" to="/staff/tickets">← Back to Staff Queue</Link>
@@ -431,79 +391,23 @@ export function StaffTicketDetail() {
         onSessionExpired={redirectToLogin}
       />
 
-      {!isAdministrator && <section className="card shadow-sm mb-4" aria-labelledby="workflow-controls-title"><div className="card-body p-3 p-md-4"><h2 id="workflow-controls-title" className="h3">Workflow controls</h2><div className="row g-3"><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-owner">Owner</label><select id="ticket-owner" className={`form-select ${validationErrors.ownerId ? 'is-invalid' : ''}`} value={ownerInput} disabled={saving !== null} onChange={event => { setOwnerInput(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.ownerId ? true : undefined} aria-describedby={validationErrors.ownerId ? 'ticket-owner-error' : undefined}><option value="">Unassigned</option>{ownerOptions.map(owner => <option key={owner.id} value={String(owner.id)}>{owner.name} · {owner.email} ({owner.role === 'ADMINISTRATOR' ? 'Administrator' : 'IT Staff'})</option>)}</select>{validationErrors.ownerId && <div id="ticket-owner-error" className="invalid-feedback-custom" role="alert">{validationErrors.ownerId}</div>}{ownerLoadError ? <div className="form-text text-danger" role="status">{ownerLoadError}</div> : <div className="form-text">Choose an active IT Staff or Administrator.</div>}<div className="d-flex gap-2 mt-2"><Button type="button" variant="secondary" onClick={() => { setOwnerInput(String(user?.id ?? '')); }} disabled={saving !== null}>Assign to me</Button><Button type="button" variant="tertiary" onClick={() => { setOwnerInput(''); }} disabled={saving !== null || ownerInput === ''}>Clear</Button><Button type="button" onClick={saveOwner} isLoading={saving === 'owner'}>Save</Button></div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-it-priority">IT Priority</label><select id="ticket-it-priority" className={`form-select ${validationErrors.itPriority ? 'is-invalid' : ''}`} value={ticket.itPriority} disabled={saving !== null} aria-invalid={validationErrors.itPriority ? true : undefined} aria-describedby={validationErrors.itPriority ? 'ticket-it-priority-error' : undefined} onChange={event => void mutate('it-priority', `/api/tickets/${ticket.id}/it-priority`, { itPriority: event.target.value, expectedTicketVersion: ticket.version ?? 1 }, 'IT Priority updated.').catch(() => {})}>{PRIORITIES.map(priority => <option key={priority} value={priority}>{priority}</option>)}</select>{validationErrors.itPriority && <div id="ticket-it-priority-error" className="invalid-feedback-custom" role="alert">{validationErrors.itPriority}</div>}<div className="form-text">Requested Priority remains {ticket.requestedPriority}.</div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-status">Status</label><select id="ticket-status" className={`form-select ${statusError ? 'is-invalid' : ''}`} value={pendingStatus ?? ticket.currentStatus} disabled={saving !== null || allowedStatuses.length === 0} aria-invalid={statusError ? true : undefined} aria-describedby={statusError ? 'ticket-status-error' : undefined} onChange={event => saveStatus(event.target.value as TicketStatus)}><option value={ticket.currentStatus}>{displayStatus(ticket.currentStatus)} (current)</option>{allowedStatuses.map(status => <option key={status} value={status}>{displayStatus(status)}</option>)}</select>{statusError && <div id="ticket-status-error" className="invalid-feedback-custom" role="alert">{statusError}</div>}<div className="form-text">Allowed next states: {allowedStatuses.length ? allowedStatuses.map(displayStatus).join(', ') : 'None'}.</div></div></div></div></section>}
+      {!isAdministrator && <section className="card shadow-sm mb-4" aria-labelledby="workflow-controls-title"><div className="card-body p-3 p-md-4"><h2 id="workflow-controls-title" className="h3">Workflow controls</h2><div className="row g-3"><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-owner">Owner</label><select id="ticket-owner" className={`form-select ${validationErrors.ownerId ? 'is-invalid' : ''}`} value={ownerInput} disabled={saving !== null} onChange={event => { setOwnerInput(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.ownerId ? true : undefined} aria-describedby={validationErrors.ownerId ? 'ticket-owner-error' : undefined}><option value="">Unassigned</option>{ownerOptions.map(owner => <option key={owner.id} value={String(owner.id)}>{owner.name} · {owner.email} ({owner.role === 'ADMINISTRATOR' ? 'Administrator' : 'IT Staff'})</option>)}</select>{validationErrors.ownerId && <div id="ticket-owner-error" className="invalid-feedback-custom" role="alert">{validationErrors.ownerId}</div>}{ownerLoadError ? <div className="form-text text-danger" role="status">{ownerLoadError}</div> : <div className="form-text">Choose an active IT Staff or Administrator.</div>}<div className="d-flex gap-2 mt-2"><Button type="button" variant="secondary" onClick={() => { setOwnerInput(String(user?.id ?? '')); }} disabled={saving !== null}>Assign to me</Button><Button type="button" variant="tertiary" onClick={() => { setOwnerInput(''); }} disabled={saving !== null || ownerInput === ''}>Clear</Button><Button type="button" onClick={saveOwner} isLoading={saving === 'owner'}>Save</Button></div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-it-priority">IT Priority</label><select id="ticket-it-priority" className={`form-select ${validationErrors.itPriority ? 'is-invalid' : ''}`} value={ticket.itPriority} disabled={saving !== null} aria-invalid={validationErrors.itPriority ? true : undefined} aria-describedby={validationErrors.itPriority ? 'ticket-it-priority-error' : undefined} onChange={event => void mutate('it-priority', `/api/tickets/${ticket.id}/it-priority`, { itPriority: event.target.value, expectedTicketVersion: ticket.version ?? 1 }, 'IT Priority updated.').catch(() => {})}>{PRIORITIES.map(priority => <option key={priority} value={priority}>{priority}</option>)}</select>{validationErrors.itPriority && <div id="ticket-it-priority-error" className="invalid-feedback-custom" role="alert">{validationErrors.itPriority}</div>}<div className="form-text">Requested Priority remains {ticket.requestedPriority}.</div></div><div className="col-12 col-md-4"><label className="form-label" htmlFor="ticket-status">Status</label><select ref={statusSelectRef} id="ticket-status" className={`form-select ${statusError ? 'is-invalid' : ''}`} value={pendingStatus ?? ticket.currentStatus} disabled={saving !== null || allowedStatuses.length === 0} aria-invalid={statusError ? true : undefined} aria-describedby={statusError ? 'ticket-status-error' : undefined} onChange={event => saveStatus(event.target.value as TicketStatus)}><option value={ticket.currentStatus}>{displayStatus(ticket.currentStatus)} (current)</option>{allowedStatuses.map(status => <option key={status} value={status}>{displayStatus(status)}</option>)}</select>{statusError && <div id="ticket-status-error" className="invalid-feedback-custom" role="alert">{statusError}</div>}<div className="form-text">Allowed next states: {allowedStatuses.length ? allowedStatuses.map(displayStatus).join(', ') : 'None'}.</div></div></div></div></section>}
 
       <TicketAttachmentSection ticketId={ticket.id} attachments={ticket.attachments} mode={isAdministrator ? 'administrator' : 'staff'} onSessionExpired={redirectToLogin} />
       <section className="card shadow-sm mb-4" aria-labelledby="staff-public-comments-title"><div className="card-body p-3 p-md-4"><h2 id="staff-public-comments-title" className="h3">Public Comments</h2>{ticket.comments.length === 0 ? <p className="text-muted">No public comments yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.comments.map(comment => <article className="border rounded p-3" key={comment.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p><small className="text-muted">{comment.author.name} · {formatTicketDateTime(comment.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postComment(event)}><label className="form-label" htmlFor="staff-public-comment">Add a public comment</label><textarea id="staff-public-comment" className={`form-control ${validationErrors.comment ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={commentText} onChange={event => { setCommentText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.comment ? true : undefined} aria-describedby={validationErrors.comment ? 'staff-public-comment-error' : undefined} />{validationErrors.comment && <div id="staff-public-comment-error" className="invalid-feedback-custom" role="alert">{validationErrors.comment}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{commentText.length}/2000</span><Button type="submit" isLoading={saving === 'comment'}>Add public comment</Button></div></form>}</div></section>
       <section className="card shadow-sm mb-4 internal-notes-panel" aria-labelledby="internal-notes-title"><div className="card-body p-3 p-md-4"><h2 id="internal-notes-title" className="h3">Internal Notes</h2>{(ticket.internalNotes?.length ?? 0) === 0 ? <p className="text-muted">No internal notes yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.internalNotes?.map(note => <article className="border rounded p-3" key={note.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p><small className="text-muted">{note.author.name} · {formatTicketDateTime(note.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postInternalNote(event)}><label className="form-label" htmlFor="staff-internal-note">Add an internal note</label><textarea id="staff-internal-note" className={`form-control ${validationErrors.internalNote ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={noteText} onChange={event => { setNoteText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.internalNote ? true : undefined} aria-describedby={validationErrors.internalNote ? 'staff-internal-note-error' : undefined} />{validationErrors.internalNote && <div id="staff-internal-note-error" className="invalid-feedback-custom" role="alert">{validationErrors.internalNote}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{noteText.length}/2000</span><Button type="submit" isLoading={saving === 'note'}>Add internal note</Button></div></form>}</div></section>
 
       {pendingStatus && modalConfig && (
-        <div
-          className="modal-backdrop-custom"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1050,
-            padding: '1rem',
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget && saving !== 'status') {
-              handleCancelStatusModal();
-            }
-          }}
-        >
-          <div
-            ref={modalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="status-modal-title"
-            aria-describedby="status-modal-description"
-            className="card shadow-lg p-4 bg-white"
-            onKeyDown={handleModalKeyDown}
-            style={{
-              maxWidth: '520px',
-              width: '100%',
-              borderRadius: '0.5rem',
-              border: '1px solid var(--surface-border)',
-            }}
-          >
-            <h3 id="status-modal-title" className="h4 mb-3" style={{ color: 'var(--text-dark, #0b2e1b)' }}>
-              {modalConfig.title}
-            </h3>
-            <p id="status-modal-description" className="mb-2">
-              {modalConfig.description}
-            </p>
-            <Alert variant="warning" role="note" className="py-2 px-3 mb-4 small">
-              ⚠ {modalConfig.warning}
-            </Alert>
-            <div className="d-flex justify-content-end gap-2">
-              <Button
-                type="button"
-                variant="tertiary"
-                onClick={handleCancelStatusModal}
-                disabled={saving === 'status'}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant={modalConfig.confirmVariant}
-                onClick={() => void handleConfirmStatusModal()}
-                isLoading={saving === 'status'}
-                autoFocus
-              >
-                Confirm
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ConfirmationModal
+          isOpen={Boolean(pendingStatus && modalConfig)}
+          title={modalConfig.title}
+          description={modalConfig.description}
+          warning={modalConfig.warning}
+          confirmVariant={modalConfig.confirmVariant}
+          isLoading={saving === 'status'}
+          onConfirm={() => void handleConfirmStatusModal()}
+          onCancel={handleCancelStatusModal}
+        />
       )}
     </section>
   );
