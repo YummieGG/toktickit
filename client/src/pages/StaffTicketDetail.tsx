@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
@@ -46,7 +46,6 @@ interface StatusModalConfig {
   title: string;
   description: string;
   warning: string;
-  confirmLabel: string;
   confirmVariant: 'primary' | 'destructive';
 }
 
@@ -57,7 +56,6 @@ function getStatusModalConfig(status: TicketStatus): StatusModalConfig {
         title: 'Confirm Ticket Cancellation',
         description: 'Are you sure you want to cancel this ticket?',
         warning: 'Cancelling this ticket will automatically cancel any active child actions (Pending or In Progress) with reason "Ticket cancelled by IT Staff".',
-        confirmLabel: 'Confirm Cancellation',
         confirmVariant: 'destructive',
       };
     case 'RESOLVED':
@@ -65,7 +63,6 @@ function getStatusModalConfig(status: TicketStatus): StatusModalConfig {
         title: 'Confirm Ticket Resolution',
         description: 'Are you sure you want to mark this ticket as Resolved?',
         warning: 'Resolving this ticket confirms that all required child actions have been completed with recorded results and sets the official resolution timestamp.',
-        confirmLabel: 'Confirm Resolution',
         confirmVariant: 'primary',
       };
     case 'CLOSED':
@@ -73,7 +70,6 @@ function getStatusModalConfig(status: TicketStatus): StatusModalConfig {
         title: 'Confirm Ticket Closure',
         description: 'Are you sure you want to close this ticket?',
         warning: 'Closing this ticket finalizes the ticket lifecycle and archives the ticket while preserving all resolution records.',
-        confirmLabel: 'Confirm Closure',
         confirmVariant: 'primary',
       };
     case 'REOPENED':
@@ -81,7 +77,6 @@ function getStatusModalConfig(status: TicketStatus): StatusModalConfig {
         title: 'Confirm Ticket Reopening',
         description: 'Are you sure you want to reopen this ticket?',
         warning: 'Reopening this ticket will preserve all past action and event history, and clear past resolution timestamps.',
-        confirmLabel: 'Confirm Reopen',
         confirmVariant: 'primary',
       };
     default:
@@ -89,7 +84,6 @@ function getStatusModalConfig(status: TicketStatus): StatusModalConfig {
         title: `Confirm Changing Status to ${displayStatus(status)}`,
         description: `Are you sure you want to change this ticket to ${displayStatus(status)}?`,
         warning: `This will update the ticket status to ${displayStatus(status)}.`,
-        confirmLabel: 'Confirm',
         confirmVariant: 'primary',
       };
   }
@@ -115,6 +109,8 @@ export function StaffTicketDetail() {
   const [isConflict, setIsConflict] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const modalConfig = pendingStatus ? getStatusModalConfig(pendingStatus) : null;
 
   const redirectToLogin = useCallback(() => {
     void refresh().finally(() => navigate('/login', {
@@ -233,29 +229,50 @@ export function StaffTicketDetail() {
   };
 
   const handleCancelStatusModal = useCallback(() => {
+    if (saving === 'status') return;
     setPendingStatus(null);
-    const select = document.getElementById('ticket-status') as HTMLSelectElement | null;
-    if (select && ticket) {
-      select.value = ticket.currentStatus;
+    const select = document.getElementById('ticket-status');
+    if (select) {
       select.focus();
     }
-  }, [ticket]);
+  }, [saving]);
+
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Tab') {
+      const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     if (!pendingStatus) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && saving !== 'status') {
         handleCancelStatusModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pendingStatus, handleCancelStatusModal]);
+  }, [pendingStatus, saving, handleCancelStatusModal]);
 
   const handleConfirmStatusModal = async () => {
-    if (!ticket || !pendingStatus) return;
+    if (!ticket || !pendingStatus || saving === 'status') return;
     const targetStatus = pendingStatus;
-    setPendingStatus(null);
     try {
       await mutate(
         'status',
@@ -267,12 +284,10 @@ export function StaffTicketDetail() {
         },
         'Ticket status updated.',
       );
+      setPendingStatus(null);
       await refreshTicket();
     } catch {
-      const select = document.getElementById('ticket-status') as HTMLSelectElement | null;
-      if (select && ticket) {
-        select.value = ticket.currentStatus;
-      }
+      setPendingStatus(null);
     }
   };
 
@@ -414,7 +429,7 @@ export function StaffTicketDetail() {
       <section className="card shadow-sm mb-4" aria-labelledby="staff-public-comments-title"><div className="card-body p-3 p-md-4"><h2 id="staff-public-comments-title" className="h3">Public Comments</h2>{ticket.comments.length === 0 ? <p className="text-muted">No public comments yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.comments.map(comment => <article className="border rounded p-3" key={comment.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</p><small className="text-muted">{comment.author.name} · {formatTicketDateTime(comment.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postComment(event)}><label className="form-label" htmlFor="staff-public-comment">Add a public comment</label><textarea id="staff-public-comment" className={`form-control ${validationErrors.comment ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={commentText} onChange={event => { setCommentText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.comment ? true : undefined} aria-describedby={validationErrors.comment ? 'staff-public-comment-error' : undefined} />{validationErrors.comment && <div id="staff-public-comment-error" className="invalid-feedback-custom" role="alert">{validationErrors.comment}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{commentText.length}/2000</span><Button type="submit" isLoading={saving === 'comment'}>Add public comment</Button></div></form>}</div></section>
       <section className="card shadow-sm mb-4 internal-notes-panel" aria-labelledby="internal-notes-title"><div className="card-body p-3 p-md-4"><h2 id="internal-notes-title" className="h3">Internal Notes</h2>{(ticket.internalNotes?.length ?? 0) === 0 ? <p className="text-muted">No internal notes yet.</p> : <div className="d-grid gap-3 mb-3">{ticket.internalNotes?.map(note => <article className="border rounded p-3" key={note.id}><p className="mb-1" style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p><small className="text-muted">{note.author.name} · {formatTicketDateTime(note.createdAt)}</small></article>)}</div>}{!isAdministrator && <form onSubmit={event => void postInternalNote(event)}><label className="form-label" htmlFor="staff-internal-note">Add an internal note</label><textarea id="staff-internal-note" className={`form-control ${validationErrors.internalNote ? 'is-invalid' : ''}`} rows={4} maxLength={2000} value={noteText} onChange={event => { setNoteText(event.target.value); setValidationErrors({}); }} aria-invalid={validationErrors.internalNote ? true : undefined} aria-describedby={validationErrors.internalNote ? 'staff-internal-note-error' : undefined} />{validationErrors.internalNote && <div id="staff-internal-note-error" className="invalid-feedback-custom" role="alert">{validationErrors.internalNote}</div>}<div className="d-flex justify-content-between mt-2"><span className="form-text">{noteText.length}/2000</span><Button type="submit" isLoading={saving === 'note'}>Add internal note</Button></div></form>}</div></section>
 
-      {pendingStatus && (
+      {pendingStatus && modalConfig && (
         <div
           className="modal-backdrop-custom"
           style={{
@@ -431,17 +446,19 @@ export function StaffTicketDetail() {
             padding: '1rem',
           }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && saving !== 'status') {
               handleCancelStatusModal();
             }
           }}
         >
           <div
+            ref={modalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="status-modal-title"
             aria-describedby="status-modal-description"
             className="card shadow-lg p-4 bg-white"
+            onKeyDown={handleModalKeyDown}
             style={{
               maxWidth: '520px',
               width: '100%',
@@ -450,14 +467,14 @@ export function StaffTicketDetail() {
             }}
           >
             <h3 id="status-modal-title" className="h4 mb-3 text-dark">
-              {getStatusModalConfig(pendingStatus).title}
+              {modalConfig.title}
             </h3>
             <p id="status-modal-description" className="mb-2">
-              {getStatusModalConfig(pendingStatus).description}
+              {modalConfig.description}
             </p>
-            <div className="alert alert-warning py-2 px-3 mb-4 small" role="note">
-              ⚠ {getStatusModalConfig(pendingStatus).warning}
-            </div>
+            <Alert variant="warning" role="note" className="py-2 px-3 mb-4 small">
+              ⚠ {modalConfig.warning}
+            </Alert>
             <div className="d-flex justify-content-end gap-2">
               <Button
                 type="button"
@@ -469,7 +486,7 @@ export function StaffTicketDetail() {
               </Button>
               <Button
                 type="button"
-                variant={getStatusModalConfig(pendingStatus).confirmVariant}
+                variant={modalConfig.confirmVariant}
                 onClick={() => void handleConfirmStatusModal()}
                 isLoading={saving === 'status'}
                 autoFocus
