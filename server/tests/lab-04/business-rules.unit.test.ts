@@ -419,6 +419,16 @@ describe('UNIT-02: Ticket Lifecycle Transitions & Resolution Gate (FR-04-08, BR-
       expect(window.from).toBe('2026-02-24T17:00:00.000Z');
     });
 
+    it('correctly crosses year boundary', async () => {
+      const { getBangkokSevenDayWindow } = await import('../../src/lib/dashboard-rules');
+      // 2026-01-02 10:00:00 Bangkok = 2026-01-02 03:00:00 UTC
+      const now = new Date('2026-01-02T03:00:00.000Z');
+      const window = getBangkokSevenDayWindow(now);
+
+      // Jan 2 minus 6 days is Dec 27, 2025: 2025-12-27 00:00:00+07:00 = 2025-12-26 17:00:00 UTC
+      expect(window.from).toBe('2025-12-26T17:00:00.000Z');
+    });
+
     it('maps ticket and staff action rows into standard dashboard projections', async () => {
       const { mapTicketDashboardRow, mapStaffActionRow } = await import('../../src/lib/dashboard-rules');
 

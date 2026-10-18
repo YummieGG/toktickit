@@ -68,21 +68,6 @@ interface TicketFilterState {
   resolvedTo?: string;
 }
 
-const DEFAULT_FILTERS: TicketFilterState = {
-  search: '',
-  category: '',
-  status: '',
-  statuses: '',
-  priority: '',
-  sortBy: 'ticketDate',
-  sortOrder: 'desc',
-  page: 1,
-  pageSize: 10,
-  updatedFrom: '',
-  updatedTo: '',
-  resolvedFrom: '',
-  resolvedTo: '',
-};
 
 function parseFiltersFromSearchParams(searchParams: URLSearchParams): TicketFilterState {
   return {
@@ -255,27 +240,79 @@ export function MyTickets() {
     return () => controller.abort();
   }, [retryTrigger, user?.id]);
 
+  const updateFilter = (updates: Partial<TicketFilterState>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, val] of Object.entries(updates)) {
+      if (val !== undefined && val !== '') {
+        next.set(key, String(val));
+      } else {
+        next.delete(key);
+      }
+    }
+    if ('status' in updates && updates.status) {
+      next.delete('statuses');
+    }
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
   const clearFilters = () => {
     setSearchInput('');
-    setFilters(prev => ({
-      ...DEFAULT_FILTERS,
-      pageSize: prev.pageSize,
-    }));
-    setSearchParams(new URLSearchParams());
+    const next = new URLSearchParams();
+    if (filters.pageSize) {
+      next.set('pageSize', String(filters.pageSize));
+    }
+    setSearchParams(next);
   };
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
-    setFilters(prev => ({ ...prev, search: searchInput.trim(), page: 1 }));
+    updateFilter({ search: searchInput.trim() });
   };
 
   const changeSort = (field: SortField) => {
-    setFilters(prev => ({
-      ...prev,
-      sortOrder: prev.sortBy === field && prev.sortOrder === 'asc' ? 'desc' : 'asc',
-      sortBy: field,
-      page: 1,
-    }));
+    const next = new URLSearchParams(searchParams);
+    const newOrder = filters.sortBy === field && filters.sortOrder === 'asc' ? 'desc' : 'asc';
+    next.set('sortBy', field);
+    next.set('sortOrder', newOrder);
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const changePage = (newPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(newPage));
+    setSearchParams(next);
+  };
+
+  const changePageSize = (newPageSize: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('pageSize', String(newPageSize));
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearStatuses = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('statuses');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearUpdatedRange = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('updatedFrom');
+    next.delete('updatedTo');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearResolvedRange = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('resolvedFrom');
+    next.delete('resolvedTo');
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const openTicket = (ticketId: number) => navigate(`/tickets/${ticketId}`);
@@ -322,7 +359,7 @@ export function MyTickets() {
                 id="category-filter"
                 className="form-select"
                 value={filters.category}
-                onChange={event => setFilters(prev => ({ ...prev, category: event.target.value, page: 1 }))}
+                onChange={event => updateFilter({ category: event.target.value })}
                 disabled={isLoading || isCategoriesLoading}
               >
                 <option value="">All Categories</option>
@@ -335,7 +372,7 @@ export function MyTickets() {
                 id="status-filter"
                 className="form-select"
                 value={filters.status}
-                onChange={event => setFilters(prev => ({ ...prev, status: event.target.value as TicketStatus | '', page: 1 }))}
+                onChange={event => updateFilter({ status: event.target.value as TicketStatus | '' })}
                 disabled={isLoading}
               >
                 <option value="">All Statuses</option>
@@ -348,7 +385,7 @@ export function MyTickets() {
                 id="priority-filter"
                 className="form-select"
                 value={filters.priority}
-                onChange={event => setFilters(prev => ({ ...prev, priority: event.target.value as TicketPriority | '', page: 1 }))}
+                onChange={event => updateFilter({ priority: event.target.value as TicketPriority | '' })}
                 disabled={isLoading}
               >
                 <option value="">All Priorities</option>
@@ -359,6 +396,48 @@ export function MyTickets() {
               </select>
             </div>
           </form>
+
+          {(filters.statuses || filters.updatedFrom || filters.resolvedFrom) && (
+            <div className="d-flex flex-wrap gap-2 align-items-center mt-3 pt-3 border-top" aria-label="Active drill-down filters">
+              <span className="small text-muted fw-bold">Active Drill-down Filters:</span>
+              {filters.statuses && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Statuses: {filters.statuses}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear statuses filter"
+                    onClick={clearStatuses}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.updatedFrom && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Updated: {filters.updatedFrom.split('T')[0]} to {filters.updatedTo ? filters.updatedTo.split('T')[0] : 'now'}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear updated date filter"
+                    onClick={clearUpdatedRange}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.resolvedFrom && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Resolved: {filters.resolvedFrom.split('T')[0]} to {filters.resolvedTo ? filters.resolvedTo.split('T')[0] : 'now'}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear resolved date filter"
+                    onClick={clearResolvedRange}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+            </div>
+          )}
 
           {hasActiveFilterOrDraft && (
             <Button variant="tertiary" type="button" className="mt-3" onClick={clearFilters}>
@@ -502,7 +581,7 @@ export function MyTickets() {
                   id="page-size"
                   className="form-select"
                   value={filters.pageSize}
-                  onChange={event => setFilters(prev => ({ ...prev, pageSize: Number(event.target.value), page: 1 }))}
+                  onChange={event => changePageSize(Number(event.target.value))}
                 >
                   <option value="5">5</option>
                   <option value="10">10</option>
@@ -512,13 +591,13 @@ export function MyTickets() {
               <nav aria-label="Ticket pages">
                 <ul className="pagination mb-0 flex-wrap">
                   <li className={`page-item ${filters.page <= 1 ? 'disabled' : ''}`}>
-                    <button className="page-link" type="button" disabled={filters.page <= 1} onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}>
+                    <button className="page-link" type="button" disabled={filters.page <= 1} onClick={() => changePage(Math.max(1, filters.page - 1))}>
                       Previous
                     </button>
                   </li>
                   {paginationItems.map(item => typeof item === 'number' ? (
                     <li key={item} className={`page-item ${item === pagination.page ? 'active' : ''}`}>
-                      <button className="page-link" type="button" aria-current={item === pagination.page ? 'page' : undefined} onClick={() => setFilters(prev => ({ ...prev, page: item }))}>
+                      <button className="page-link" type="button" aria-current={item === pagination.page ? 'page' : undefined} onClick={() => changePage(item)}>
                         {item}
                       </button>
                     </li>
@@ -528,7 +607,7 @@ export function MyTickets() {
                     </li>
                   ))}
                   <li className={`page-item ${filters.page >= pagination.totalPages ? 'disabled' : ''}`}>
-                    <button className="page-link" type="button" disabled={filters.page >= pagination.totalPages} onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}>
+                    <button className="page-link" type="button" disabled={filters.page >= pagination.totalPages} onClick={() => changePage(filters.page + 1)}>
                       Next
                     </button>
                   </li>

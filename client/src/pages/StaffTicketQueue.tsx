@@ -44,21 +44,6 @@ const SORT_FIELDS: Array<{ value: SortField; label: string }> = [
   { value: 'owner', label: 'Owner' },
 ];
 
-const initialFilters: QueueFilters = {
-  search: '',
-  status: '',
-  statuses: '',
-  requestedPriority: '',
-  itPriority: '',
-  itPriorities: '',
-  category: '',
-  ownerId: '',
-  updatedFrom: '',
-  updatedTo: '',
-  resolvedFrom: '',
-  resolvedTo: '',
-};
-
 function parseStaffFilters(params: URLSearchParams): QueueFilters {
   return {
     search: params.get('search') ?? '',
@@ -199,8 +184,20 @@ export function StaffTicketQueue() {
   }, [retry, user?.id]);
 
   const updateFilter = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) => {
-    setFilters(previous => ({ ...previous, [key]: value }));
-    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    if (key === 'status') {
+      next.delete('statuses');
+    }
+    if (key === 'itPriority') {
+      next.delete('itPriorities');
+    }
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const submitSearch = (event: FormEvent) => {
@@ -209,16 +206,60 @@ export function StaffTicketQueue() {
   };
 
   const changeSort = (field: SortField) => {
-    if (sortBy === field) setSortOrder(previous => previous === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(field); setSortOrder('asc'); }
-    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
+    next.set('sortBy', field);
+    next.set('sortOrder', newOrder);
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const changePage = (newPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(newPage));
+    setSearchParams(next);
+  };
+
+  const changePageSize = (newPageSize: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('pageSize', String(newPageSize));
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const clearFilters = () => {
-    setFilters(initialFilters);
     setSearchInput('');
-    setPage(1);
     setSearchParams(new URLSearchParams());
+  };
+
+  const clearStatuses = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('statuses');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearItPriorities = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('itPriorities');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearUpdatedRange = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('updatedFrom');
+    next.delete('updatedTo');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearResolvedRange = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('resolvedFrom');
+    next.delete('resolvedTo');
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const isForbidden = error?.status === 403;
@@ -254,7 +295,11 @@ export function StaffTicketQueue() {
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-owner">Owner filter</label>
               <input id="staff-owner" className="form-control" list="staff-owner-options" value={filters.ownerId} onChange={event => updateFilter('ownerId', event.target.value)} placeholder="Any, ID, or unassigned" />
-              <datalist id="staff-owner-options"><option value="unassigned">Unassigned</option>{user && <option value={String(user.id)}>Assigned to me</option>}</datalist>
+              <datalist id="staff-owner-options">
+                <option value="unassigned">Unassigned</option>
+                <option value="me">Assigned to me</option>
+                {user && <option value={String(user.id)}>Assigned to me (ID {user.id})</option>}
+              </datalist>
             </div>
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-requested-priority">Requested Priority</label>
@@ -290,6 +335,61 @@ export function StaffTicketQueue() {
               </select>
             </div>
           </div>
+
+          {(filters.statuses || filters.itPriorities || filters.updatedFrom || filters.resolvedFrom) && (
+            <div className="d-flex flex-wrap gap-2 align-items-center mt-3 pt-3 border-top" aria-label="Active drill-down filters">
+              <span className="small text-muted fw-bold">Active Drill-down Filters:</span>
+              {filters.statuses && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Statuses: {filters.statuses}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear statuses filter"
+                    onClick={clearStatuses}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.itPriorities && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>IT Priorities: {filters.itPriorities}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear IT priorities filter"
+                    onClick={clearItPriorities}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.updatedFrom && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Updated: {filters.updatedFrom.split('T')[0]} to {filters.updatedTo ? filters.updatedTo.split('T')[0] : 'now'}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear updated date filter"
+                    onClick={clearUpdatedRange}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.resolvedFrom && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Resolved: {filters.resolvedFrom.split('T')[0]} to {filters.resolvedTo ? filters.resolvedTo.split('T')[0] : 'now'}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear resolved date filter"
+                    onClick={clearResolvedRange}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="d-flex flex-column flex-sm-row gap-2 mt-3">
             <Button type="button" variant="secondary" onClick={clearFilters} disabled={!hasFilters && !searchInput}>Clear filters</Button>
             <span className="small align-self-center" style={{ color: 'var(--text-secondary)' }}>Search includes ticket number, text, and requester name/email.</span>
@@ -340,7 +440,7 @@ export function StaffTicketQueue() {
           </article>)}</div>
           <div className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mt-3" aria-label="Queue pagination">
             <span className="small" style={{ color: 'var(--text-secondary)' }}>Page {pagination.page} of {pagination.totalPages} · {pagination.totalItems} ticket{pagination.totalItems === 1 ? '' : 's'}</span>
-            <div className="d-flex gap-2"><label className="visually-hidden" htmlFor="staff-page-size">Page size</label><select id="staff-page-size" className="form-select form-select-sm" value={pageSize} onChange={event => { setPageSize(Number(event.target.value) as 5 | 10 | 20); setPage(1); }}><option value="5">5 / page</option><option value="10">10 / page</option><option value="20">20 / page</option></select><Button type="button" variant="secondary" disabled={!pagination.hasPreviousPage} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</Button><Button type="button" variant="secondary" disabled={!pagination.hasNextPage} onClick={() => setPage(value => value + 1)}>Next</Button></div>
+            <div className="d-flex gap-2"><label className="visually-hidden" htmlFor="staff-page-size">Page size</label><select id="staff-page-size" className="form-select form-select-sm" value={pageSize} onChange={event => changePageSize(Number(event.target.value) as 5 | 10 | 20)}><option value="5">5 / page</option><option value="10">10 / page</option><option value="20">20 / page</option></select><Button type="button" variant="secondary" disabled={!pagination.hasPreviousPage} onClick={() => changePage(Math.max(1, page - 1))}>Previous</Button><Button type="button" variant="secondary" disabled={!pagination.hasNextPage} onClick={() => changePage(page + 1)}>Next</Button></div>
           </div>
         </>
       )}

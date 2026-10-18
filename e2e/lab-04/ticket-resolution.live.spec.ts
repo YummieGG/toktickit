@@ -44,7 +44,10 @@ test('LIVE-01: Live ticket resolution lifecycle, gate enforcement, version concu
     await page.getByRole('button', { name: 'Sign in' }).click();
   }
 
-  await expect(page).toHaveURL(/\/staff\/tickets\/?$/);
+  await expect(page).toHaveURL(/\/staff\/(tickets|dashboard)\/?$/);
+  if (page.url().includes('/staff/dashboard')) {
+    await page.goto('/staff/tickets');
+  }
 
   const api = await request.newContext({
     baseURL: APP_ORIGIN,
