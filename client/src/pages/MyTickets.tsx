@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/auth';
 import type { TicketPriority, TicketStatus } from '../types/ticket';
 import { formatTicketDateTime } from '../utils/date';
 
-type SortField = 'ticketDate' | 'ticketNumber' | 'summary' | 'requestedPriority' | 'currentStatus';
+type SortField = 'ticketDate' | 'ticketNumber' | 'summary' | 'requestedPriority' | 'currentStatus' | 'updatedAt' | 'resolvedAt';
 type SortOrder = 'asc' | 'desc';
 
 interface Category {
@@ -25,6 +25,7 @@ interface TicketListItem {
   ticketDate: string;
   category: Category;
   updatedAt: string;
+  resolvedAt?: string | null;
 }
 
 interface Pagination {
@@ -47,29 +48,59 @@ const SORT_LABELS: Record<SortField, string> = {
   summary: 'Summary',
   requestedPriority: 'Requested Priority',
   currentStatus: 'Status',
+  updatedAt: 'Last Updated',
+  resolvedAt: 'Date Resolved',
 };
 
 interface TicketFilterState {
   search: string;
   category: string;
   status: TicketStatus | '';
+  statuses?: string;
   priority: TicketPriority | '';
   sortBy: SortField;
   sortOrder: SortOrder;
   page: number;
   pageSize: number;
+  updatedFrom?: string;
+  updatedTo?: string;
+  resolvedFrom?: string;
+  resolvedTo?: string;
 }
 
 const DEFAULT_FILTERS: TicketFilterState = {
   search: '',
   category: '',
   status: '',
+  statuses: '',
   priority: '',
   sortBy: 'ticketDate',
   sortOrder: 'desc',
   page: 1,
   pageSize: 10,
+  updatedFrom: '',
+  updatedTo: '',
+  resolvedFrom: '',
+  resolvedTo: '',
 };
+
+function parseFiltersFromSearchParams(searchParams: URLSearchParams): TicketFilterState {
+  return {
+    search: searchParams.get('search') ?? '',
+    category: searchParams.get('category') ?? '',
+    status: (searchParams.get('status') as TicketStatus | null) ?? '',
+    statuses: searchParams.get('statuses') ?? '',
+    priority: (searchParams.get('priority') as TicketPriority | null) ?? '',
+    sortBy: (searchParams.get('sortBy') as SortField | null) ?? 'ticketDate',
+    sortOrder: (searchParams.get('sortOrder') as SortOrder | null) ?? 'desc',
+    page: parseInt(searchParams.get('page') ?? '1', 10) || 1,
+    pageSize: parseInt(searchParams.get('pageSize') ?? '10', 10) || 10,
+    updatedFrom: searchParams.get('updatedFrom') ?? '',
+    updatedTo: searchParams.get('updatedTo') ?? '',
+    resolvedFrom: searchParams.get('resolvedFrom') ?? '',
+    resolvedTo: searchParams.get('resolvedTo') ?? '',
+  };
+}
 
 interface ColumnConfig {
   key: string;
@@ -110,11 +141,12 @@ async function fetchJson<T>(url: string, signal: AbortSignal, fallbackMessage: s
 export function MyTickets() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
-  const [filters, setFilters] = useState<TicketFilterState>(DEFAULT_FILTERS);
-  const [searchInput, setSearchInput] = useState('');
+  const [filters, setFilters] = useState<TicketFilterState>(() => parseFiltersFromSearchParams(searchParams));
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
   const [isLoading, setIsLoading] = useState(true);
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [ticketError, setTicketError] = useState<string | null>(null);
@@ -122,11 +154,20 @@ export function MyTickets() {
   const [retryTrigger, setRetryTrigger] = useState(0);
   const [loadedUserId, setLoadedUserId] = useState<number | null>(null);
 
+  useEffect(() => {
+    const next = parseFiltersFromSearchParams(searchParams);
+    setFilters(next);
+    setSearchInput(next.search);
+  }, [searchParams]);
+
   const hasCommittedCriteria = Boolean(
     filters.search ||
     filters.category ||
     filters.status ||
-    filters.priority
+    filters.statuses ||
+    filters.priority ||
+    filters.updatedFrom ||
+    filters.resolvedFrom
   );
   const hasActiveFilterOrDraft = Boolean(
     hasCommittedCriteria || searchInput.trim()
@@ -143,7 +184,12 @@ export function MyTickets() {
     if (filters.search) params.set('search', filters.search);
     if (filters.category) params.set('category', filters.category);
     if (filters.status) params.set('status', filters.status);
+    if (filters.statuses) params.set('statuses', filters.statuses);
     if (filters.priority) params.set('priority', filters.priority);
+    if (filters.updatedFrom) params.set('updatedFrom', filters.updatedFrom);
+    if (filters.updatedTo) params.set('updatedTo', filters.updatedTo);
+    if (filters.resolvedFrom) params.set('resolvedFrom', filters.resolvedFrom);
+    if (filters.resolvedTo) params.set('resolvedTo', filters.resolvedTo);
     return params.toString();
   }, [filters]);
 
@@ -215,6 +261,7 @@ export function MyTickets() {
       ...DEFAULT_FILTERS,
       pageSize: prev.pageSize,
     }));
+    setSearchParams(new URLSearchParams());
   };
 
   const submitSearch = (event: FormEvent) => {

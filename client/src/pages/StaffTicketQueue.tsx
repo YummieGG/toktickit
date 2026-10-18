@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -12,10 +12,16 @@ type SortOrder = 'asc' | 'desc';
 type QueueFilters = {
   search: string;
   status: TicketStatus | '';
+  statuses?: string;
   requestedPriority: TicketPriority | '';
   itPriority: TicketPriority | '';
+  itPriorities?: string;
   category: string;
   ownerId: string;
+  updatedFrom?: string;
+  updatedTo?: string;
+  resolvedFrom?: string;
+  resolvedTo?: string;
 };
 type Pagination = {
   page: number;
@@ -39,8 +45,36 @@ const SORT_FIELDS: Array<{ value: SortField; label: string }> = [
 ];
 
 const initialFilters: QueueFilters = {
-  search: '', status: '', requestedPriority: '', itPriority: '', category: '', ownerId: '',
+  search: '',
+  status: '',
+  statuses: '',
+  requestedPriority: '',
+  itPriority: '',
+  itPriorities: '',
+  category: '',
+  ownerId: '',
+  updatedFrom: '',
+  updatedTo: '',
+  resolvedFrom: '',
+  resolvedTo: '',
 };
+
+function parseStaffFilters(params: URLSearchParams): QueueFilters {
+  return {
+    search: params.get('search') ?? '',
+    status: (params.get('status') as TicketStatus | null) ?? '',
+    statuses: params.get('statuses') ?? '',
+    requestedPriority: (params.get('requestedPriority') as TicketPriority | null) ?? '',
+    itPriority: (params.get('itPriority') as TicketPriority | null) ?? '',
+    itPriorities: params.get('itPriorities') ?? '',
+    category: params.get('category') ?? '',
+    ownerId: params.get('ownerId') ?? '',
+    updatedFrom: params.get('updatedFrom') ?? '',
+    updatedTo: params.get('updatedTo') ?? '',
+    resolvedFrom: params.get('resolvedFrom') ?? '',
+    resolvedTo: params.get('resolvedTo') ?? '',
+  };
+}
 
 class QueueRequestError extends Error {
   readonly status: number;
@@ -75,18 +109,39 @@ function QueueCell({ label, children }: { label: string; children: ReactNode }) 
 export function StaffTicketQueue() {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState<QueueFilters>(initialFilters);
-  const [searchInput, setSearchInput] = useState('');
-  const [sortBy, setSortBy] = useState<SortField>('updatedAt');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<5 | 10 | 20>(10);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<QueueFilters>(() => parseStaffFilters(searchParams));
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
+  const [sortBy, setSortBy] = useState<SortField>(() => (searchParams.get('sortBy') as SortField | null) ?? 'updatedAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => (searchParams.get('sortOrder') as SortOrder | null) ?? 'desc');
+  const [page, setPage] = useState(() => {
+    const p = parseInt(searchParams.get('page') ?? '1', 10);
+    return p > 0 ? p : 1;
+  });
+  const [pageSize, setPageSize] = useState<5 | 10 | 20>(() => {
+    const ps = parseInt(searchParams.get('pageSize') ?? '10', 10);
+    return ps === 5 || ps === 10 || ps === 20 ? ps : 10;
+  });
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<QueueRequestError | null>(null);
   const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const nextFilters = parseStaffFilters(searchParams);
+    setFilters(nextFilters);
+    setSearchInput(nextFilters.search);
+    const s = searchParams.get('sortBy') as SortField | null;
+    if (s && SORT_FIELDS.some(f => f.value === s)) setSortBy(s);
+    const o = searchParams.get('sortOrder') as SortOrder | null;
+    if (o === 'asc' || o === 'desc') setSortOrder(o);
+    const p = parseInt(searchParams.get('page') ?? '1', 10);
+    if (p > 0) setPage(p);
+    const ps = parseInt(searchParams.get('pageSize') ?? '10', 10);
+    if (ps === 5 || ps === 10 || ps === 20) setPageSize(ps);
+  }, [searchParams]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ sortBy, sortOrder, page: String(page), pageSize: String(pageSize) });
@@ -96,6 +151,12 @@ export function StaffTicketQueue() {
     if (filters.itPriority) params.set('itPriority', filters.itPriority);
     if (filters.category) params.set('category', filters.category);
     if (filters.ownerId) params.set('ownerId', filters.ownerId);
+    if (filters.statuses) params.set('statuses', filters.statuses);
+    if (filters.itPriorities) params.set('itPriorities', filters.itPriorities);
+    if (filters.updatedFrom) params.set('updatedFrom', filters.updatedFrom);
+    if (filters.updatedTo) params.set('updatedTo', filters.updatedTo);
+    if (filters.resolvedFrom) params.set('resolvedFrom', filters.resolvedFrom);
+    if (filters.resolvedTo) params.set('resolvedTo', filters.resolvedTo);
     return params.toString();
   }, [filters, page, pageSize, sortBy, sortOrder]);
 
@@ -157,6 +218,7 @@ export function StaffTicketQueue() {
     setFilters(initialFilters);
     setSearchInput('');
     setPage(1);
+    setSearchParams(new URLSearchParams());
   };
 
   const isForbidden = error?.status === 403;

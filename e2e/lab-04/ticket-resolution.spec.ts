@@ -295,9 +295,10 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
 
     // Error banner displayed
-    await expect(
-      page.getByText('At least one completed action with a recorded result is required before resolution'),
-    ).toBeVisible();
+    await expect(page.locator('#ticket-status-error')).toBeVisible();
+    await expect(page.locator('#ticket-status-error')).toContainText(
+      'At least one completed action with a recorded result is required before resolution',
+    );
     await expect(statusSelect).toHaveValue('IN_PROGRESS');
 
     // 3. Create an action and start it
@@ -317,9 +318,10 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
     // Attempt to resolve while action is IN_PROGRESS -> BLOCKED because active actions are in flight
     await statusSelect.selectOption('RESOLVED');
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
-    await expect(
-      page.getByText('All actions must be completed or cancelled before resolution'),
-    ).toBeVisible();
+    await expect(page.locator('#ticket-status-error')).toBeVisible();
+    await expect(page.locator('#ticket-status-error')).toContainText(
+      'All actions must be completed or cancelled before resolution',
+    );
 
     // 4. Complete the action with a valid result
     await tableRow.getByRole('button', { name: 'Complete' }).click();
@@ -340,9 +342,10 @@ test.describe('E2E-02: Ticket Resolution Lifecycle, Resolution Gate & Reopen (AC
 
     await statusSelect.selectOption('RESOLVED');
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
-    await expect(
-      page.getByText('All actions must be completed or cancelled before resolution'),
-    ).toBeVisible();
+    await expect(page.locator('#ticket-status-error')).toBeVisible();
+    await expect(page.locator('#ticket-status-error')).toContainText(
+      'All actions must be completed or cancelled before resolution',
+    );
 
     // Cancel the second action so all actions are completed or cancelled
     await secondRow.getByRole('button', { name: 'Cancel' }).click();

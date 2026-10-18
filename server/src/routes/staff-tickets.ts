@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { ticketSummarySelect } from '../lib/ticket-selects';
 import { buildStaffQueueOrderBy, buildStaffQueueWhere, parseStaffQueueQuery } from '../lib/staff-queue';
 import { internalError, validationError } from '../lib/validation';
+import { getAuthenticatedUser } from '../lib/authorization';
 import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/auth';
 
 export const staffTicketsRouter = Router();
@@ -28,7 +29,8 @@ staffTicketsRouter.get('/', async (request: Request, response: Response) => {
   const parsed = parseStaffQueueQuery(request.query as Record<string, unknown>);
   if (!parsed.success) return validationError(response, parsed.details, 'INVALID_QUERY');
 
-  const where = buildStaffQueueWhere(parsed.data);
+  const user = getAuthenticatedUser(request);
+  const where = buildStaffQueueWhere(parsed.data, user.id);
   const { page, pageSize } = parsed.data;
   try {
     const [tickets, totalItems] = await Promise.all([

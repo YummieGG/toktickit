@@ -46,6 +46,22 @@ describe('Issue #39 Login screen', () => {
         authenticated = true;
         return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: activeUser }) });
       }
+      if (url === '/api/dashboards/requester') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            metrics: { openTickets: 0, waitingForYou: 0, recentlyUpdated: 0, recentlyResolved: 0 },
+            recentTickets: [],
+            attentionTickets: [],
+            resolvedTickets: [],
+            generatedAt: '2026-10-18T00:00:00.000Z',
+            timezone: 'Asia/Bangkok',
+            window: { from: '2026-10-12T00:00:00.000+07:00', to: '2026-10-18T00:00:00.000+07:00' },
+            listLimit: 5,
+          }),
+        });
+      }
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) });
     });
     render(<App />);
@@ -60,7 +76,7 @@ describe('Issue #39 Login screen', () => {
       credentials: 'include',
       body: JSON.stringify({ email: 'somchai.p@example.com', password: 'ValidPass#12' }),
     })));
-    await waitFor(() => expect(window.location.pathname).toBe('/tickets'));
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
   });
 
   it('routes a first-login user to Change Password', async () => {
@@ -98,16 +114,33 @@ describe('Issue #39 Login screen', () => {
 
   it('redirects an already-authenticated user away from Login after refresh bootstrap', async () => {
     global.fetch = vi.fn((input: RequestInfo | URL) => {
-      if (String(input) === '/api/auth/me') {
+      const url = String(input);
+      if (url === '/api/auth/me') {
         return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: activeUser }) });
+      }
+      if (url === '/api/dashboards/requester') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            metrics: { openTickets: 0, waitingForYou: 0, recentlyUpdated: 0, recentlyResolved: 0 },
+            recentTickets: [],
+            attentionTickets: [],
+            resolvedTickets: [],
+            generatedAt: '2026-10-18T00:00:00.000Z',
+            timezone: 'Asia/Bangkok',
+            window: { from: '2026-10-12T00:00:00.000+07:00', to: '2026-10-18T00:00:00.000+07:00' },
+            listLimit: 5,
+          }),
+        });
       }
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) });
     });
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/tickets');
+    expect(await screen.findByRole('heading', { name: 'Requester Dashboard' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/dashboard');
   });
 
   it('displays a safe notice when navigated to Login with session expiry state', async () => {

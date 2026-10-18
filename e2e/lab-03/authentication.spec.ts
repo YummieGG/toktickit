@@ -235,6 +235,22 @@ async function installMockApi(page: Page, initialUser: User | null = null) {
       return json(route, { data: { ticketId: 1, problemAppearsResolvedAt: ticket.problemAppearsResolvedAt } });
     }
 
+    if (method === 'GET' && url.pathname === '/api/dashboards/requester') {
+      return json(route, {
+        metrics: {
+          openTickets: ticket ? 1 : 0,
+          waitingForYou: 0,
+          recentlyUpdated: ticket ? 1 : 0,
+          recentlyResolved: 0,
+        },
+        preview: {
+          waitingForYou: [],
+          recentlyUpdated: ticket ? [ticket] : [],
+          recentlyResolved: [],
+        },
+      });
+    }
+
     return json(route, { error: { code: 'UNHANDLED', message: `${method} ${url.pathname}` } }, 500);
   });
 
@@ -317,7 +333,9 @@ test('initial password login requires password change and unblocks normal screen
   await page.getByLabel('Email').fill('somchai.p@toktickit.local');
   await page.getByLabel('Password').fill('NewSecurePass#99');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'My Tickets' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Requester Dashboard' }).or(page.getByRole('heading', { name: 'My Tickets' }))
+  ).toBeVisible();
 });
 
 test('Login meets required viewports and keeps invalid/cooldown feedback safe (E2E-05)', async ({ page }) => {
