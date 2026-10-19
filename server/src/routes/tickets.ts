@@ -186,7 +186,7 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   if (query.updatedFrom !== undefined) {
     const raw = getSingleStringParam(query.updatedFrom);
     if (!raw || Number.isNaN(Date.parse(raw))) {
-      details.push({ field: 'updatedFrom', message: 'updatedFrom must be a valid ISO timestamp' });
+      details.push({ field: 'updatedFrom', message: 'updatedFrom must be a valid ISO 8601 timestamp' });
     } else {
       updatedFrom = new Date(raw);
     }
@@ -196,7 +196,7 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   if (query.updatedTo !== undefined) {
     const raw = getSingleStringParam(query.updatedTo);
     if (!raw || Number.isNaN(Date.parse(raw))) {
-      details.push({ field: 'updatedTo', message: 'updatedTo must be a valid ISO timestamp' });
+      details.push({ field: 'updatedTo', message: 'updatedTo must be a valid ISO 8601 timestamp' });
     } else {
       updatedTo = new Date(raw);
     }
@@ -206,7 +206,7 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   if (query.resolvedFrom !== undefined) {
     const raw = getSingleStringParam(query.resolvedFrom);
     if (!raw || Number.isNaN(Date.parse(raw))) {
-      details.push({ field: 'resolvedFrom', message: 'resolvedFrom must be a valid ISO timestamp' });
+      details.push({ field: 'resolvedFrom', message: 'resolvedFrom must be a valid ISO 8601 timestamp' });
     } else {
       resolvedFrom = new Date(raw);
     }
@@ -216,7 +216,7 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   if (query.resolvedTo !== undefined) {
     const raw = getSingleStringParam(query.resolvedTo);
     if (!raw || Number.isNaN(Date.parse(raw))) {
-      details.push({ field: 'resolvedTo', message: 'resolvedTo must be a valid ISO timestamp' });
+      details.push({ field: 'resolvedTo', message: 'resolvedTo must be a valid ISO 8601 timestamp' });
     } else {
       resolvedTo = new Date(raw);
     }

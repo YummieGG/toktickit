@@ -536,7 +536,7 @@ export function MyTickets() {
                   id="mobile-sort"
                   className="form-select"
                   value={filters.sortBy}
-                  onChange={event => setFilters(prev => ({ ...prev, sortBy: event.target.value as SortField, page: 1 }))}
+                  onChange={event => updateFilter({ sortBy: event.target.value as SortField })}
                 >
                   {Object.entries(SORT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
@@ -547,7 +547,7 @@ export function MyTickets() {
                   id="mobile-sort-order"
                   className="form-select"
                   value={filters.sortOrder}
-                  onChange={event => setFilters(prev => ({ ...prev, sortOrder: event.target.value as SortOrder, page: 1 }))}
+                  onChange={event => updateFilter({ sortOrder: event.target.value as SortOrder })}
                 >
                   <option value="desc">Descending</option>
                   <option value="asc">Ascending</option>

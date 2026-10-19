@@ -55,6 +55,13 @@ export const StaffDashboard: React.FC = () => {
 
   useEffect(() => {
     void loadDashboard();
+    const handleFocus = () => {
+      void loadDashboard();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [loadDashboard]);
 
   const renderTicketPreview = (tickets: TicketDashboardRow[], emptyMessage: string) => {
@@ -240,7 +247,8 @@ export const StaffDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to="/staff/tickets?ownerId=unassigned&statuses=NEW,OPEN,IN_PROGRESS,WAITING_FOR_REQUESTER,REOPENED"
-                      className="btn btn-outline-danger btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-danger btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View Unassigned
                     </Link>
@@ -262,7 +270,8 @@ export const StaffDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to="/staff/tickets?ownerId=me&statuses=NEW,OPEN,IN_PROGRESS,WAITING_FOR_REQUESTER,REOPENED"
-                      className="btn btn-outline-success btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-success btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View My Tickets
                     </Link>
@@ -276,7 +285,7 @@ export const StaffDashboard: React.FC = () => {
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">My Actions Taken</span>
-                    <div className="display-6 fw-bold mt-2" style={{ color: '#2563EB' }}>
+                    <div className="display-6 fw-bold mt-2" style={{ color: '#006B3C' }}>
                       {data.metrics.myActionsTaken}
                     </div>
                     <small className="text-muted">Assigned actions in progress</small>
@@ -284,7 +293,8 @@ export const StaffDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to="/staff/actions-taken?assignee=me&statuses=PENDING,IN_PROGRESS"
-                      className="btn btn-outline-primary btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-primary btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View Assigned Actions
                     </Link>
@@ -402,7 +412,7 @@ export const StaffDashboard: React.FC = () => {
             {/* My Actions */}
             <div className="card shadow-sm border-0">
               <div className="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h2 className="h5 fw-bold mb-0" style={{ color: '#2563EB' }}>
+                <h2 className="h5 fw-bold mb-0" style={{ color: '#006B3C' }}>
                   My Assigned Actions
                 </h2>
                 <Link

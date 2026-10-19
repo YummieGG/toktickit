@@ -41,6 +41,13 @@ export const RequesterDashboard: React.FC = () => {
 
   useEffect(() => {
     void loadDashboard();
+    const handleFocus = () => {
+      void loadDashboard();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [loadDashboard]);
 
   const renderTicketPreview = (
@@ -168,7 +175,8 @@ export const RequesterDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to="/tickets?statuses=NEW,OPEN,IN_PROGRESS,WAITING_FOR_REQUESTER,REOPENED"
-                      className="btn btn-outline-success btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-success btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View Open Tickets
                     </Link>
@@ -182,7 +190,7 @@ export const RequesterDashboard: React.FC = () => {
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Waiting for You</span>
-                    <div className="display-6 fw-bold mt-2" style={{ color: '#B45309' }}>
+                    <div className="display-6 fw-bold mt-2" style={{ color: '#006B3C' }}>
                       {data.metrics.waitingForYou}
                     </div>
                     <small className="text-muted">Awaiting your response</small>
@@ -190,7 +198,8 @@ export const RequesterDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to="/tickets?statuses=WAITING_FOR_REQUESTER"
-                      className="btn btn-outline-warning btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-warning btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View Waiting Tickets
                     </Link>
@@ -212,7 +221,8 @@ export const RequesterDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to={`/tickets?updatedFrom=${encodeURIComponent(data.window.from)}&updatedTo=${encodeURIComponent(data.window.to)}&sortBy=updatedAt&sortOrder=desc`}
-                      className="btn btn-outline-success btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-success btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View Updated
                     </Link>
@@ -226,7 +236,7 @@ export const RequesterDashboard: React.FC = () => {
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Recently Resolved</span>
-                    <div className="display-6 fw-bold mt-2" style={{ color: '#1E40AF' }}>
+                    <div className="display-6 fw-bold mt-2" style={{ color: '#006B3C' }}>
                       {data.metrics.recentlyResolved}
                     </div>
                     <small className="text-muted">Resolved in last 7 calendar days</small>
@@ -234,7 +244,8 @@ export const RequesterDashboard: React.FC = () => {
                   <div className="mt-3">
                     <Link
                       to={`/tickets?statuses=RESOLVED,CLOSED&resolvedFrom=${encodeURIComponent(data.window.from)}&resolvedTo=${encodeURIComponent(data.window.to)}&sortBy=resolvedAt&sortOrder=desc`}
-                      className="btn btn-outline-primary btn-sm w-100 text-decoration-none"
+                      className="btn btn-outline-primary btn-sm w-100 text-decoration-none d-flex align-items-center justify-content-center"
+                      style={{ minHeight: '44px' }}
                     >
                       View Resolved
                     </Link>
@@ -249,7 +260,7 @@ export const RequesterDashboard: React.FC = () => {
             {/* Attention Tickets */}
             <div className="card shadow-sm border-0">
               <div className="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h2 className="h5 fw-bold mb-0" style={{ color: '#B45309' }}>
+                <h2 className="h5 fw-bold mb-0" style={{ color: '#006B3C' }}>
                   Attention Required (Waiting for You)
                 </h2>
                 <Link
@@ -287,7 +298,7 @@ export const RequesterDashboard: React.FC = () => {
             {/* Recently Resolved Tickets */}
             <div className="card shadow-sm border-0">
               <div className="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h2 className="h5 fw-bold mb-0" style={{ color: '#1E40AF' }}>
+                <h2 className="h5 fw-bold mb-0" style={{ color: '#006B3C' }}>
                   Recently Resolved Tickets
                 </h2>
                 <Link

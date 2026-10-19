@@ -324,13 +324,33 @@ export function StaffTicketQueue() {
             </div>
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-sort">Sort by</label>
-              <select id="staff-sort" className="form-select" value={sortBy} onChange={event => { setSortBy(event.target.value as SortField); setPage(1); }}>
+              <select
+                id="staff-sort"
+                className="form-select"
+                value={sortBy}
+                onChange={event => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('sortBy', event.target.value);
+                  next.set('page', '1');
+                  setSearchParams(next);
+                }}
+              >
                 {SORT_FIELDS.map(field => <option key={field.value} value={field.value}>{field.label}</option>)}
               </select>
             </div>
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-sort-order">Direction</label>
-              <select id="staff-sort-order" className="form-select" value={sortOrder} onChange={event => { setSortOrder(event.target.value as SortOrder); setPage(1); }}>
+              <select
+                id="staff-sort-order"
+                className="form-select"
+                value={sortOrder}
+                onChange={event => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('sortOrder', event.target.value);
+                  next.set('page', '1');
+                  setSearchParams(next);
+                }}
+              >
                 <option value="desc">Newest first</option><option value="asc">Oldest first</option>
               </select>
             </div>
