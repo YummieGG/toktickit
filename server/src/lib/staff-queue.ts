@@ -265,5 +265,8 @@ export function buildStaffQueueOrderBy(query: StaffQueueQuery): Prisma.TicketOrd
   const primary: Prisma.TicketOrderByWithRelationInput = query.sortBy === 'owner'
     ? { owner: { name: order } }
     : { [query.sortBy]: order };
+  if (query.sortBy === 'itPriority') {
+    return [primary, { updatedAt: 'desc' }, { id: 'desc' }];
+  }
   return [primary, { id: 'desc' }];
 }

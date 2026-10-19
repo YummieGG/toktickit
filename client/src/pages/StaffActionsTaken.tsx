@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import type { ActionStatus } from '../types/action';
 import type { StaffActionListResponse, StaffActionRow } from '../types/dashboard';
-import { formatTicketDateTime } from '../utils/date';
+import { formatBangkokDateTime } from '../utils/date';
 
 const ALL_ACTION_STATUSES: ActionStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
@@ -283,7 +283,7 @@ export const StaffActionsTaken: React.FC = () => {
                       <span className="small">{act.assignee ? act.assignee.name : 'Unassigned'}</span>
                     </td>
                     <td className="text-muted" style={{ fontSize: '0.825rem' }}>
-                      {formatTicketDateTime(act.createdAt)}
+                      {formatBangkokDateTime(act.createdAt)}
                     </td>
                   </tr>
                 ))}
@@ -346,7 +346,7 @@ export const StaffActionsTaken: React.FC = () => {
 
                 <div className="d-flex justify-content-between align-items-center text-muted small border-top pt-2 mt-1">
                   <span>Assignee: {act.assignee ? act.assignee.name : 'Unassigned'}</span>
-                  <span>{formatTicketDateTime(act.createdAt)}</span>
+                  <span>{formatBangkokDateTime(act.createdAt)}</span>
                 </div>
 
                 <Link

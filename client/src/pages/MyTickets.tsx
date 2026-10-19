@@ -6,7 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../contexts/auth';
 import type { TicketPriority, TicketStatus } from '../types/ticket';
-import { formatTicketDateTime } from '../utils/date';
+import { formatBangkokDate, formatTicketDateTime } from '../utils/date';
 
 type SortField = 'ticketDate' | 'ticketNumber' | 'summary' | 'requestedPriority' | 'currentStatus' | 'updatedAt' | 'resolvedAt';
 type SortOrder = 'asc' | 'desc';
@@ -414,7 +414,7 @@ export function MyTickets() {
               )}
               {filters.updatedFrom && (
                 <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
-                  <span>Updated: {filters.updatedFrom.split('T')[0]} to {filters.updatedTo ? filters.updatedTo.split('T')[0] : 'now'}</span>
+                  <span>Updated: {formatBangkokDate(filters.updatedFrom)} to {filters.updatedTo ? formatBangkokDate(filters.updatedTo) : 'now'}</span>
                   <button
                     type="button"
                     className="btn-close btn-close-sm"
@@ -426,7 +426,7 @@ export function MyTickets() {
               )}
               {filters.resolvedFrom && (
                 <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
-                  <span>Resolved: {filters.resolvedFrom.split('T')[0]} to {filters.resolvedTo ? filters.resolvedTo.split('T')[0] : 'now'}</span>
+                  <span>Resolved: {formatBangkokDate(filters.resolvedFrom)} to {filters.resolvedTo ? formatBangkokDate(filters.resolvedTo) : 'now'}</span>
                   <button
                     type="button"
                     className="btn-close btn-close-sm"
