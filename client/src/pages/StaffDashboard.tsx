@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import type { StaffActionRow, StaffDashboardResponse, TicketDashboardRow } from '../types/dashboard';
 import type { TicketPriority, TicketStatus } from '../types/ticket';
-import { formatTicketDateTime } from '../utils/date';
+import { formatBangkokDateTime } from '../utils/date';
 
 const ALL_STATUSES: TicketStatus[] = [
   'NEW',
@@ -112,7 +112,7 @@ export const StaffDashboard: React.FC = () => {
                   <Badge type="priority" value={ticket.itPriority} />
                 </td>
                 <td className="text-muted" style={{ fontSize: '0.825rem' }}>
-                  {formatTicketDateTime(ticket.updatedAt)}
+                  {formatBangkokDateTime(ticket.updatedAt)}
                 </td>
               </tr>
             ))}
@@ -174,7 +174,7 @@ export const StaffDashboard: React.FC = () => {
                   <Badge type="status" value={act.ticket.currentStatus} />
                 </td>
                 <td className="text-muted" style={{ fontSize: '0.825rem' }}>
-                  {formatTicketDateTime(act.createdAt)}
+                  {formatBangkokDateTime(act.createdAt)}
                 </td>
               </tr>
             ))}

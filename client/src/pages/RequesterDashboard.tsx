@@ -4,7 +4,7 @@ import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import type { RequesterDashboardResponse, TicketDashboardRow } from '../types/dashboard';
-import { formatTicketDateTime } from '../utils/date';
+import { formatBangkokDateTime } from '../utils/date';
 
 export const RequesterDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -102,7 +102,7 @@ export const RequesterDashboard: React.FC = () => {
                   <Badge type="priority" value={ticket.itPriority} />
                 </td>
                 <td className="text-muted" style={{ fontSize: '0.825rem' }}>
-                  {formatTicketDateTime(showResolvedAt && ticket.resolvedAt ? ticket.resolvedAt : ticket.updatedAt)}
+                  {formatBangkokDateTime(showResolvedAt && ticket.resolvedAt ? ticket.resolvedAt : ticket.updatedAt)}
                 </td>
               </tr>
             ))}

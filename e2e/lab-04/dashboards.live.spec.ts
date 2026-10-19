@@ -6,7 +6,7 @@ const APP_ORIGIN = 'http://127.0.0.1:5173';
 const STAFF_EMAIL = 'pimchanok.staff@toktickit.local';
 const REQUESTER_EMAIL = 'somchai.requester@toktickit.local';
 
-function resolveInitialPassword(): string | null {
+function resolveInitialPassword(): string {
   if (process.env.E2E_STAFF_PASSWORD) return process.env.E2E_STAFF_PASSWORD;
   if (process.env.SEED_INITIAL_PASSWORD) return process.env.SEED_INITIAL_PASSWORD;
   try {
@@ -16,21 +16,9 @@ function resolveInitialPassword(): string | null {
       if (match?.[1]) return match[1];
     }
   } catch {}
-  return process.env.SEED_INITIAL_PASSWORD || null;
-}
-
-async function isDatabaseHealthy(): Promise<boolean> {
-  try {
-    const probeApi = await request.newContext({ baseURL: APP_ORIGIN });
-    const probeRes = await probeApi.post('/api/auth/login', {
-      headers: { Origin: APP_ORIGIN },
-      data: { email: 'probe@toktickit.local', password: 'ProbePassword123!' },
-    });
-    await probeApi.dispose();
-    return probeRes.status() < 500;
-  } catch {
-    return false;
-  }
+  const value = process.env.SEED_INITIAL_PASSWORD;
+  if (!value) throw new Error('SEED_INITIAL_PASSWORD is required for the live E2E suite');
+  return value;
 }
 
 test.describe('LIVE-02: Real PostgreSQL and Live Server Dashboard Parity (AC-07, AC-08, AC-10)', () => {
@@ -39,30 +27,9 @@ test.describe('LIVE-02: Real PostgreSQL and Live Server Dashboard Parity (AC-07,
     context,
   }) => {
     const password = resolveInitialPassword();
-    if (!password) {
-      test.skip(true, 'SEED_INITIAL_PASSWORD is not set; skipping live server test');
-      return;
-    }
-
-    if (!(await isDatabaseHealthy())) {
-      test.skip(true, 'Live database server is not reachable; skipping live server test');
-      return;
-    }
-
-    // Try navigating to login; if server not running, skip
-    try {
-      const res = await page.goto('/login', { timeout: 5000 });
-      if (!res || res.status() >= 500) {
-        test.skip(true, 'Live frontend/server is not currently running');
-        return;
-      }
-    } catch {
-      test.skip(true, 'Live frontend/server is not currently running');
-      return;
-    }
 
     // Login as staff
-    await page.locator('#login-email').fill(STAFF_EMAIL);
+    await page.goto('/login');
     await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
@@ -119,28 +86,9 @@ test.describe('LIVE-02: Real PostgreSQL and Live Server Dashboard Parity (AC-07,
     context,
   }) => {
     const password = resolveInitialPassword();
-    if (!password) {
-      test.skip(true, 'SEED_INITIAL_PASSWORD is not set; skipping live server test');
-      return;
-    }
-
-    if (!(await isDatabaseHealthy())) {
-      test.skip(true, 'Live database server is not reachable; skipping live server test');
-      return;
-    }
-
-    try {
-      const res = await page.goto('/login', { timeout: 5000 });
-      if (!res || res.status() >= 500) {
-        test.skip(true, 'Live frontend/server is not currently running');
-        return;
-      }
-    } catch {
-      test.skip(true, 'Live frontend/server is not currently running');
-      return;
-    }
 
     // Login as requester
+    await page.goto('/login');
     await page.locator('#login-email').fill(REQUESTER_EMAIL);
     await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
