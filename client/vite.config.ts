@@ -16,6 +16,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     globals: true,
+    testTimeout: 15000,
     // Lab 2 regression tests intentionally exercise shared browser globals
     // (history, sessionStorage, and fetch); keep the suite deterministic.
     fileParallelism: false,

@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { requesterTicketDetailSelect, staffTicketDetailSelect, ticketSummarySelect } from '../lib/ticket-selects';
 import { STAFF_PRIORITIES, STAFF_STATUSES } from '../lib/staff-queue';
 import {
+  ALL_STATUSES,
   isAllowedTransition,
   requiresConfirmation,
 } from '../lib/status-transition';
@@ -51,6 +52,8 @@ const TICKET_SORT_FIELDS = [
   'summary',
   'requestedPriority',
   'currentStatus',
+  'updatedAt',
+  'resolvedAt',
 ] as const;
 const SORT_ORDERS = ['asc', 'desc'] as const;
 const PAGE_SIZES = [5, 10, 20] as const;
@@ -127,7 +130,12 @@ interface ValidatedTicketsQuery {
   search?: string;
   categoryId?: number;
   status?: (typeof TICKET_STATUSES)[number];
+  statuses?: (typeof ALL_STATUSES)[number][];
   priority?: (typeof REQUESTED_PRIORITIES)[number];
+  updatedFrom?: Date;
+  updatedTo?: Date;
+  resolvedFrom?: Date;
+  resolvedTo?: Date;
   sortBy: (typeof TICKET_SORT_FIELDS)[number];
   sortOrder: (typeof SORT_ORDERS)[number];
   page: number;
@@ -155,6 +163,65 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   if (query.status !== undefined && (!status || !TICKET_STATUSES.includes(status as (typeof TICKET_STATUSES)[number]))) {
     details.push({ field: 'status', message: `status must be one of ${TICKET_STATUSES.join(', ')}` });
   }
+
+  let statuses: (typeof ALL_STATUSES)[number][] | undefined;
+  if (query.status !== undefined && query.statuses !== undefined) {
+    details.push({ field: 'statuses', message: 'status and statuses cannot be combined' });
+  } else if (query.statuses !== undefined) {
+    const rawStatuses = getSingleStringParam(query.statuses);
+    if (!rawStatuses) {
+      details.push({ field: 'statuses', message: 'statuses must be a non-empty string' });
+    } else {
+      const parts = rawStatuses.split(',').map((s) => s.trim());
+      const invalid = parts.filter((s) => !ALL_STATUSES.includes(s as (typeof ALL_STATUSES)[number]) || s.length === 0);
+      if (invalid.length > 0 || parts.length === 0) {
+        details.push({ field: 'statuses', message: `statuses must be comma-separated list of: ${ALL_STATUSES.join(', ')}` });
+      } else {
+        statuses = parts as (typeof ALL_STATUSES)[number][];
+      }
+    }
+  }
+
+  let updatedFrom: Date | undefined;
+  if (query.updatedFrom !== undefined) {
+    const raw = getSingleStringParam(query.updatedFrom);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'updatedFrom', message: 'updatedFrom must be a valid ISO 8601 timestamp' });
+    } else {
+      updatedFrom = new Date(raw);
+    }
+  }
+
+  let updatedTo: Date | undefined;
+  if (query.updatedTo !== undefined) {
+    const raw = getSingleStringParam(query.updatedTo);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'updatedTo', message: 'updatedTo must be a valid ISO 8601 timestamp' });
+    } else {
+      updatedTo = new Date(raw);
+    }
+  }
+
+  let resolvedFrom: Date | undefined;
+  if (query.resolvedFrom !== undefined) {
+    const raw = getSingleStringParam(query.resolvedFrom);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'resolvedFrom', message: 'resolvedFrom must be a valid ISO 8601 timestamp' });
+    } else {
+      resolvedFrom = new Date(raw);
+    }
+  }
+
+  let resolvedTo: Date | undefined;
+  if (query.resolvedTo !== undefined) {
+    const raw = getSingleStringParam(query.resolvedTo);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'resolvedTo', message: 'resolvedTo must be a valid ISO 8601 timestamp' });
+    } else {
+      resolvedTo = new Date(raw);
+    }
+  }
+
   if (query.priority !== undefined && (!priority || !REQUESTED_PRIORITIES.includes(priority as (typeof REQUESTED_PRIORITIES)[number]))) {
     details.push({ field: 'priority', message: `priority must be one of ${REQUESTED_PRIORITIES.join(', ')}` });
   }
@@ -190,7 +257,12 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
     data: {
       ...(categoryId !== null && categoryId !== undefined ? { categoryId } : {}),
       ...(status ? { status: status as (typeof TICKET_STATUSES)[number] } : {}),
+      ...(statuses ? { statuses } : {}),
       ...(priority ? { priority: priority as (typeof REQUESTED_PRIORITIES)[number] } : {}),
+      ...(updatedFrom ? { updatedFrom } : {}),
+      ...(updatedTo ? { updatedTo } : {}),
+      ...(resolvedFrom ? { resolvedFrom } : {}),
+      ...(resolvedTo ? { resolvedTo } : {}),
       ...(search?.trim() ? { search: search.trim() } : {}),
       sortBy: sortBy as (typeof TICKET_SORT_FIELDS)[number],
       sortOrder: sortOrder as (typeof SORT_ORDERS)[number],
@@ -205,13 +277,29 @@ ticketsRouter.get('/', requireRole('REQUESTER'), async (request: Request, respon
   const parsed = parseTicketsQuery(request.query);
   if (!parsed.success) return validationError(response, parsed.details, 'INVALID_QUERY');
 
-  const { categoryId, status, priority, sortBy, sortOrder, page, pageSize, search } = parsed.data;
+  const { categoryId, status, statuses, priority, updatedFrom, updatedTo, resolvedFrom, resolvedTo, sortBy, sortOrder, page, pageSize, search } = parsed.data;
   const user = getAuthenticatedUser(request);
   const where: Prisma.TicketWhereInput = {
     requesterId: user.id,
     ...(categoryId !== undefined ? { categoryId } : {}),
-    ...(status ? { currentStatus: status } : {}),
+    ...(statuses ? { currentStatus: { in: statuses } } : status ? { currentStatus: status } : {}),
     ...(priority ? { requestedPriority: priority } : {}),
+    ...(updatedFrom || updatedTo
+      ? {
+          updatedAt: {
+            ...(updatedFrom ? { gte: updatedFrom } : {}),
+            ...(updatedTo ? { lte: updatedTo } : {}),
+          },
+        }
+      : {}),
+    ...(resolvedFrom || resolvedTo
+      ? {
+          resolvedAt: {
+            ...(resolvedFrom ? { gte: resolvedFrom } : {}),
+            ...(resolvedTo ? { lte: resolvedTo } : {}),
+          },
+        }
+      : {}),
     ...(search
       ? {
           OR: [
@@ -225,11 +313,15 @@ ticketsRouter.get('/', requireRole('REQUESTER'), async (request: Request, respon
 
   try {
     const prismaSortOrder = sortOrder as Prisma.SortOrder;
-    const orderBy: Prisma.TicketOrderByWithRelationInput = { [sortBy]: prismaSortOrder };
+    const primaryOrder: Prisma.TicketOrderByWithRelationInput =
+      sortBy === 'resolvedAt'
+        ? { resolvedAt: { sort: prismaSortOrder, nulls: 'last' } }
+        : { [sortBy]: prismaSortOrder };
+    const orderBy: Prisma.TicketOrderByWithRelationInput[] = [primaryOrder, { id: 'desc' }];
     const [tickets, totalItems] = await Promise.all([
       prisma.ticket.findMany({
         where,
-        orderBy: [orderBy, { id: 'desc' }],
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: ticketSummarySelect,

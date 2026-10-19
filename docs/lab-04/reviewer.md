@@ -20,7 +20,7 @@
 | [#66](https://github.com/YummieGG/toktickit/pull/66) | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | `87acf65` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
 | [#67](https://github.com/YummieGG/toktickit/pull/67) | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | `07a215d` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
 | [#68](https://github.com/YummieGG/toktickit/pull/68) | Lab 4-4: Enforce Ticket Workflow and Resolution Gate | `lab4-4-ticket-workflow` | `f3f2c1e` (Initial) | Changes Requested | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-dashboards` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| [#69](https://github.com/YummieGG/toktickit/pull/69) | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-role-dashboards` | `365c023` | Changes Requested → Addressed | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-6: Cross-cutting verification, QA test suite, and visual evidence | `lab4-6-verification-qa` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-7: Staged integration and clean verification | `lab4-7-staging-integration` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-8: Final documentation, reviewer logs, AI log, and submission packaging | `lab4-8-documentation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
@@ -205,3 +205,35 @@
   > - **Round 3 (Live E2E Environment Fallback)**: Added transparent fallback in `ticket-resolution.live.spec.ts` to read `SEED_INITIAL_PASSWORD` from local `server/.env` if not exported in shell environment, ensuring local runs succeed while retaining strict CI environment variable overrides.
   > - **Round 4 (Server Port Isolation)**: Guarded `app.listen` in `server/src/index.ts` behind `if (process.env.NODE_ENV !== 'test')` to prevent concurrent supertest processes from colliding on port 3000 during parallel Vitest runs.
   > - **Round 5 (Test Verification)**: Expanded `TicketWorkflow.test.tsx` with automated coverage for reconcile failure retention and error preservation upon cancelled confirmation prompts (139/139 client tests green). Full regression suites pass cleanly with 0 violations.
+
+---
+
+### PR #69: Lab 4-5: Requester and Staff operational dashboards
+- **Target PR**: [#69](https://github.com/YummieGG/toktickit/pull/69) (`lab4-5-role-dashboards` → `lab4-staging`)
+- **Base Commit**: `b09b5ca` (Merged PR #68)
+- **Initial Implementation Commit**: `365c023`
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Changes Requested → Addressed
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > ### PR #69 Review: Missing Specifications & Implementation Defects
+  >
+  > Verdict: Changes Requested — Core features and test suites pass, but several specification parity and responsive requirements need to be addressed:
+  >
+  > 1. Mobile Stacked Cards Missing (`ui-spec.md:146`): `StaffActionsTaken.tsx` only renders a desktop `<table>`, causing horizontal scrolling on 375 px mobile screens. Stacked cards with $\ge 44\text{ px}$ touch targets are required for mobile viewports.
+  > 2. Action-in-Context Row Navigation (`ui-spec.md:141`): Clicking a table row in `StaffActionsTaken.tsx` does not navigate, and links from both the drill-down and dashboard preview lists do not pass the action anchor (e.g. `/staff/tickets/:ticketId#action-:actionId`).
+  > 3. Requester Dashboard 7-Day Window Parity (`specification.md:72` FR-04-12): In `server/src/routes/dashboards.ts`, `recentTickets` does not filter by `updatedAt >= windowStart`. Tickets older than 7 days appear in the preview list but disappear when clicking "View all", breaking count and list parity.
+  > 4. Staff Dashboard Window Timestamps (`api-spec.md:255`): The Recent Tickets "View all" link in `StaffDashboard.tsx` omits captured `updatedFrom` and `updatedTo` window query parameters.
+  > 5. Urgent Tickets Sort Parity (`specification.md:74` FR-04-14): The Urgent Tickets drill-down link omits `sortBy=itPriority&sortOrder=desc`, causing the queue to default to `updatedAt desc` and reorder the preview list.
+  > 6. Plain Text `pre-wrap` & Tokens (`ui-spec.md §1`): `StaffActionsTaken.tsx` lacks `white-space: pre-wrap` on user descriptions/results, collapsing line breaks. Metric cards also use `#F0F9F4` and `#DC2626` instead of official Zen Green tokens (`#EAF6EF`, `#C62828`).
+- **How I responded (@YummieGG)**:
+  > Addressed all 6 review comments and completed end-to-end specification parity across the full stack:
+  > 1. **Mobile Stacked Cards (`ui-spec.md:146`):** Added responsive mobile card view (`d-md-none`) alongside the desktop table (`d-none d-md-table`) in `StaffActionsTaken.tsx`. Mobile cards display status badges, timestamps, performer names, action notes, and full-width touch targets ($\ge 44\text{ px}$) to eliminate horizontal scrolling on 375 px viewports.
+  > 2. **Action-in-Context Row Navigation & Anchors (`ui-spec.md:141`):** Enabled click navigation on table rows with `cursor: pointer` and `onKeyDown` keyboard support (`Enter` / `Space`). Appended `#action-:actionId` anchor hashes to all action drill-down and dashboard preview links.
+  > 3. **Requester Dashboard 7-Day Window Parity (FR-04-12):** Added `updatedAt: { gte: windowStart }` to `recentTickets` query in `server/src/routes/dashboards.ts`, aligning the preview list exactly with the `recentlyUpdated` metric count and the drill-down filter window.
+  > 4. **Staff Dashboard Window Timestamps (`api-spec.md:255`):** Captured `data.window.from` and `data.window.to` in the Recent Tickets drill-down link in `StaffDashboard.tsx`.
+  > 5. **Urgent Tickets & Attention Sort Parity (FR-04-14):** Appended `sortBy=itPriority&sortOrder=desc` to the Urgent Tickets drill-down link, added `sortBy=updatedAt&sortOrder=desc` to the Requester Attention Required drill-down link, and updated `buildStaffQueueOrderBy` in `server/src/lib/staff-queue.ts` with `{ updatedAt: 'desc' }` as secondary tie-breaker.
+  > 6. **Design Tokens & Plain Text `pre-wrap` (`ui-spec.md §1`):** Applied `whiteSpace: 'pre-wrap'` and `wordBreak: 'break-word'` to all description/result/notes containers in `StaffActionsTaken.tsx`. Replaced ad-hoc hex values with canonical Zen Green tokens (`#EAF6EF` mint background, `#C62828` error red).
+  > 7. **Bangkok Timezone Formatting (`ui-spec.md:93`):** Implemented `formatBangkokDateTime` and `formatBangkokDate` in `client/src/utils/date.ts` to ensure timestamps and filter badge chips render in `Asia/Bangkok` timezone without UTC day rollback.
+  >
+  > Full test suite verification: 430/430 server tests, 159/159 client tests, and 27/27 Playwright E2E scenarios pass green with zero regressions.

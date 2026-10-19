@@ -222,6 +222,16 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
     void fetchActions(1);
   }, [fetchActions]);
 
+  useEffect(() => {
+    if (window.location.hash && actions.length > 0) {
+      const targetId = window.location.hash.slice(1);
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [actions]);
+
   const isFirstStatusRender = useRef(true);
   useEffect(() => {
     if (isFirstStatusRender.current) {
@@ -1399,7 +1409,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                     const canEdit = canMutate && act.status !== 'CANCELLED';
                     const canReassign = canMutate && (act.status === 'PENDING' || act.status === 'IN_PROGRESS');
                     return (
-                      <tr key={act.id}>
+                      <tr key={act.id} id={`action-${act.id}`}>
                         <td>
                           <span className="small text-muted d-block">
                             {formatActionDateTime(act.createdAt)}
@@ -1562,7 +1572,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
                 const canEdit = canMutate && act.status !== 'CANCELLED';
                 const canReassign = canMutate && (act.status === 'PENDING' || act.status === 'IN_PROGRESS');
                 return (
-                  <article key={act.id} className="actions-taken-card shadow-sm">
+                  <article key={act.id} id={`action-${act.id}`} className="actions-taken-card shadow-sm">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <span className="small text-muted">{formatActionDateTime(act.createdAt)}</span>
                       <Badge type="action-status" value={act.status} />

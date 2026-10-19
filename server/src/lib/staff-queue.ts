@@ -21,15 +21,21 @@ export const STAFF_PAGE_SIZES = [5, 10, 20] as const;
 export type StaffQueueSortField = (typeof STAFF_SORT_FIELDS)[number];
 export type StaffQueueSortOrder = (typeof STAFF_SORT_ORDERS)[number];
 export type StaffQueuePageSize = (typeof STAFF_PAGE_SIZES)[number];
-export type StaffQueueOwner = number | 'unassigned';
+export type StaffQueueOwner = number | 'unassigned' | 'me';
 
 export interface StaffQueueQuery {
   search?: string;
   status?: (typeof STAFF_STATUSES)[number];
+  statuses?: (typeof STAFF_STATUSES)[number][];
   requestedPriority?: (typeof STAFF_PRIORITIES)[number];
   itPriority?: (typeof STAFF_PRIORITIES)[number];
+  itPriorities?: (typeof STAFF_PRIORITIES)[number][];
   categoryId?: number;
   ownerId?: StaffQueueOwner;
+  updatedFrom?: Date;
+  updatedTo?: Date;
+  resolvedFrom?: Date;
+  resolvedTo?: Date;
   sortBy: StaffQueueSortField;
   sortOrder: StaffQueueSortOrder;
   page: number;
@@ -74,6 +80,83 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): StaffQueue
   const status = parseEnum(query, 'status', STAFF_STATUSES, details);
   const requestedPriority = parseEnum(query, 'requestedPriority', STAFF_PRIORITIES, details);
   const itPriority = parseEnum(query, 'itPriority', STAFF_PRIORITIES, details);
+
+  let statuses: (typeof STAFF_STATUSES)[number][] | undefined;
+  if (query.status !== undefined && query.statuses !== undefined) {
+    details.push({ field: 'statuses', message: 'status and statuses cannot be combined' });
+  } else if (query.statuses !== undefined) {
+    const rawStatuses = getSingleStringParam(query.statuses);
+    if (!rawStatuses) {
+      details.push({ field: 'statuses', message: 'statuses must be a non-empty string' });
+    } else {
+      const parts = rawStatuses.split(',').map((s) => s.trim());
+      const invalid = parts.filter((s) => !STAFF_STATUSES.includes(s as (typeof STAFF_STATUSES)[number]) || s.length === 0);
+      if (invalid.length > 0 || parts.length === 0) {
+        details.push({ field: 'statuses', message: `statuses must be comma-separated list of: ${STAFF_STATUSES.join(', ')}` });
+      } else {
+        statuses = parts as (typeof STAFF_STATUSES)[number][];
+      }
+    }
+  }
+
+  let itPriorities: (typeof STAFF_PRIORITIES)[number][] | undefined;
+  if (query.itPriority !== undefined && query.itPriorities !== undefined) {
+    details.push({ field: 'itPriorities', message: 'itPriority and itPriorities cannot be combined' });
+  } else if (query.itPriorities !== undefined) {
+    const rawPriorities = getSingleStringParam(query.itPriorities);
+    if (!rawPriorities) {
+      details.push({ field: 'itPriorities', message: 'itPriorities must be a non-empty string' });
+    } else {
+      const parts = rawPriorities.split(',').map((s) => s.trim());
+      const invalid = parts.filter((s) => !STAFF_PRIORITIES.includes(s as (typeof STAFF_PRIORITIES)[number]) || s.length === 0);
+      if (invalid.length > 0 || parts.length === 0) {
+        details.push({ field: 'itPriorities', message: `itPriorities must be comma-separated list of: ${STAFF_PRIORITIES.join(', ')}` });
+      } else {
+        itPriorities = parts as (typeof STAFF_PRIORITIES)[number][];
+      }
+    }
+  }
+
+  let updatedFrom: Date | undefined;
+  if (query.updatedFrom !== undefined) {
+    const raw = getSingleStringParam(query.updatedFrom);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'updatedFrom', message: 'updatedFrom must be a valid ISO 8601 timestamp' });
+    } else {
+      updatedFrom = new Date(raw);
+    }
+  }
+
+  let updatedTo: Date | undefined;
+  if (query.updatedTo !== undefined) {
+    const raw = getSingleStringParam(query.updatedTo);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'updatedTo', message: 'updatedTo must be a valid ISO 8601 timestamp' });
+    } else {
+      updatedTo = new Date(raw);
+    }
+  }
+
+  let resolvedFrom: Date | undefined;
+  if (query.resolvedFrom !== undefined) {
+    const raw = getSingleStringParam(query.resolvedFrom);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'resolvedFrom', message: 'resolvedFrom must be a valid ISO 8601 timestamp' });
+    } else {
+      resolvedFrom = new Date(raw);
+    }
+  }
+
+  let resolvedTo: Date | undefined;
+  if (query.resolvedTo !== undefined) {
+    const raw = getSingleStringParam(query.resolvedTo);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'resolvedTo', message: 'resolvedTo must be a valid ISO 8601 timestamp' });
+    } else {
+      resolvedTo = new Date(raw);
+    }
+  }
+
   let rawSortBy = (query.sortBy === undefined ? 'updatedAt' : getSingleStringParam(query.sortBy)) as string | undefined;
   if (rawSortBy === 'status') rawSortBy = 'currentStatus';
   if (rawSortBy === 'lastUpdated') rawSortBy = 'updatedAt';
@@ -105,8 +188,9 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): StaffQueue
   if (query.ownerId !== undefined) {
     const ownerRaw = getSingleStringParam(query.ownerId);
     if (ownerRaw === 'unassigned') ownerId = ownerRaw;
+    else if (ownerRaw === 'me') ownerId = 'me';
     else if (ownerRaw !== undefined && isPositiveIntegerString(ownerRaw.trim())) ownerId = Number(ownerRaw.trim());
-    else details.push({ field: 'ownerId', message: 'ownerId must be a positive integer or unassigned' });
+    else details.push({ field: 'ownerId', message: 'ownerId must be a positive integer, unassigned, or me' });
   }
 
   if (details.length > 0) return { success: false, details };
@@ -115,10 +199,16 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): StaffQueue
     data: {
       ...(search?.trim() ? { search: search.trim() } : {}),
       ...(status ? { status } : {}),
+      ...(statuses ? { statuses } : {}),
       ...(requestedPriority ? { requestedPriority } : {}),
       ...(itPriority ? { itPriority } : {}),
+      ...(itPriorities ? { itPriorities } : {}),
       ...(categoryId !== undefined ? { categoryId } : {}),
       ...(ownerId !== undefined ? { ownerId } : {}),
+      ...(updatedFrom ? { updatedFrom } : {}),
+      ...(updatedTo ? { updatedTo } : {}),
+      ...(resolvedFrom ? { resolvedFrom } : {}),
+      ...(resolvedTo ? { resolvedTo } : {}),
       sortBy: sortBy as StaffQueueSortField,
       sortOrder: sortOrder as StaffQueueSortOrder,
       page: Number(pageRaw),
@@ -127,13 +217,35 @@ export function parseStaffQueueQuery(query: Record<string, unknown>): StaffQueue
   };
 }
 
-export function buildStaffQueueWhere(query: StaffQueueQuery): Prisma.TicketWhereInput {
+export function buildStaffQueueWhere(query: StaffQueueQuery, currentUserId?: number): Prisma.TicketWhereInput {
   return {
-    ...(query.status ? { currentStatus: query.status } : {}),
+    ...(query.statuses ? { currentStatus: { in: query.statuses } } : query.status ? { currentStatus: query.status } : {}),
+    ...(query.itPriorities ? { itPriority: { in: query.itPriorities } } : query.itPriority ? { itPriority: query.itPriority } : {}),
     ...(query.requestedPriority ? { requestedPriority: query.requestedPriority } : {}),
-    ...(query.itPriority ? { itPriority: query.itPriority } : {}),
     ...(query.categoryId !== undefined ? { categoryId: query.categoryId } : {}),
-    ...(query.ownerId === 'unassigned' ? { ownerId: null } : query.ownerId !== undefined ? { ownerId: query.ownerId } : {}),
+    ...(query.ownerId === 'unassigned'
+      ? { ownerId: null }
+      : query.ownerId === 'me'
+        ? { ownerId: currentUserId ?? -1 }
+        : query.ownerId !== undefined
+          ? { ownerId: query.ownerId }
+          : {}),
+    ...(query.updatedFrom || query.updatedTo
+      ? {
+          updatedAt: {
+            ...(query.updatedFrom ? { gte: query.updatedFrom } : {}),
+            ...(query.updatedTo ? { lte: query.updatedTo } : {}),
+          },
+        }
+      : {}),
+    ...(query.resolvedFrom || query.resolvedTo
+      ? {
+          resolvedAt: {
+            ...(query.resolvedFrom ? { gte: query.resolvedFrom } : {}),
+            ...(query.resolvedTo ? { lte: query.resolvedTo } : {}),
+          },
+        }
+      : {}),
     ...(query.search
       ? {
           OR: [
@@ -153,5 +265,8 @@ export function buildStaffQueueOrderBy(query: StaffQueueQuery): Prisma.TicketOrd
   const primary: Prisma.TicketOrderByWithRelationInput = query.sortBy === 'owner'
     ? { owner: { name: order } }
     : { [query.sortBy]: order };
+  if (query.sortBy === 'itPriority') {
+    return [primary, { updatedAt: 'desc' }, { id: 'desc' }];
+  }
   return [primary, { id: 'desc' }];
 }

@@ -12,6 +12,9 @@ import { ChangePassword } from './pages/ChangePassword';
 import { StaffTicketQueue } from './pages/StaffTicketQueue';
 import { StaffTicketDetail } from './pages/StaffTicketDetail';
 import { UserManagement } from './pages/UserManagement';
+import { RequesterDashboard } from './pages/RequesterDashboard';
+import { StaffDashboard } from './pages/StaffDashboard';
+import { StaffActionsTaken } from './pages/StaffActionsTaken';
 import { ForbiddenPage, NotFoundPage } from './pages/RouteStates';
 import { getHomePath } from './utils/navigation';
 import './App.css';
@@ -61,9 +64,16 @@ function PasswordChangeAccess() {
 
 function PublicOnlyRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) return <GuardLoading />;
-  if (user) return <Navigate to={user.mustChangePassword ? '/change-password' : getHomePath(user.role)} replace />;
+  if (user) {
+    const fromPath = (location.state as { from?: string } | null)?.from;
+    const target = user.mustChangePassword
+      ? '/change-password'
+      : (fromPath && fromPath !== '/login' && fromPath !== '/change-password' ? fromPath : getHomePath(user.role));
+    return <Navigate to={target} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -93,16 +103,23 @@ function App() {
           <Route path="/" element={<ProtectedShell />}>
             <Route index element={<HomeRedirect />} />
 
+            <Route path="dashboard" element={<RoleGuard roles={['REQUESTER']}><RequesterDashboard /></RoleGuard>} />
             <Route path="tickets" element={<RoleGuard roles={['REQUESTER']}><MyTickets /></RoleGuard>} />
             <Route path="tickets/new" element={<RoleGuard roles={['REQUESTER']}><CreateTicket /></RoleGuard>} />
             <Route path="tickets/create" element={<RoleGuard roles={['REQUESTER']}><Navigate to="/tickets/new" replace /></RoleGuard>} />
             <Route path="tickets/:id" element={<RoleGuard roles={['REQUESTER']}><RequesterTicketDetail /></RoleGuard>} />
 
+            <Route path="staff/dashboard" element={<RoleGuard roles={['IT_STAFF', 'ADMINISTRATOR']}>
+              <StaffDashboard />
+            </RoleGuard>} />
             <Route path="staff/tickets" element={<RoleGuard roles={['IT_STAFF', 'ADMINISTRATOR']}>
               <StaffTicketQueue />
             </RoleGuard>} />
             <Route path="staff/tickets/:id" element={<RoleGuard roles={['IT_STAFF', 'ADMINISTRATOR']}>
               <StaffTicketDetail />
+            </RoleGuard>} />
+            <Route path="staff/actions-taken" element={<RoleGuard roles={['IT_STAFF', 'ADMINISTRATOR']}>
+              <StaffActionsTaken />
             </RoleGuard>} />
             <Route path="admin/users" element={<RoleGuard roles={['ADMINISTRATOR']}>
               <UserManagement />

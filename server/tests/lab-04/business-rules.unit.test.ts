@@ -382,4 +382,100 @@ describe('UNIT-02: Ticket Lifecycle Transitions & Resolution Gate (FR-04-08, BR-
       expect(requiresConfirmation('WAITING_FOR_REQUESTER')).toBe(false);
     });
   });
+
+  describe('UNIT-03: Bangkok 7-Day Calendar Window & Dashboard Calculations (DASHBOARD-01, DATE-01, AC-07)', () => {
+    it('calculates the 7-day calendar window from 00:00:00 Bangkok time 6 days ago', async () => {
+      const { getBangkokSevenDayWindow } = await import('../../src/lib/dashboard-rules');
+      // 2026-10-18 19:00:00 in Bangkok (UTC+7) = 2026-10-18 12:00:00 UTC
+      const now = new Date('2026-10-18T12:00:00.000Z');
+      const window = getBangkokSevenDayWindow(now);
+
+      expect(window.to).toBe('2026-10-18T12:00:00.000Z');
+      // 6 calendar days ago in Bangkok is 2026-10-12 00:00:00+07:00 = 2026-10-11 17:00:00 UTC
+      expect(window.from).toBe('2026-10-11T17:00:00.000Z');
+      expect(window.start.toISOString()).toBe('2026-10-11T17:00:00.000Z');
+      expect(window.end.toISOString()).toBe('2026-10-18T12:00:00.000Z');
+    });
+
+    it('correctly handles time right after Bangkok midnight', async () => {
+      const { getBangkokSevenDayWindow } = await import('../../src/lib/dashboard-rules');
+      // 2026-10-18 00:05:00 in Bangkok = 2026-10-17 17:05:00 UTC
+      const now = new Date('2026-10-17T17:05:00.000Z');
+      const window = getBangkokSevenDayWindow(now);
+
+      expect(window.to).toBe('2026-10-17T17:05:00.000Z');
+      // Bangkok is on Oct 18, so 6 days ago is Oct 12 00:00:00+07:00 = 2026-10-11 17:00:00 UTC
+      expect(window.from).toBe('2026-10-11T17:00:00.000Z');
+    });
+
+    it('correctly crosses month boundary', async () => {
+      const { getBangkokSevenDayWindow } = await import('../../src/lib/dashboard-rules');
+      // 2026-03-03 10:00:00 Bangkok = 2026-03-03 03:00:00 UTC
+      const now = new Date('2026-03-03T03:00:00.000Z');
+      const window = getBangkokSevenDayWindow(now);
+
+      // March 3 minus 6 days is February 25 (2026 is non-leap year: Feb has 28 days: Feb 25, 26, 27, 28, Mar 1, 2, 3 = 7 days)
+      // 2026-02-25 00:00:00+07:00 = 2026-02-24 17:00:00 UTC
+      expect(window.from).toBe('2026-02-24T17:00:00.000Z');
+    });
+
+    it('correctly crosses year boundary', async () => {
+      const { getBangkokSevenDayWindow } = await import('../../src/lib/dashboard-rules');
+      // 2026-01-02 10:00:00 Bangkok = 2026-01-02 03:00:00 UTC
+      const now = new Date('2026-01-02T03:00:00.000Z');
+      const window = getBangkokSevenDayWindow(now);
+
+      // Jan 2 minus 6 days is Dec 27, 2025: 2025-12-27 00:00:00+07:00 = 2025-12-26 17:00:00 UTC
+      expect(window.from).toBe('2025-12-26T17:00:00.000Z');
+    });
+
+    it('maps ticket and staff action rows into standard dashboard projections', async () => {
+      const { mapTicketDashboardRow, mapStaffActionRow } = await import('../../src/lib/dashboard-rules');
+
+      const ticketRow = mapTicketDashboardRow({
+        id: 1,
+        ticketNumber: 'TK-0001',
+        summary: 'Server failure',
+        currentStatus: 'RESOLVED',
+        itPriority: 'HIGH',
+        updatedAt: new Date('2026-10-18T10:00:00.000Z'),
+        resolvedAt: new Date('2026-10-18T10:30:00.000Z'),
+      });
+      expect(ticketRow).toEqual({
+        id: 1,
+        ticketNumber: 'TK-0001',
+        summary: 'Server failure',
+        currentStatus: 'RESOLVED',
+        itPriority: 'HIGH',
+        updatedAt: '2026-10-18T10:00:00.000Z',
+        resolvedAt: '2026-10-18T10:30:00.000Z',
+      });
+
+      const actionRow = mapStaffActionRow({
+        id: 10,
+        ticketId: 1,
+        description: 'Replaced PSU',
+        result: 'Operating normally',
+        status: 'COMPLETED',
+        performedBy: { id: 2, name: 'Staff', role: 'IT_STAFF' },
+        assignee: { id: 2, name: 'Staff', role: 'IT_STAFF', isActive: true },
+        followUpRequired: false,
+        followUpNote: null,
+        attachmentNotes: null,
+        cancelReason: null,
+        createdAt: new Date('2026-10-18T10:00:00.000Z'),
+        updatedAt: new Date('2026-10-18T10:15:00.000Z'),
+        version: 2,
+        ticket: {
+          id: 1,
+          ticketNumber: 'TK-0001',
+          summary: 'Server failure',
+          currentStatus: 'RESOLVED',
+        },
+      });
+      expect(actionRow.ticket.ticketNumber).toBe('TK-0001');
+      expect(actionRow.status).toBe('COMPLETED');
+      expect(actionRow.result).toBe('Operating normally');
+    });
+  });
 });

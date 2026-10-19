@@ -34,8 +34,12 @@ export const Login: React.FC = () => {
 
   useEffect(() => {
     if (!user) return;
-    navigate(user.mustChangePassword ? '/change-password' : '/', { replace: true });
-  }, [navigate, user]);
+    const fromPath = (location.state as { from?: string } | null)?.from;
+    const target = user.mustChangePassword
+      ? '/change-password'
+      : (fromPath && fromPath !== '/login' && fromPath !== '/change-password' ? fromPath : '/');
+    navigate(target, { replace: true });
+  }, [navigate, user, location.state]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -56,8 +60,14 @@ export const Login: React.FC = () => {
     setIsSubmitting(true);
     try {
       const loggedInUser = await login(normalizedEmail, password);
-      if (loggedInUser.mustChangePassword) navigate('/change-password', { replace: true });
-      else navigate('/', { replace: true });
+      const fromPath = (location.state as { from?: string } | null)?.from;
+      if (loggedInUser.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+      } else if (fromPath && fromPath !== '/login' && fromPath !== '/change-password') {
+        navigate(fromPath, { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (error) {
       if (error instanceof ApiError && error.code === 'LOGIN_COOLDOWN') {
         setApiError('Too many attempts. Please try again later.');
