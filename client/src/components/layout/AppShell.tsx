@@ -120,8 +120,8 @@ export const AppShell: React.FC = () => {
                   </>}
                 </ul>
 
-                <div className="d-flex align-items-center ms-md-auto gap-2 my-2 my-md-0 text-nowrap">
-                  <span className="text-white text-nowrap" style={{ fontSize: '0.875rem' }} aria-label="Current user">
+                <div className="d-flex flex-wrap align-items-center ms-md-auto gap-2 my-2 my-md-0">
+                  <span className="text-white" style={{ fontSize: '0.875rem' }} aria-label="Current user">
                     {user.name} · {user.email} · {ROLE_LABELS[user.role]}
                   </span>
                   <Link

@@ -783,6 +783,7 @@ export const ActionsTakenSection: React.FC<ActionsTakenSectionProps> = ({
 
   return (
     <section
+      id="actions-taken-section"
       className="card shadow-sm mb-4 actions-taken-section"
       aria-labelledby="actions-taken-title"
       data-testid="actions-taken-section"

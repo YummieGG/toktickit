@@ -172,7 +172,7 @@ export const StaffActionsTaken: React.FC = () => {
               })}
             </div>
 
-            <div className="d-flex align-items-center gap-2">
+            <div className="d-flex flex-wrap align-items-center gap-2">
               <span className="badge bg-secondary" style={{ fontSize: '0.8rem' }}>
                 Assignee: Me
               </span>
