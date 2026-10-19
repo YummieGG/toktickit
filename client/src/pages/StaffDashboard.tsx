@@ -319,7 +319,7 @@ export const StaffDashboard: React.FC = () => {
                     {ALL_STATUSES.map((status) => {
                       const count = data.metrics.ticketsByStatus[status] ?? 0;
                       return (
-                        <div key={status} className="col-6 col-sm-3">
+                        <div key={status} className="col-12 col-sm-6 col-md-3">
                           <Link
                             to={`/staff/tickets?status=${status}`}
                             className="text-decoration-none"
