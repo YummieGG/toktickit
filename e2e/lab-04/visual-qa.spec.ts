@@ -729,13 +729,19 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
     });
   });
 
-  test('5. Regression Screens: Viewports (1280, 768, 375) across Queue, Detail, and User Management', async ({ page }) => {
+  test('5. Regression Screens: Viewports (1280, 768, 375) across Queue, Detail, User Management, Login, Change Password, and My Tickets', async ({ page }) => {
+    let currentAuthUser: UserMock | null = adminUser;
+
     await page.route('**/api/**', async (route) => {
       const url = new URL(route.request().url());
       const path = url.pathname;
+      const method = route.request().method();
 
       if (path === '/api/auth/me') {
-        return json(route, { data: adminUser });
+        if (!currentAuthUser) {
+          return json(route, { error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }, 401);
+        }
+        return json(route, { data: currentAuthUser });
       }
 
       if (path === '/api/categories') {
@@ -744,6 +750,26 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
       if (path === '/api/staff/tickets/owners') {
         return json(route, { data: [staffUser, adminUser] });
+      }
+
+      if (path === '/api/tickets' && method === 'GET') {
+        return json(route, {
+          data: [
+            {
+              id: 1,
+              ticketNumber: 'TK-0001',
+              ticketDate: '2026-10-18T05:00:00.000Z',
+              summary: 'Campus Wi-Fi drops intermittently in Building 3',
+              category: { id: 1, name: 'Network' },
+              requestedPriority: 'HIGH',
+              itPriority: 'HIGH',
+              currentStatus: 'OPEN',
+              updatedAt: '2026-10-18T05:10:00.000Z',
+              version: 1,
+            },
+          ],
+          pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
+        });
       }
 
       if (path === '/api/staff/tickets') {
@@ -844,6 +870,39 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
     await expectReadableTextIndicators(page);
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, 'regression/375.png'),
+      fullPage: true,
+    });
+
+    // 4. Requester My Tickets screen at 1280px
+    currentAuthUser = requesterUser;
+    await page.setViewportSize({ width: 1280, height: 812 });
+    await page.goto('/tickets');
+    await expect(page.locator('#my-tickets-title')).toBeVisible();
+    await expectReadableTextIndicators(page);
+    await page.screenshot({
+      path: path.join(ARTIFACTS_DIR, 'regression/my-tickets.png'),
+      fullPage: true,
+    });
+
+    // 5. Change Password screen at 1280px
+    currentAuthUser = { ...adminUser, mustChangePassword: true };
+    await page.goto('/change-password');
+    await expect(page.getByRole('heading', { name: /Change your password/i })).toBeVisible();
+    const isChangePassScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(isChangePassScrollable).toBeFalsy();
+    await page.screenshot({
+      path: path.join(ARTIFACTS_DIR, 'regression/change-password.png'),
+      fullPage: true,
+    });
+
+    // 6. Login screen (unauthenticated) at 1280px
+    currentAuthUser = null;
+    await page.goto('/login');
+    await expect(page.locator('#login-email')).toBeVisible();
+    const isLoginScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(isLoginScrollable).toBeFalsy();
+    await page.screenshot({
+      path: path.join(ARTIFACTS_DIR, 'regression/login.png'),
       fullPage: true,
     });
   });
