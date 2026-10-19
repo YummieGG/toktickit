@@ -21,7 +21,7 @@
 | [#67](https://github.com/YummieGG/toktickit/pull/67) | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | `07a215d` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
 | [#68](https://github.com/YummieGG/toktickit/pull/68) | Lab 4-4: Enforce Ticket Workflow and Resolution Gate | `lab4-4-ticket-workflow` | `f3f2c1e` (Initial) | Changes Requested | [@Snnn3](https://github.com/Snnn3) |
 | [#69](https://github.com/YummieGG/toktickit/pull/69) | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-role-dashboards` | `365c023` | Changes Requested → Addressed | [@Snnn3](https://github.com/Snnn3) |
-| [#70](https://github.com/YummieGG/toktickit/pull/70) | Lab 4-6: Complete regression, security, accessibility, and visual QA | `lab4-6-verification-qa` | `ad72384` | Changes Requested → Addressed | [@Snnn3](https://github.com/Snnn3) |
+| [#70](https://github.com/YummieGG/toktickit/pull/70) | Lab 4-6: Complete regression, security, accessibility, and visual QA | `lab4-6-verification-qa` | `8ae8201` | Changes Requested → Addressed | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-7: Staged integration and clean verification | `lab4-7-staging-integration` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-8: Final documentation, reviewer logs, AI log, and submission packaging | `lab4-8-documentation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-9: Release verification against final main, evidence check, and tag | `lab4-9-release-verification` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
