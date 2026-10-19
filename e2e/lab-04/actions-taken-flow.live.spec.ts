@@ -179,8 +179,10 @@ test('LIVE-01: Live Actions Taken lifecycle, assignment, edit, version check, id
       },
       data: createPayload,
     });
-    expect([200, 201]).toContain(firstPost.status());
-    const firstBody = (await firstPost.json()) as { data: { id: number } };
+    expect(firstPost.status()).toBe(201);
+    const firstBody = (await firstPost.json()) as { data: { action?: { id: number }; id?: number } };
+    const firstActionId = firstBody.data?.action?.id ?? (firstBody.data as any)?.id;
+    expect(firstActionId).toBeDefined();
 
     // Replay with identical key
     const replayPost = await staffApi.post(`/api/tickets/${ticketId}/actions-taken`, {
@@ -190,9 +192,10 @@ test('LIVE-01: Live Actions Taken lifecycle, assignment, edit, version check, id
       },
       data: createPayload,
     });
-    expect([200, 201]).toContain(replayPost.status());
-    const replayBody = (await replayPost.json()) as { data: { id: number } };
-    expect(replayBody.data.id).toBe(firstBody.data.id);
+    expect(replayPost.status()).toBe(200);
+    const replayBody = (await replayPost.json()) as { data: { action?: { id: number }; id?: number } };
+    const replayActionId = replayBody.data?.action?.id ?? (replayBody.data as any)?.id;
+    expect(replayActionId).toBe(firstActionId);
 
     // Stale ticket version check -> 409 CONFLICT
     const stalePost = await staffApi.post(`/api/tickets/${ticketId}/actions-taken`, {

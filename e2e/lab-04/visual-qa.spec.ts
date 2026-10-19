@@ -840,81 +840,78 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
       return route.continue();
     });
 
-    // 1. Staff Ticket Queue across viewports (1280, 768, 375)
-    for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/staff/tickets');
-      const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(isScrollable).toBeFalsy();
-      if (vp.width === 1280) {
-        await expectReadableTextIndicators(page);
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'regression/1280.png'), fullPage: true });
-      }
-    }
+    // Parameterized regression screen verification across all required viewports (1280, 768, 375)
+    const regressionScreens = [
+      {
+        name: 'Staff Ticket Queue',
+        path: '/staff/tickets',
+        user: adminUser,
+        expectedLocator: () => page.getByRole('heading', { name: 'Staff Ticket Queue' }),
+        screenshotVp: 1280,
+        screenshotFile: 'regression/1280.png',
+        checkTextIndicators: true,
+      },
+      {
+        name: 'Staff Ticket Detail',
+        path: '/staff/tickets/11',
+        user: adminUser,
+        expectedLocator: () => page.locator('#staff-ticket-detail-title'),
+        screenshotVp: 768,
+        screenshotFile: 'regression/768.png',
+        checkTextIndicators: true,
+      },
+      {
+        name: 'User Management',
+        path: '/admin/users',
+        user: adminUser,
+        expectedLocator: () => page.getByRole('heading', { name: 'User Management' }),
+        screenshotVp: 375,
+        screenshotFile: 'regression/375.png',
+        checkTextIndicators: true,
+      },
+      {
+        name: 'Requester My Tickets',
+        path: '/tickets',
+        user: requesterUser,
+        expectedLocator: () => page.locator('#my-tickets-title'),
+        screenshotVp: 1280,
+        screenshotFile: 'regression/my-tickets.png',
+        checkTextIndicators: true,
+      },
+      {
+        name: 'Change Password',
+        path: '/change-password',
+        user: { ...adminUser, mustChangePassword: true },
+        expectedLocator: () => page.getByRole('heading', { name: /Change your password/i }),
+        screenshotVp: 1280,
+        screenshotFile: 'regression/change-password.png',
+        checkTextIndicators: false,
+      },
+      {
+        name: 'Login',
+        path: '/login',
+        user: null,
+        expectedLocator: () => page.locator('#login-email'),
+        screenshotVp: 1280,
+        screenshotFile: 'regression/login.png',
+        checkTextIndicators: false,
+      },
+    ];
 
-    // 2. Staff Ticket Detail across viewports (1280, 768, 375)
-    for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/staff/tickets/11');
-      await expect(page.locator('#staff-ticket-detail-title')).toBeVisible();
-      const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(isScrollable).toBeFalsy();
-      if (vp.width === 768) {
-        await expectReadableTextIndicators(page);
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'regression/768.png'), fullPage: true });
-      }
-    }
-
-    // 3. User Management mobile cards across viewports (1280, 768, 375)
-    for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/admin/users');
-      await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
-      const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(isScrollable).toBeFalsy();
-      if (vp.width === 375) {
-        await expectReadableTextIndicators(page);
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'regression/375.png'), fullPage: true });
-      }
-    }
-
-    // 4. Requester My Tickets screen across viewports (1280, 768, 375)
-    currentAuthUser = requesterUser;
-    for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/tickets');
-      await expect(page.locator('#my-tickets-title')).toBeVisible();
-      const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(isScrollable).toBeFalsy();
-      if (vp.width === 1280) {
-        await expectReadableTextIndicators(page);
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'regression/my-tickets.png'), fullPage: true });
-      }
-    }
-
-    // 5. Change Password screen across viewports (1280, 768, 375)
-    currentAuthUser = { ...adminUser, mustChangePassword: true };
-    for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/change-password');
-      await expect(page.getByRole('heading', { name: /Change your password/i })).toBeVisible();
-      const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(isScrollable).toBeFalsy();
-      if (vp.width === 1280) {
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'regression/change-password.png'), fullPage: true });
-      }
-    }
-
-    // 6. Login screen (unauthenticated) across viewports (1280, 768, 375)
-    currentAuthUser = null;
-    for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
-      await page.goto('/login');
-      await expect(page.locator('#login-email')).toBeVisible();
-      const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      expect(isScrollable).toBeFalsy();
-      if (vp.width === 1280) {
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'regression/login.png'), fullPage: true });
+    for (const screen of regressionScreens) {
+      currentAuthUser = screen.user;
+      for (const vp of viewports) {
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+        await page.goto(screen.path);
+        await expect(screen.expectedLocator()).toBeVisible();
+        const isScrollable = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+        expect(isScrollable, `Expected no horizontal scrollbar on ${screen.name} at ${vp.width}px`).toBeFalsy();
+        if (vp.width === screen.screenshotVp) {
+          if (screen.checkTextIndicators) {
+            await expectReadableTextIndicators(page);
+          }
+          await page.screenshot({ path: path.join(ARTIFACTS_DIR, screen.screenshotFile), fullPage: true });
+        }
       }
     }
   });

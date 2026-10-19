@@ -164,6 +164,20 @@ cd server && npm run test:integration
 cd e2e && npm run test:live
 ```
 
+### Intentional Lab 3 Baseline Deltas (Approved Architectural Changes)
+
+Per `PLAN_Lab04.md` §5.1 & Issue 6 DoD, the following behavioral updates from Lab 3 are intentional, tested, and verified:
+1. **Admin Ticket Status Mutation Restrictions (AUTHZ-04, BR-12):**
+   - Lab 3 permitted Administrators to mutate ticket status. In Lab 4, formal status transitions are strictly restricted to `IT_STAFF`; Administrators receive `403 FORBIDDEN` (while retaining User Management and Actions Taken authoring permissions).
+2. **Optimistic Concurrency & Versioning (CONCURRENCY-01):**
+   - Ticket status transitions require `expectedTicketVersion`, and Actions Taken mutations require `expectedTicketVersion` / `expectedActionVersion`. Stale writes return `409 CONFLICT` with client draft preservation rather than silent overwrite.
+3. **Role-Based Operational Dashboards & Default Navigation:**
+   - Requester root navigation `/` redirects to `/dashboard` (operational dashboard with 7-day Bangkok window metric cards) instead of `/tickets`.
+   - IT Staff and Administrator root navigation `/` redirects to `/staff/dashboard` with operational queue breakdown and preview lists.
+   - Navbar incorporates role-aware Dashboard and Actions Taken drill-down links.
+4. **Resolution Gate Enforcement (BR-13, BR-14):**
+   - Transition to `RESOLVED` requires at least one completed Action Taken with recorded result, no active child actions, and no unresolved follow-up; blocked attempts return `400 TICKET_RESOLUTION_BLOCKED`.
+
 Status vocabulary:
 - **Planned:** test scenario, path, and assertions defined before coding.
 - **Verified:** command executed successfully in required environment with logs retained.
