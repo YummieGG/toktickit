@@ -141,7 +141,7 @@ This matrix maps every acceptance criterion and functional requirement to an aut
 
 ## 6. Execution commands and verified results
 
-Executed verification runs on branch `lab4-6-verification-qa`:
+Executed staged integration verification runs on branch `lab4-7-staged-integration` (combining all merged increments PR #65–#70 on `lab4-staging`):
 
 ```bash
 # Server Build & Unit / API Tests

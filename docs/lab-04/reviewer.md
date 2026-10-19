@@ -16,13 +16,13 @@
 
 | PR # | Title | Branch | Commit SHA | Status | Reviewer |
 |:---|:---|:---|:---|:---|:---|
-| [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | `da2426b` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
+| [#65](https://github.com/YummieGG/toktickit/pull/65) | Lab 4-1: Define Sprint 4 Engineering Contract and Traceability | `lab4-1-engineering-contract` | `da2426b` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
 | [#66](https://github.com/YummieGG/toktickit/pull/66) | Lab 4-2: Actions Taken data model, migration, seed, and API foundation | `lab4-2-actions-foundation` | `87acf65` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
-| [#67](https://github.com/YummieGG/toktickit/pull/67) | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | `07a215d` (Initial) | Open | [@Snnn3](https://github.com/Snnn3) |
-| [#68](https://github.com/YummieGG/toktickit/pull/68) | Lab 4-4: Enforce Ticket Workflow and Resolution Gate | `lab4-4-ticket-workflow` | `f3f2c1e` (Initial) | Changes Requested | [@Snnn3](https://github.com/Snnn3) |
-| [#69](https://github.com/YummieGG/toktickit/pull/69) | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-role-dashboards` | `365c023` | Changes Requested → Addressed | [@Snnn3](https://github.com/Snnn3) |
-| [#70](https://github.com/YummieGG/toktickit/pull/70) | Lab 4-6: Complete regression, security, accessibility, and visual QA | `lab4-6-verification-qa` | `8ae8201` | Changes Requested → Addressed | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-7: Staged integration and clean verification | `lab4-7-staging-integration` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| [#67](https://github.com/YummieGG/toktickit/pull/67) | Lab 4-3: Actions Taken UI section and role access controls | `lab4-3-actions-ui` | `07a215d` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
+| [#68](https://github.com/YummieGG/toktickit/pull/68) | Lab 4-4: Enforce Ticket Workflow and Resolution Gate | `lab4-4-ticket-workflow` | `f3f2c1e` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
+| [#69](https://github.com/YummieGG/toktickit/pull/69) | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-role-dashboards` | `365c023` | Merged | [@Snnn3](https://github.com/Snnn3) |
+| [#70](https://github.com/YummieGG/toktickit/pull/70) | Lab 4-6: Complete regression, security, accessibility, and visual QA | `lab4-6-verification-qa` | `245e7e7` | Merged | [@Snnn3](https://github.com/Snnn3) |
+| [#71](https://github.com/YummieGG/toktickit/pull/71) | Lab 4-7: Staged integration and clean verification | `lab4-7-staged-integration` | `2ede4ce` | Open | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-8: Final documentation, reviewer logs, AI log, and submission packaging | `lab4-8-documentation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 | Pending | Lab 4-9: Release verification against final main, evidence check, and tag | `lab4-9-release-verification` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
 
@@ -237,3 +237,57 @@
   > 7. **Bangkok Timezone Formatting (`ui-spec.md:93`):** Implemented `formatBangkokDateTime` and `formatBangkokDate` in `client/src/utils/date.ts` to ensure timestamps and filter badge chips render in `Asia/Bangkok` timezone without UTC day rollback.
   >
   > Full test suite verification: 430/430 server tests, 159/159 client tests, and 27/27 Playwright E2E scenarios pass green with zero regressions.
+
+---
+
+### PR #70: Lab 4-6: Complete regression, security, accessibility, and visual QA
+- **Target PR**: [#70](https://github.com/YummieGG/toktickit/pull/70) (`lab4-6-verification-qa` → `lab4-staging`)
+- **Base Commit**: `d494e6b` (Merged PR #69)
+- **Initial Implementation Commit**: `69ab624`
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`2ede4ce`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > ### PR #70 Review: Missing Specifications & Implementation Defects
+  >
+  > Verdict: Changes Requested — Core visual artifacts and tests are committed, but several critical test-masking defects, broken selectors, and missing spec items must be resolved:
+  >
+  > 1. Broken Selectors & Silent Skips in Live E2E (`actions-taken-flow.live.spec.ts`) [CRITICAL]:
+  >   - Line 77: Uses `#action-create-requires-follow-up`, which does not match DOM ID `#action-create-followup`. The follow-up note workflow is never actually tested.
+  >   - Line 201: Uses `#actions-taken-section`, which does not match `data-testid="actions-taken-section"` in the DOM. Wrapped in `if (await actionsSection.isVisible())`, the entire Requester read-only assertion block (lines 202–209) silently skips without asserting anything.
+  >   - Fix: Remove conditional `isVisible()` guards on mandatory elements and correct the selector IDs so tests fail fast if elements are missing.
+  > 2. Omitted Action Assignment Flow in LIVE-01 (`tests.md:93`, `AC-04`):
+  >   - The test title and contract specify verifying action assignment and reassignment, but `actions-taken-flow.live.spec.ts` never tests assigning an action to another staff member.
+  > 3. Incomplete Regression Visual Screenshots (`visual-checklist.md`):
+  >   - `docs/lab-04/visual-checklist.md` requires visual regression evidence across Login, Change Password, My Tickets, Staff Queue, and User Management.
+  >   - `e2e/lab-04/visual-qa.spec.ts` only captures Staff Queue (1280px), Ticket Detail (768px), and User Management (375px), omitting Login, Change Password, and My Tickets.
+  > 4. Inconsistent Screenshot Count in Checklist (`visual-checklist.md:38`):
+  >   - Line 38 states "All 23 screenshot artifacts are captured", but 28 PNG files are committed in `artifacts/lab-04/screenshots/`. Update the checklist text to match the committed artifacts.
+- **How I responded (@YummieGG)**:
+  > Addressed all 4 review comments and completed two-axis code-review audit:
+  > 1. **Fixed Selectors & Removed Skips (`actions-taken-flow.live.spec.ts`):** Replaced `#action-create-requires-follow-up` with `#action-create-followup`, added `#action-create-followup-note`, added `id="actions-taken-section"` to `ActionsTakenSection.tsx`, and eliminated all conditional `isVisible()` skips so assertions fail fast.
+  > 2. **Action Assignment Flow (`LIVE-01`, `AC-04`):** Added reassignment flow exercising `#action-reassign-select` to assign to another staff member and asserted success toast and updated assignee badge.
+  > 3. **Regression Visual Coverage (`visual-checklist.md`):** Added full screenshots for `login.png`, `change-password.png`, and `my-tickets.png`, and parameterized all 6 regression screens into a table-driven loop testing across all viewports (1280, 768, 375 px) with `scrollWidth <= innerWidth`.
+  > 4. **Screenshot Count Synchronization:** Synchronized `docs/lab-04/visual-checklist.md` to state 31 screenshots, matching the exact 31 PNGs on disk.
+  > 5. **Desktop Navbar Overflow:** Added `flex-wrap` in `AppShell.tsx` to eliminate horizontal scroll at 1280px for administrator navigation.
+  > 6. **Strict Idempotency:** Enforced strict status 201 on create and status 200 on key replay.
+  > 7. **Baseline Deltas:** Documented intentional Lab 3 baseline deltas in `docs/lab-04/tests.md` §6.
+  >
+  > Approved by @Snnn3 and merged into `lab4-staging` at commit `2ede4ce`.
+
+---
+
+### PR #71: Lab 4-7: Staged integration and clean verification
+- **Target PR**: [#71](https://github.com/YummieGG/toktickit/pull/71) (`lab4-7-staged-integration` → `lab4-staging`)
+- **Base Commit**: `2ede4ce` (Merged PR #70)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Open
+- **Verification & Staged Deliverables**:
+  - Full dependency merge order verified: PRs #65, #66, #67, #68, #69, #70 integrated cleanly on `lab4-staging`.
+  - Client Build: `npm run build` (0 errors), `npm run lint` (0 warnings, 0 errors).
+  - Client Unit & Component Tests: 20 files, 159/159 passed.
+  - Server Build & Tests: 27 files, 430/430 passed.
+  - Playwright E2E Suite: 32/32 tests passed across Lab 1–4.
+  - Visual QA Viewports: Zero horizontal scrollbar across 1280, 768, 375 px with 31 verified screenshot artifacts.
+
