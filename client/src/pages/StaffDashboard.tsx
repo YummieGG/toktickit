@@ -138,10 +138,14 @@ export const StaffDashboard: React.FC = () => {
           </thead>
           <tbody>
             {actions.map((act) => (
-              <tr key={act.id}>
+              <tr
+                key={act.id}
+                onClick={() => navigate(`/staff/tickets/${act.ticketId}#action-${act.id}`)}
+                style={{ cursor: 'pointer' }}
+              >
                 <td>
                   <Link
-                    to={`/staff/tickets/${act.ticketId}`}
+                    to={`/staff/tickets/${act.ticketId}#action-${act.id}`}
                     className="fw-bold text-decoration-none"
                     style={{ color: '#006B3C' }}
                   >
@@ -150,7 +154,7 @@ export const StaffDashboard: React.FC = () => {
                 </td>
                 <td className="text-truncate" style={{ maxWidth: '280px' }}>
                   <Link
-                    to={`/staff/tickets/${act.ticketId}`}
+                    to={`/staff/tickets/${act.ticketId}#action-${act.id}`}
                     className="text-dark text-decoration-none"
                   >
                     {act.description}
@@ -224,11 +228,11 @@ export const StaffDashboard: React.FC = () => {
           {/* Top 3 Core Operational Cards */}
           <div className="row g-3 mb-4">
             <div className="col-12 col-md-4">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Unassigned Tickets</span>
-                    <div className="display-6 fw-bold mt-2" style={{ color: '#DC2626' }}>
+                    <div className="display-6 fw-bold mt-2" style={{ color: '#C62828' }}>
                       {data.metrics.unassignedTickets}
                     </div>
                     <small className="text-muted">Active tickets needing ownership</small>
@@ -246,7 +250,7 @@ export const StaffDashboard: React.FC = () => {
             </div>
 
             <div className="col-12 col-md-4">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">My Tickets</span>
@@ -268,7 +272,7 @@ export const StaffDashboard: React.FC = () => {
             </div>
 
             <div className="col-12 col-md-4">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">My Actions Taken</span>
@@ -360,11 +364,11 @@ export const StaffDashboard: React.FC = () => {
             {/* Urgent Tickets */}
             <div className="card shadow-sm border-0">
               <div className="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h2 className="h5 fw-bold mb-0" style={{ color: '#DC2626' }}>
+                <h2 className="h5 fw-bold mb-0" style={{ color: '#C62828' }}>
                   Urgent Tickets (Critical / High)
                 </h2>
                 <Link
-                  to="/staff/tickets?itPriorities=HIGH,CRITICAL&statuses=NEW,OPEN,IN_PROGRESS,WAITING_FOR_REQUESTER,REOPENED"
+                  to="/staff/tickets?itPriorities=HIGH,CRITICAL&statuses=NEW,OPEN,IN_PROGRESS,WAITING_FOR_REQUESTER,REOPENED&sortBy=itPriority&sortOrder=desc"
                   className="small text-decoration-none"
                   style={{ color: '#006B3C' }}
                 >
@@ -383,7 +387,7 @@ export const StaffDashboard: React.FC = () => {
                   Recently Updated Tickets
                 </h2>
                 <Link
-                  to="/staff/tickets?sortBy=updatedAt&sortOrder=desc"
+                  to={`/staff/tickets?updatedFrom=${encodeURIComponent(data.window.from)}&updatedTo=${encodeURIComponent(data.window.to)}&sortBy=updatedAt&sortOrder=desc`}
                   className="small text-decoration-none"
                   style={{ color: '#006B3C' }}
                 >

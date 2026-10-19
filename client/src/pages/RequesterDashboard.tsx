@@ -156,7 +156,7 @@ export const RequesterDashboard: React.FC = () => {
           {/* 4 Metric Cards */}
           <div className="row g-3 mb-4">
             <div className="col-12 col-sm-6 col-lg-3">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Open Tickets</span>
@@ -178,7 +178,7 @@ export const RequesterDashboard: React.FC = () => {
             </div>
 
             <div className="col-12 col-sm-6 col-lg-3">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Waiting for You</span>
@@ -200,7 +200,7 @@ export const RequesterDashboard: React.FC = () => {
             </div>
 
             <div className="col-12 col-sm-6 col-lg-3">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Recently Updated</span>
@@ -222,7 +222,7 @@ export const RequesterDashboard: React.FC = () => {
             </div>
 
             <div className="col-12 col-sm-6 col-lg-3">
-              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#F0F9F4' }}>
+              <div className="card h-100 shadow-sm border-0" style={{ backgroundColor: '#EAF6EF' }}>
                 <div className="card-body d-flex flex-column justify-content-between">
                   <div>
                     <span className="text-muted small text-uppercase fw-bold">Recently Resolved</span>

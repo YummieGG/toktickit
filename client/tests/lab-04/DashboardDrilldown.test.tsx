@@ -116,11 +116,11 @@ describe('UI-04: Actions Taken Drill-down Page', () => {
 
     // Rows and links
     expect(screen.getAllByRole('link', { name: 'TK-0201' }).length).toBeGreaterThan(0);
-    expect(screen.getByText('Check auxiliary cooling units in server room')).toBeInTheDocument();
-    expect(screen.getByText('Verify mailbox quota limits')).toBeInTheDocument();
+    expect(screen.getAllByText('Check auxiliary cooling units in server room').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Verify mailbox quota limits').length).toBeGreaterThan(0);
 
     const ticketLinks = screen.getAllByRole('link', { name: 'TK-0201' });
-    expect(ticketLinks.some((l) => l.getAttribute('href') === '/staff/tickets/201')).toBe(true);
+    expect(ticketLinks.some((l) => l.getAttribute('href') === '/staff/tickets/201#action-501')).toBe(true);
   });
 
   it('toggles status filters and updates URL search params', async () => {
@@ -197,7 +197,7 @@ describe('UI-04: Actions Taken Drill-down Page', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Internal server error')).not.toBeInTheDocument();
-      expect(screen.getByText('Check auxiliary cooling units in server room')).toBeInTheDocument();
+      expect(screen.getAllByText('Check auxiliary cooling units in server room').length).toBeGreaterThan(0);
     });
   });
 

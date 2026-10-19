@@ -218,7 +218,7 @@ describe('UI-03: Staff and Administrator Dashboard', () => {
     expect(screen.getAllByRole('link', { name: 'TK-0201' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Data center AC failure' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'TK-0202' })).toHaveAttribute('href', '/staff/tickets/202');
-    expect(screen.getByRole('link', { name: 'Check auxiliary cooling units' })).toHaveAttribute('href', '/staff/tickets/201');
+    expect(screen.getByRole('link', { name: 'Check auxiliary cooling units' })).toHaveAttribute('href', '/staff/tickets/201#action-501');
   });
 
   it('handles zero states with 0 metric counts and empty preview messages', async () => {

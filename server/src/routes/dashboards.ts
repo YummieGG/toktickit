@@ -65,7 +65,10 @@ dashboardsRouter.get('/requester', requireRole('REQUESTER'), async (request: Req
             },
           }),
           tx.ticket.findMany({
-            where: { requesterId: user.id },
+            where: {
+              requesterId: user.id,
+              updatedAt: { gte: window.start, lte: window.end },
+            },
             orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
             take: 5,
             select: {
@@ -192,6 +195,9 @@ dashboardsRouter.get('/staff', requireRole('IT_STAFF', 'ADMINISTRATOR'), async (
             _count: { _all: true },
           }),
           tx.ticket.findMany({
+            where: {
+              updatedAt: { gte: window.start, lte: window.end },
+            },
             orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
             take: 5,
             select: {

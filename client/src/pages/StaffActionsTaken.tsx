@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -10,6 +10,7 @@ import { formatTicketDateTime } from '../utils/date';
 const ALL_ACTION_STATUSES: ActionStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 export const StaffActionsTaken: React.FC = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Read URL params
@@ -210,7 +211,8 @@ export const StaffActionsTaken: React.FC = () => {
         </div>
       ) : (
         <div className="card shadow-sm border-0 mb-4">
-          <div className="table-responsive">
+          {/* Desktop and Tablet: Structured Table */}
+          <div className="table-responsive d-none d-md-block">
             <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.9rem' }}>
               <thead className="table-light">
                 <tr>
@@ -225,10 +227,14 @@ export const StaffActionsTaken: React.FC = () => {
               </thead>
               <tbody>
                 {actions.map((act) => (
-                  <tr key={act.id}>
+                  <tr
+                    key={act.id}
+                    onClick={() => navigate(`/staff/tickets/${act.ticketId}#action-${act.id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td>
                       <Link
-                        to={`/staff/tickets/${act.ticketId}`}
+                        to={`/staff/tickets/${act.ticketId}#action-${act.id}`}
                         className="fw-bold text-decoration-none"
                         style={{ color: '#006B3C' }}
                       >
@@ -237,7 +243,7 @@ export const StaffActionsTaken: React.FC = () => {
                     </td>
                     <td className="text-truncate" style={{ maxWidth: '220px' }}>
                       <Link
-                        to={`/staff/tickets/${act.ticketId}`}
+                        to={`/staff/tickets/${act.ticketId}#action-${act.id}`}
                         className="text-dark text-decoration-none"
                       >
                         {act.ticket.summary}
@@ -247,16 +253,25 @@ export const StaffActionsTaken: React.FC = () => {
                       <Badge type="status" value={act.ticket.currentStatus} />
                     </td>
                     <td>
-                      <div className="text-wrap" style={{ maxWidth: '350px' }}>
+                      <div
+                        className="text-wrap"
+                        style={{ maxWidth: '350px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                      >
                         {act.description}
                       </div>
                       {act.result && (
-                        <small className="text-success d-block mt-1">
+                        <small
+                          className="text-success d-block mt-1"
+                          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                        >
                           <strong>Result:</strong> {act.result}
                         </small>
                       )}
                       {act.followUpRequired && (
-                        <small className="text-warning d-block mt-1">
+                        <small
+                          className="text-warning-emphasis d-block mt-1"
+                          style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                        >
                           <strong>Follow-up:</strong> {act.followUpNote || 'Required'}
                         </small>
                       )}
@@ -274,6 +289,76 @@ export const StaffActionsTaken: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile: Stacked Cards with >= 44px Touch Targets */}
+          <div className="d-md-none d-flex flex-column gap-3 p-3">
+            {actions.map((act) => (
+              <article
+                key={act.id}
+                className="card border shadow-sm p-3"
+                style={{ cursor: 'pointer', backgroundColor: '#FFFFFF' }}
+                onClick={() => navigate(`/staff/tickets/${act.ticketId}#action-${act.id}`)}
+              >
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <Link
+                    to={`/staff/tickets/${act.ticketId}#action-${act.id}`}
+                    className="fw-bold text-decoration-none"
+                    style={{ color: '#006B3C', fontSize: '1rem' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {act.ticket.ticketNumber}
+                  </Link>
+                  <div className="d-flex gap-1 align-items-center">
+                    <Badge type="action-status" value={act.status} />
+                    <Badge type="status" value={act.ticket.currentStatus} />
+                  </div>
+                </div>
+
+                <div className="fw-semibold text-dark mb-2" style={{ wordBreak: 'break-word' }}>
+                  {act.ticket.summary}
+                </div>
+
+                <div
+                  className="text-secondary small mb-2"
+                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                >
+                  {act.description}
+                </div>
+
+                {act.result && (
+                  <div
+                    className="small text-success mb-2"
+                    style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                  >
+                    <strong>Result:</strong> {act.result}
+                  </div>
+                )}
+
+                {act.followUpRequired && (
+                  <div
+                    className="small text-warning-emphasis mb-2"
+                    style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                  >
+                    <strong>Follow-up:</strong> {act.followUpNote || 'Required'}
+                  </div>
+                )}
+
+                <div className="d-flex justify-content-between align-items-center text-muted small border-top pt-2 mt-1">
+                  <span>Assignee: {act.assignee ? act.assignee.name : 'Unassigned'}</span>
+                  <span>{formatTicketDateTime(act.createdAt)}</span>
+                </div>
+
+                <Link
+                  to={`/staff/tickets/${act.ticketId}#action-${act.id}`}
+                  className="btn btn-outline-success w-100 d-flex align-items-center justify-content-center text-decoration-none mt-3"
+                  style={{ minHeight: '44px', fontWeight: 500 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View Action in Context
+                </Link>
+              </article>
+            ))}
           </div>
 
           {/* Pagination Controls */}

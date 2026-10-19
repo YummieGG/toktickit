@@ -353,7 +353,7 @@ test.describe('E2E-03: Role Dashboards and Drill-down Navigation (AC-07, AC-08, 
     await expect(page.getByRole('heading', { name: 'My Actions Taken' })).toBeVisible();
 
     // 5. Actions taken list shows items and links to ticket
-    await expect(page.getByText('Check spanning tree protocol configuration')).toBeVisible();
+    await expect(page.getByText('Check spanning tree protocol configuration').first()).toBeVisible();
     await page.getByRole('link', { name: 'TK-0201' }).first().click();
     await expect(page).toHaveURL(/\/staff\/tickets\/201/);
   });
