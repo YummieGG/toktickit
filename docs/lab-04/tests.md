@@ -141,7 +141,7 @@ This matrix maps every acceptance criterion and functional requirement to an aut
 
 ## 6. Execution commands and verified results
 
-Executed verification runs on commit `d494e6b` / `lab4-6-verification-qa`:
+Executed verification runs on branch `lab4-6-verification-qa`:
 
 ```bash
 # Server Build & Unit / API Tests
@@ -157,7 +157,11 @@ cd client && npm test
 
 # End-to-End Fixture & Visual QA Tests
 cd e2e && npm test
-# Output: 32 tests passed (32/32 tests passing across viewports 1280, 768, 375 px)
+# Output: 13 Lab 4 tests passed, 32 total suite tests passing across viewports 1280, 768, 375 px
+
+# Live E2E and Database Integration Suites (run against active PostgreSQL container / live environment)
+cd server && npm run test:integration
+cd e2e && npm run test:live
 ```
 
 Status vocabulary:

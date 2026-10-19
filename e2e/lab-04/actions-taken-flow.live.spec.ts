@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { expect, request, test } from '@playwright/test';
+import { expect, request, test, type Page } from '@playwright/test';
 
 const APP_ORIGIN = 'http://127.0.0.1:5173';
 const STAFF_EMAIL = 'pimchanok.staff@toktickit.local';
@@ -21,6 +21,24 @@ function resolveInitialPassword(): string {
   return value;
 }
 
+async function handlePasswordChangeIfRequired(
+  page: Page,
+  email: string,
+  currentPass: string,
+  newPass = 'NewLivePass_1234!',
+): Promise<void> {
+  if (page.url().includes('/change-password')) {
+    await page.locator('#current-password').fill(currentPass);
+    await page.locator('#new-password').fill(newPass);
+    await page.locator('#confirm-password').fill(newPass);
+    await page.getByRole('button', { name: 'Change password' }).click();
+    await expect(page).toHaveURL(/\/login\/?$/, { timeout: 10_000 });
+    await page.locator('#login-email').fill(email);
+    await page.locator('#login-password').fill(newPass);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+  }
+}
+
 test('LIVE-01: Live Actions Taken lifecycle, assignment, edit, version check, idempotency, and Requester projection (AUTHZ-04, AC-04, AC-05, AC-11)', async ({
   page,
   context,
@@ -33,17 +51,7 @@ test('LIVE-01: Live Actions Taken lifecycle, assignment, edit, version check, id
   await page.locator('#login-password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  if (page.url().includes('/change-password')) {
-    const newPassword = 'NewLivePass_1234!';
-    await page.locator('#current-password').fill(password);
-    await page.locator('#new-password').fill(newPassword);
-    await page.locator('#confirm-password').fill(newPassword);
-    await page.getByRole('button', { name: 'Change password' }).click();
-    await expect(page).toHaveURL(/\/login\/?$/, { timeout: 10_000 });
-    await page.locator('#login-email').fill(STAFF_EMAIL);
-    await page.locator('#login-password').fill(newPassword);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-  }
+  await handlePasswordChangeIfRequired(page, STAFF_EMAIL, password);
 
   await expect(page).toHaveURL(/\/staff\/(tickets|dashboard)\/?$/);
   if (page.url().includes('/staff/dashboard')) {
@@ -64,14 +72,14 @@ test('LIVE-01: Live Actions Taken lifecycle, assignment, edit, version check, id
     };
     expect(queueData.data?.length ?? 0).toBeGreaterThan(0);
 
-    const targetTicket =
-      queueData.data?.find(
-        (t) =>
-          t.requester?.email === REQUESTER_EMAIL &&
-          t.currentStatus !== 'CLOSED' &&
-          t.currentStatus !== 'CANCELLED',
-      ) ?? queueData.data![0];
-    const ticketId = targetTicket.id;
+    const targetTicket = queueData.data?.find(
+      (t) =>
+        t.requester?.email === REQUESTER_EMAIL &&
+        t.currentStatus !== 'CLOSED' &&
+        t.currentStatus !== 'CANCELLED',
+    );
+    expect(targetTicket, `Expected active ticket owned by ${REQUESTER_EMAIL} in staff queue`).toBeDefined();
+    const ticketId = targetTicket!.id;
 
     await page.goto(`/staff/tickets/${ticketId}`);
     await expect(page.locator('#staff-ticket-detail-title')).toBeVisible();
@@ -220,17 +228,7 @@ test('LIVE-01: Live Actions Taken lifecycle, assignment, edit, version check, id
     await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    if (page.url().includes('/change-password')) {
-      const newPassword = 'NewLivePass_1234!';
-      await page.locator('#current-password').fill(password);
-      await page.locator('#new-password').fill(newPassword);
-      await page.locator('#confirm-password').fill(newPassword);
-      await page.getByRole('button', { name: 'Change password' }).click();
-      await expect(page).toHaveURL(/\/login\/?$/, { timeout: 10_000 });
-      await page.locator('#login-email').fill(REQUESTER_EMAIL);
-      await page.locator('#login-password').fill(newPassword);
-      await page.getByRole('button', { name: 'Sign in' }).click();
-    }
+    await handlePasswordChangeIfRequired(page, REQUESTER_EMAIL, password);
 
     await page.goto(`/tickets/${ticketId}`);
     // Confirm Requester sees Actions Taken section in strictly read-only projection
