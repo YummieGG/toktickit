@@ -77,6 +77,7 @@ describe('API-01, API-02, API-03: Actions Taken API (FR-04-03..FR-04-05, BR-03..
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => callback(prisma));
     vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session('IT_STAFF') as never);
     vi.mocked(prisma.ticket.findUnique).mockResolvedValue(sampleTicket as never);
     vi.mocked(prisma.ticket.update).mockResolvedValue({ version: 4 } as never);
