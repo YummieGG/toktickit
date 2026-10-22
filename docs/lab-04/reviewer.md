@@ -221,14 +221,93 @@
 ### PR #65: Lab 4-1: Define Sprint 4 Engineering Contract and Traceability
 - **Target PR**: [#65](https://github.com/YummieGG/toktickit/pull/65) (`lab4-1-engineering-contract` → `lab4-staging`)
 - **Base Commit**: `a295882` (Lab 3 main baseline)
-- **Initial Contract Commit**: `da2426b`
+- **Initial Contract Commit**: `da2426b` (Merged: `40025a2`)
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Open
-- **Reviewer comment received (@Snnn3)**:
-  > Awaiting peer review on the Lab 4 engineering contract package.
+- **Status**: Merged (`40025a2`)
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > Reviewed the Lab 4 engineering contract in PR #65 against Issue #56 and the `SE+Lab+4.pdf` handout. All four core contract documents (`specification.md`, `ui-spec.md`, `api-spec.md`, `tests.md`) and supporting logs (`reviewer.md`, `ai-use.md`, `visual-checklist.md`) are complete and mutually consistent:
+  > - **Specification & Workflow**: Covers all 11 sections, Lab 3 deltas, the 1:N `ActionTaken` / append-only `ActionTakenEvent` models, 4-state action lifecycle, 8-state ticket transitions, resolution gate, and atomic child cancellation.
+  > - **Authorization & Concurrency**: Role matrices, Prisma Serializable transactions, `expectedTicketVersion`/`expectedActionVersion` (`409 CONFLICT`), and `Idempotency-Key` guards are clearly defined across all write APIs.
+  > - **Dashboards & Traceability**: Requester and Staff/Admin dashboard metrics, 7-day `Asia/Bangkok` window, drill-down parity, and `AC-01`–`AC-13` planned test mappings are aligned and ready for implementation.
+  >
+  > Ready to merge into `lab4-staging`.
 - **How I responded (@YummieGG)**:
-  > Ready for review.
+  > Thank you @Snnn3 for the review and approval! All contract documents verified. Merged into `lab4-staging`.
+
+---
+
+### PR #66: Lab 4-2: Actions Taken data model, migration, seed, and API foundation
+- **Target PR**: [#66](https://github.com/YummieGG/toktickit/pull/66) (`lab4-2-actions-foundation` → `lab4-staging`)
+- **Base Commit**: `40025a2` (Merged PR #65)
+- **Initial Implementation Commit**: `87acf65` (Merged: `c2c8efc`)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`c2c8efc`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > **Verdict: Changes Requested**
+  >
+  > Thank you for the implementation of the Actions Taken data model, migration, seed, and API foundation for Issue #57. The database schema, additive migration SQL, idempotent seed fixtures, role guards, and audit event tracking align very well with the Lab 4 engineering contract, and all existing unit and API test suites pass cleanly.
+  >
+  > However, please address the following boundary and concurrency issues before this PR can be approved:
+  >
+  > 1. **[Blocker] Uncaught `P2002` Unique Constraint on Concurrent Creation Race (BR-18, API-Spec §1)**: In `server/src/routes/actions-taken.ts` (`handleActionError`), only Prisma `P2034` (serialization conflict) is caught and mapped to `409`. If two identical `POST /api/tickets/:ticketId/actions-taken` requests with the same `Idempotency-Key` race past `tx.actionTaken.findFirst`, the second write triggers the database unique index `(ticketId, performedById, creationKey)` (`P2002`). This currently falls through to an unhandled `500 Internal Server Error`. In `handleActionError`, catch `P2002` on the creation key constraint and either fetch/replay the already-created action or return `409 CONFLICT` / `409 IDEMPOTENCY_CONFLICT`.
+  > 2. **[Blocker] Boundary Validation for `assigneeId` on `POST` Creation (API-Spec §2)**: In `POST /api/tickets/:ticketId/actions-taken`, passing a non-numeric `assigneeId` (e.g. `"invalid"`) coerces to `NaN`. Calling `tx.user.findUnique({ where: { id: NaN } })` causes Prisma to throw a runtime argument error, resulting in an unexpected `500` instead of a client error. Validate that `assigneeId` is a positive safe integer before querying Prisma, returning `400 ASSIGNEE_INELIGIBLE`.
+  > 3. **Missing Health/Root and 500 Test Coverage (Issue #57 Scope)**: Issue #57 scope requires covering health/root endpoints and safe error envelopes for `401/403/404/409/500`. Add test coverage in `server/tests/lab-04/` verifying `GET /health` and asserting that unexpected server errors emit the `{ error: { code: "INTERNAL_ERROR", ... } }` payload.
+- **How I responded (@YummieGG)**:
+  > Updated in commit `b7ef1c7`:
+  > - **Idempotency Conflict Code:** Handled `P2002` race condition to return `409 IDEMPOTENCY_CONFLICT` on payload mismatch per `api-spec.md:112` and BR-18.
+  > - **Assignee Validation Code:** Enforced safe integer validation on `assigneeId` upfront, returning `400 ASSIGNEE_INELIGIBLE` for invalid/ineligible assignees per `api-spec.md:106, 144`.
+  > - **Test Coverage:** Added health check (`GET /api/health`) and unexpected 500 error envelope regression tests. All 24 test suites (326 unit + 14 integration) pass cleanly.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > I have re-reviewed the Actions Taken data, migration, seed, and API foundation slice in PR #66 following commits `ec62eb7` and `b7ef1c7`. All feedback items from Round 1 have been cleanly resolved and verified:
+  > 1. **Idempotency Race Handling (BR-18, API-Spec §1)**: Caught Prisma `P2002` unique constraint races on `(ticketId, performedById, creationKey)`. Identical payload replays return `200 OK` with the existing action projection, while differing fingerprints safely return `409 IDEMPOTENCY_CONFLICT`. Both race scenarios are covered by automated unit/API assertions.
+  > 2. **Assignee Boundary Validation (API-Spec §2)**: `POST /api/tickets/:ticketId/actions-taken` now validates `assigneeId` format before query execution, returning `400 ASSIGNEE_INELIGIBLE` on non-integer or malformed values.
+  > 3. **Health & 500 Error Envelopes (Issue #57 Scope)**: Added `API-00` suite verifying `GET /api/health` and asserting that unexpected server breakdowns emit the standard `{ error: { code: "INTERNAL_ERROR", ... } }` payload.
+  > 4. **Full Test Suite Integrity**: All 326 server tests (24 files) and all 99 client tests (13 files) pass green with zero regressions.
+  >
+  > Zero blocking issues remain. Ready to merge into `lab4-staging`!
+
+---
+
+### PR #67: Lab 4-3: Actions Taken UI section and role access controls
+- **Target PR**: [#67](https://github.com/YummieGG/toktickit/pull/67) (`lab4-3-actions-ui` → `lab4-staging`)
+- **Base Commit**: `c2c8efc` (Merged PR #66)
+- **Initial Implementation Commit**: `07a215d` (Merged: `774490a`)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`774490a`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > **Verdict: Changes Requested**
+  >
+  > Thank you for implementing the Actions Taken UI and role access slice for Issue #58. The component architecture, role separation (Staff/Admin interactive vs. Requester read-only), 4-state action lifecycle modals, optimistic concurrency reconciliation, and test coverage (128 client tests passing) are well put together.
+  >
+  > Please address the following spec and accessibility items before merging into `lab4-staging`:
+  > 1. **[Missing Spec] Focus Invalid Control on Server Validation Errors (`ui-spec.md` §3 / line 59)**: In `ActionsTakenSection.tsx`, when the API rejects a creation payload with field errors (e.g., `ASSIGNEE_INELIGIBLE`), `setCreateValidationErrors` renders the message below the input, but focus is not shifted to the invalid control. Mirror client-side validation by calling `.focus()` on the invalid element when setting server validation error state.
+  > 2. **[Missing Spec] Role Formatting in Edit Modal Header (`ui-spec.md` §6.1 / line 95)**: In the edit modal header, `editingAction.performedBy.role` displays raw enum text (`IT_STAFF`, `ADMINISTRATOR`) rather than human-readable text. Wrap with `ROLE_LABELS[editingAction.performedBy.role]` so it matches the table and card views.
+  > 3. **[Accessibility] Missing `aria-label` on Mobile Action Buttons (`ui-spec.md` §1 & §9)**: Desktop table buttons define distinct accessible names, but mobile card buttons omit `aria-label`, causing screen readers to announce identical "Edit" or "Complete" buttons without context. Add the corresponding `aria-label={`Edit action ${act.id}`}` to mobile card buttons.
+  > 4. **[Implementation Bug] Action Creation Appending Violates Pagination Boundaries (BR-10, `api-spec.md` §1)**: When a new action is created, it is appended directly to local state. If the user is on page 2 or has 20 items loaded, this appends a 21st item to the current page. Trigger a refetch of the action list or navigate to the final page on creation to preserve strict pagination and sort boundaries.
+- **How I responded (@YummieGG)**:
+  > Thanks @Snnn3 for the review and constructive feedback! All 4 items have been addressed in commit `747413e`:
+  > 1. **Auto-focus on Server Validation Errors (`ui-spec.md §3`):** Shifted focus to the first invalid control when the API rejects form submission with field validation errors. Added unit test assertion verifying `document.activeElement` after error response.
+  > 2. **Role Formatting in Edit Modal Header (`ui-spec.md §6.1`):** Wrapped `editingAction.performedBy.role` with `ROLE_LABELS` to display human-readable labels (`IT Staff`, `Administrator`) instead of raw enums.
+  > 3. **Accessible Labels on Mobile Action Buttons (`ui-spec.md §1 & §9`):** Added context-aware `aria-label` attributes across all mobile card action buttons.
+  > 4. **Pagination Boundary Adherence on Action Creation (`BR-10`):** Updated `handleCreateSubmit` to calculate `targetPage` and invoke `fetchActions(targetPage)`, ensuring newly created items move to the correct page without exceeding `pageSize` boundaries.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > I have re-reviewed the Actions Taken UI and role access control implementation in PR #67 following commit `747413e`. All spec, accessibility, and pagination boundary findings from Round 1 have been completely resolved and verified:
+  > 1. **Server Validation Error Focus (`ui-spec.md:59`)**: Server-returned validation errors (`body.error.fields`) now correctly move keyboard focus to the invalid control, matching the behavior of client-side validation.
+  > 2. **Role Formatting in Edit Header (`ui-spec.md:95`)**: The edit modal header now renders user-friendly role labels (`(IT Staff)`, `(Administrator)`) via `ROLE_LABELS` instead of raw enum strings.
+  > 3. **Mobile Accessibility (`ui-spec.md §1 & §9`)**: Mobile card buttons now provide explicit, accessible names, eliminating ambiguous repeated button names on screen readers.
+  > 4. **Pagination & Boundary Integrity (BR-10, `api-spec.md §1`)**: New action creation now navigates to the target page and enforces `pageSize` bounds rather than appending items past the boundary.
+  > 5. **Full Test Suite & Build Verification**: All 128 client tests (15 files) and 326 server regression tests (24 files) pass cleanly; Oxlint reported 0 errors/warnings; client TypeScript and production build succeed with zero errors.
+  >
+  > Zero blocking issues remain. Ready to merge into `lab4-staging`!
 
 ---
 

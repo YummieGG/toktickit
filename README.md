@@ -126,6 +126,23 @@ The seed also populates 8 deterministic Actions Taken records across tickets,
 covering all 4 action lifecycle statuses (`PENDING`, `IN_PROGRESS`, `COMPLETED`,
 `CANCELLED`), multiple assignees, follow-up notes, and 7-day rolling window dates.
 
+### Database Migration, Reset & Recovery
+
+If the database needs to be migrated, cleanly reset, or recovered from a stale state:
+
+```bash
+cd server
+
+# Apply pending migrations to existing database
+npx prisma migrate deploy
+
+# Full reset and clean recovery: wipes database, reapplies all migrations, and runs idempotent seed
+npx prisma migrate reset --force
+
+# Verification of idempotent seeding
+npx prisma db seed
+```
+
 ---
 
 ### 4. Client Setup (Frontend)

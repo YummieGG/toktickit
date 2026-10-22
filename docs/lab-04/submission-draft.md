@@ -456,14 +456,93 @@ b30c57d fix(lab4-3): use Zen Green badge tokens, validate edit result length, an
 ### PR #65: Lab 4-1: Define Sprint 4 Engineering Contract and Traceability
 - **Target PR**: [#65](https://github.com/YummieGG/toktickit/pull/65) (`lab4-1-engineering-contract` → `lab4-staging`)
 - **Base Commit**: `a295882` (Lab 3 main baseline)
-- **Initial Contract Commit**: `da2426b`
+- **Initial Contract Commit**: `da2426b` (Merged: `40025a2`)
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Open
-- **Reviewer comment received (@Snnn3)**:
-  > Awaiting peer review on the Lab 4 engineering contract package.
+- **Status**: Merged (`40025a2`)
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > Reviewed the Lab 4 engineering contract in PR #65 against Issue #56 and the `SE+Lab+4.pdf` handout. All four core contract documents (`specification.md`, `ui-spec.md`, `api-spec.md`, `tests.md`) and supporting logs (`reviewer.md`, `ai-use.md`, `visual-checklist.md`) are complete and mutually consistent:
+  > - **Specification & Workflow**: Covers all 11 sections, Lab 3 deltas, the 1:N `ActionTaken` / append-only `ActionTakenEvent` models, 4-state action lifecycle, 8-state ticket transitions, resolution gate, and atomic child cancellation.
+  > - **Authorization & Concurrency**: Role matrices, Prisma Serializable transactions, `expectedTicketVersion`/`expectedActionVersion` (`409 CONFLICT`), and `Idempotency-Key` guards are clearly defined across all write APIs.
+  > - **Dashboards & Traceability**: Requester and Staff/Admin dashboard metrics, 7-day `Asia/Bangkok` window, drill-down parity, and `AC-01`–`AC-13` planned test mappings are aligned and ready for implementation.
+  >
+  > Ready to merge into `lab4-staging`.
 - **How I responded (@YummieGG)**:
-  > Ready for review.
+  > Thank you @Snnn3 for the review and approval! All contract documents verified. Merged into `lab4-staging`.
+
+---
+
+### PR #66: Lab 4-2: Actions Taken data model, migration, seed, and API foundation
+- **Target PR**: [#66](https://github.com/YummieGG/toktickit/pull/66) (`lab4-2-actions-foundation` → `lab4-staging`)
+- **Base Commit**: `40025a2` (Merged PR #65)
+- **Initial Implementation Commit**: `87acf65` (Merged: `c2c8efc`)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`c2c8efc`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > **Verdict: Changes Requested**
+  >
+  > Thank you for the implementation of the Actions Taken data model, migration, seed, and API foundation for Issue #57. The database schema, additive migration SQL, idempotent seed fixtures, role guards, and audit event tracking align very well with the Lab 4 engineering contract, and all existing unit and API test suites pass cleanly.
+  >
+  > However, please address the following boundary and concurrency issues before this PR can be approved:
+  >
+  > 1. **[Blocker] Uncaught `P2002` Unique Constraint on Concurrent Creation Race (BR-18, API-Spec §1)**: In `server/src/routes/actions-taken.ts` (`handleActionError`), only Prisma `P2034` (serialization conflict) is caught and mapped to `409`. If two identical `POST /api/tickets/:ticketId/actions-taken` requests with the same `Idempotency-Key` race past `tx.actionTaken.findFirst`, the second write triggers the database unique index `(ticketId, performedById, creationKey)` (`P2002`). This currently falls through to an unhandled `500 Internal Server Error`. In `handleActionError`, catch `P2002` on the creation key constraint and either fetch/replay the already-created action or return `409 CONFLICT` / `409 IDEMPOTENCY_CONFLICT`.
+  > 2. **[Blocker] Boundary Validation for `assigneeId` on `POST` Creation (API-Spec §2)**: In `POST /api/tickets/:ticketId/actions-taken`, passing a non-numeric `assigneeId` (e.g. `"invalid"`) coerces to `NaN`. Calling `tx.user.findUnique({ where: { id: NaN } })` causes Prisma to throw a runtime argument error, resulting in an unexpected `500` instead of a client error. Validate that `assigneeId` is a positive safe integer before querying Prisma, returning `400 ASSIGNEE_INELIGIBLE`.
+  > 3. **Missing Health/Root and 500 Test Coverage (Issue #57 Scope)**: Issue #57 scope requires covering health/root endpoints and safe error envelopes for `401/403/404/409/500`. Add test coverage in `server/tests/lab-04/` verifying `GET /health` and asserting that unexpected server errors emit the `{ error: { code: "INTERNAL_ERROR", ... } }` payload.
+- **How I responded (@YummieGG)**:
+  > Updated in commit `b7ef1c7`:
+  > - **Idempotency Conflict Code:** Handled `P2002` race condition to return `409 IDEMPOTENCY_CONFLICT` on payload mismatch per `api-spec.md:112` and BR-18.
+  > - **Assignee Validation Code:** Enforced safe integer validation on `assigneeId` upfront, returning `400 ASSIGNEE_INELIGIBLE` for invalid/ineligible assignees per `api-spec.md:106, 144`.
+  > - **Test Coverage:** Added health check (`GET /api/health`) and unexpected 500 error envelope regression tests. All 24 test suites (326 unit + 14 integration) pass cleanly.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > I have re-reviewed the Actions Taken data, migration, seed, and API foundation slice in PR #66 following commits `ec62eb7` and `b7ef1c7`. All feedback items from Round 1 have been cleanly resolved and verified:
+  > 1. **Idempotency Race Handling (BR-18, API-Spec §1)**: Caught Prisma `P2002` unique constraint races on `(ticketId, performedById, creationKey)`. Identical payload replays return `200 OK` with the existing action projection, while differing fingerprints safely return `409 IDEMPOTENCY_CONFLICT`. Both race scenarios are covered by automated unit/API assertions.
+  > 2. **Assignee Boundary Validation (API-Spec §2)**: `POST /api/tickets/:ticketId/actions-taken` now validates `assigneeId` format before query execution, returning `400 ASSIGNEE_INELIGIBLE` on non-integer or malformed values.
+  > 3. **Health & 500 Error Envelopes (Issue #57 Scope)**: Added `API-00` suite verifying `GET /api/health` and asserting that unexpected server breakdowns emit the standard `{ error: { code: "INTERNAL_ERROR", ... } }` payload.
+  > 4. **Full Test Suite Integrity**: All 326 server tests (24 files) and all 99 client tests (13 files) pass green with zero regressions.
+  >
+  > Zero blocking issues remain. Ready to merge into `lab4-staging`!
+
+---
+
+### PR #67: Lab 4-3: Actions Taken UI section and role access controls
+- **Target PR**: [#67](https://github.com/YummieGG/toktickit/pull/67) (`lab4-3-actions-ui` → `lab4-staging`)
+- **Base Commit**: `c2c8efc` (Merged PR #66)
+- **Initial Implementation Commit**: `07a215d` (Merged: `774490a`)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`774490a`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > **Verdict: Changes Requested**
+  >
+  > Thank you for implementing the Actions Taken UI and role access slice for Issue #58. The component architecture, role separation (Staff/Admin interactive vs. Requester read-only), 4-state action lifecycle modals, optimistic concurrency reconciliation, and test coverage (128 client tests passing) are well put together.
+  >
+  > Please address the following spec and accessibility items before merging into `lab4-staging`:
+  > 1. **[Missing Spec] Focus Invalid Control on Server Validation Errors (`ui-spec.md` §3 / line 59)**: In `ActionsTakenSection.tsx`, when the API rejects a creation payload with field errors (e.g., `ASSIGNEE_INELIGIBLE`), `setCreateValidationErrors` renders the message below the input, but focus is not shifted to the invalid control. Mirror client-side validation by calling `.focus()` on the invalid element when setting server validation error state.
+  > 2. **[Missing Spec] Role Formatting in Edit Modal Header (`ui-spec.md` §6.1 / line 95)**: In the edit modal header, `editingAction.performedBy.role` displays raw enum text (`IT_STAFF`, `ADMINISTRATOR`) rather than human-readable text. Wrap with `ROLE_LABELS[editingAction.performedBy.role]` so it matches the table and card views.
+  > 3. **[Accessibility] Missing `aria-label` on Mobile Action Buttons (`ui-spec.md` §1 & §9)**: Desktop table buttons define distinct accessible names, but mobile card buttons omit `aria-label`, causing screen readers to announce identical "Edit" or "Complete" buttons without context. Add the corresponding `aria-label={`Edit action ${act.id}`}` to mobile card buttons.
+  > 4. **[Implementation Bug] Action Creation Appending Violates Pagination Boundaries (BR-10, `api-spec.md` §1)**: When a new action is created, it is appended directly to local state. If the user is on page 2 or has 20 items loaded, this appends a 21st item to the current page. Trigger a refetch of the action list or navigate to the final page on creation to preserve strict pagination and sort boundaries.
+- **How I responded (@YummieGG)**:
+  > Thanks @Snnn3 for the review and constructive feedback! All 4 items have been addressed in commit `747413e`:
+  > 1. **Auto-focus on Server Validation Errors (`ui-spec.md §3`):** Shifted focus to the first invalid control when the API rejects form submission with field validation errors. Added unit test assertion verifying `document.activeElement` after error response.
+  > 2. **Role Formatting in Edit Modal Header (`ui-spec.md §6.1`):** Wrapped `editingAction.performedBy.role` with `ROLE_LABELS` to display human-readable labels (`IT Staff`, `Administrator`) instead of raw enums.
+  > 3. **Accessible Labels on Mobile Action Buttons (`ui-spec.md §1 & §9`):** Added context-aware `aria-label` attributes across all mobile card action buttons.
+  > 4. **Pagination Boundary Adherence on Action Creation (`BR-10`):** Updated `handleCreateSubmit` to calculate `targetPage` and invoke `fetchActions(targetPage)`, ensuring newly created items move to the correct page without exceeding `pageSize` boundaries.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > I have re-reviewed the Actions Taken UI and role access control implementation in PR #67 following commit `747413e`. All spec, accessibility, and pagination boundary findings from Round 1 have been completely resolved and verified:
+  > 1. **Server Validation Error Focus (`ui-spec.md:59`)**: Server-returned validation errors (`body.error.fields`) now correctly move keyboard focus to the invalid control, matching the behavior of client-side validation.
+  > 2. **Role Formatting in Edit Header (`ui-spec.md:95`)**: The edit modal header now renders user-friendly role labels (`(IT Staff)`, `(Administrator)`) via `ROLE_LABELS` instead of raw enum strings.
+  > 3. **Mobile Accessibility (`ui-spec.md §1 & §9`)**: Mobile card buttons now provide explicit, accessible names, eliminating ambiguous repeated button names on screen readers.
+  > 4. **Pagination & Boundary Integrity (BR-10, `api-spec.md §1`)**: New action creation now navigates to the target page and enforces `pageSize` bounds rather than appending items past the boundary.
+  > 5. **Full Test Suite & Build Verification**: All 128 client tests (15 files) and 326 server regression tests (24 files) pass cleanly; Oxlint reported 0 errors/warnings; client TypeScript and production build succeed with zero errors.
+  >
+  > Zero blocking issues remain. Ready to merge into `lab4-staging`!
 
 ---
 
@@ -754,6 +833,23 @@ The seed also populates 8 deterministic Actions Taken records across tickets,
 covering all 4 action lifecycle statuses (`PENDING`, `IN_PROGRESS`, `COMPLETED`,
 `CANCELLED`), multiple assignees, follow-up notes, and 7-day rolling window dates.
 
+### Database Migration, Reset & Recovery
+
+If the database needs to be migrated, cleanly reset, or recovered from a stale state:
+
+```bash
+cd server
+
+# Apply pending migrations to existing database
+npx prisma migrate deploy
+
+# Full reset and clean recovery: wipes database, reapplies all migrations, and runs idempotent seed
+npx prisma migrate reset --force
+
+# Verification of idempotent seeding
+npx prisma db seed
+```
+
 ---
 
 ### 4. Client Setup (Frontend)
@@ -971,8 +1067,8 @@ The canonical specification document is located at:
 
 ## 2.2 Proof of Spec Preceding Implementation
 The Git commit history conclusively demonstrates that the engineering contract was locked and merged prior to implementation:
-- **Contract PR**: PR #65 (`lab4-1-engineering-contract`) merged at `58b29cb` on 2026-10-08.
-- **First Implementation PR**: PR #66 (`lab4-2-actions-foundation`) opened and merged at `1c055ee` on 2026-10-14.
+- **Contract PR**: PR #65 (`lab4-1-engineering-contract`) merged at `40025a2` on 2026-10-10.
+- **First Implementation PR**: PR #66 (`lab4-2-actions-foundation`) opened and merged at `c2c8efc` on 2026-10-14.
 - All functional requirements, state machine matrices, and 21 design decisions were finalized in READY-04 review before any product code was authored.
 
 ## 2.3 Rendered `docs/lab-04/specification.md`
@@ -1543,32 +1639,32 @@ The IT Staff Dashboard (`/staff/dashboard`) provides operational visibility into
 ## 5.2 Staff Dashboard Visual Evidence
 
 <div class="screenshot-container">
-  <img src="screenshots/staff-dashboard/1280.png" alt="Staff Dashboard Desktop 1280px" />
+  <img src="../../artifacts/lab-04/screenshots/staff-dashboard/1280.png" alt="Staff Dashboard Desktop 1280px" />
   <div class="screenshot-caption">Figure 5.1: Staff Dashboard Desktop (1280px) showing 7 operational metrics, breakdown grids, and preview lists.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/staff-dashboard/768.png" alt="Staff Dashboard Tablet 768px" />
+  <img src="../../artifacts/lab-04/screenshots/staff-dashboard/768.png" alt="Staff Dashboard Tablet 768px" />
   <div class="screenshot-caption">Figure 5.2: Staff Dashboard Tablet (768px) with responsive grid reflow and touch-accessible cards.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/staff-dashboard/375.png" alt="Staff Dashboard Mobile 375px" />
+  <img src="../../artifacts/lab-04/screenshots/staff-dashboard/375.png" alt="Staff Dashboard Mobile 375px" />
   <div class="screenshot-caption">Figure 5.3: Staff Dashboard Mobile (375px) featuring single-column stacked layout (scrollWidth <= innerWidth).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/staff-dashboard/zero-groups.png" alt="Staff Dashboard Zero Groups" />
+  <img src="../../artifacts/lab-04/screenshots/staff-dashboard/zero-groups.png" alt="Staff Dashboard Zero Groups" />
   <div class="screenshot-caption">Figure 5.4: Staff Dashboard zero-group preservation displaying zero counts across empty priority/status groups.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/staff-dashboard/loading.png" alt="Staff Dashboard Loading" />
+  <img src="../../artifacts/lab-04/screenshots/staff-dashboard/loading.png" alt="Staff Dashboard Loading" />
   <div class="screenshot-caption">Figure 5.5: Staff Dashboard accessible loading skeleton state.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/staff-dashboard/error.png" alt="Staff Dashboard Error Recovery" />
+  <img src="../../artifacts/lab-04/screenshots/staff-dashboard/error.png" alt="Staff Dashboard Error Recovery" />
   <div class="screenshot-caption">Figure 5.6: Staff Dashboard safe failure feedback with retry controls.</div>
 </div>
 
@@ -1592,42 +1688,42 @@ The Actions Taken panel is integrated directly into Ticket Detail (`/staff/ticke
 ## 6.2 Actions Taken Visual Evidence
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/1280.png" alt="Actions Taken Desktop 1280px" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/1280.png" alt="Actions Taken Desktop 1280px" />
   <div class="screenshot-caption">Figure 6.1: Actions Taken panel on Desktop (1280px) displaying multiple actions, status badges, and action controls.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/768.png" alt="Actions Taken Tablet 768px" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/768.png" alt="Actions Taken Tablet 768px" />
   <div class="screenshot-caption">Figure 6.2: Actions Taken panel on Tablet (768px) with responsive card reflow.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/375.png" alt="Actions Taken Mobile 375px" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/375.png" alt="Actions Taken Mobile 375px" />
   <div class="screenshot-caption">Figure 6.3: Actions Taken panel on Mobile (375px) with full-width touch targets (>= 44px).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/create-validation.png" alt="Actions Taken Create Validation" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/create-validation.png" alt="Actions Taken Create Validation" />
   <div class="screenshot-caption">Figure 6.4: Actions Taken form validation showing inline error messages placed directly below invalid inputs.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/conflict-reconcile.png" alt="Actions Taken Conflict Reconcile" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/conflict-reconcile.png" alt="Actions Taken Conflict Reconcile" />
   <div class="screenshot-caption">Figure 6.5: 409 Conflict alert banner with in-place draft retention and Reload & Reconcile control.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/drilldown-1280.png" alt="Actions Taken Drill-down Desktop" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/drilldown-1280.png" alt="Actions Taken Drill-down Desktop" />
   <div class="screenshot-caption">Figure 6.6: Staff Actions Taken Drill-down page on Desktop (1280px) with pagination and status filters.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/drilldown-768.png" alt="Actions Taken Drill-down Tablet" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/drilldown-768.png" alt="Actions Taken Drill-down Tablet" />
   <div class="screenshot-caption">Figure 6.7: Staff Actions Taken Drill-down page on Tablet (768px).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/actions-taken/drilldown-375.png" alt="Actions Taken Drill-down Mobile" />
+  <img src="../../artifacts/lab-04/screenshots/actions-taken/drilldown-375.png" alt="Actions Taken Drill-down Mobile" />
   <div class="screenshot-caption">Figure 6.8: Staff Actions Taken Drill-down page on Mobile (375px) with responsive stacked cards.</div>
 </div>
 
@@ -1659,27 +1755,27 @@ The Actions Taken panel is integrated directly into Ticket Detail (`/staff/ticke
 ## 7.2 Ticket Workflow Visual Evidence
 
 <div class="screenshot-container">
-  <img src="screenshots/ticket-workflow/1280.png" alt="Ticket Workflow Desktop 1280px" />
+  <img src="../../artifacts/lab-04/screenshots/ticket-workflow/1280.png" alt="Ticket Workflow Desktop 1280px" />
   <div class="screenshot-caption">Figure 7.1: Ticket Detail status control on Desktop (1280px) showing permitted state transitions.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/ticket-workflow/768.png" alt="Ticket Workflow Tablet 768px" />
+  <img src="../../artifacts/lab-04/screenshots/ticket-workflow/768.png" alt="Ticket Workflow Tablet 768px" />
   <div class="screenshot-caption">Figure 7.2: Ticket Detail status control on Tablet (768px).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/ticket-workflow/375.png" alt="Ticket Workflow Mobile 375px" />
+  <img src="../../artifacts/lab-04/screenshots/ticket-workflow/375.png" alt="Ticket Workflow Mobile 375px" />
   <div class="screenshot-caption">Figure 7.3: Ticket Detail status control on Mobile (375px).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/ticket-workflow/resolution-blocked.png" alt="Resolution Blocked Banner" />
+  <img src="../../artifacts/lab-04/screenshots/ticket-workflow/resolution-blocked.png" alt="Resolution Blocked Banner" />
   <div class="screenshot-caption">Figure 7.4: Resolution Gate error banner displaying exact blocking conditions when resolving without a completed action.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/ticket-workflow/cancel-modal.png" alt="Ticket Cancellation Modal" />
+  <img src="../../artifacts/lab-04/screenshots/ticket-workflow/cancel-modal.png" alt="Ticket Cancellation Modal" />
   <div class="screenshot-caption">Figure 7.5: In-DOM Confirmation Modal for Ticket Cancellation warning that active child actions will be atomically cancelled.</div>
 </div>
 
@@ -1704,62 +1800,62 @@ Existing Lab 1–3 functionality continues to operate flawlessly:
 ## 8.3 Requester Dashboard & Regression Visual Evidence
 
 <div class="screenshot-container">
-  <img src="screenshots/requester-dashboard/1280.png" alt="Requester Dashboard Desktop 1280px" />
+  <img src="../../artifacts/lab-04/screenshots/requester-dashboard/1280.png" alt="Requester Dashboard Desktop 1280px" />
   <div class="screenshot-caption">Figure 8.1: Requester Dashboard Desktop (1280px) with 4 metric cards and preview lists.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/requester-dashboard/768.png" alt="Requester Dashboard Tablet 768px" />
+  <img src="../../artifacts/lab-04/screenshots/requester-dashboard/768.png" alt="Requester Dashboard Tablet 768px" />
   <div class="screenshot-caption">Figure 8.2: Requester Dashboard Tablet (768px) with responsive card grid.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/requester-dashboard/375.png" alt="Requester Dashboard Mobile 375px" />
+  <img src="../../artifacts/lab-04/screenshots/requester-dashboard/375.png" alt="Requester Dashboard Mobile 375px" />
   <div class="screenshot-caption">Figure 8.3: Requester Dashboard Mobile (375px) single-column layout without horizontal scroll.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/requester-dashboard/empty.png" alt="Requester Dashboard Empty State" />
+  <img src="../../artifacts/lab-04/screenshots/requester-dashboard/empty.png" alt="Requester Dashboard Empty State" />
   <div class="screenshot-caption">Figure 8.4: Requester Dashboard empty state with friendly call to create a ticket.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/requester-dashboard/loading.png" alt="Requester Dashboard Loading" />
+  <img src="../../artifacts/lab-04/screenshots/requester-dashboard/loading.png" alt="Requester Dashboard Loading" />
   <div class="screenshot-caption">Figure 8.5: Requester Dashboard accessible loading skeleton.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/requester-dashboard/error.png" alt="Requester Dashboard Error" />
+  <img src="../../artifacts/lab-04/screenshots/requester-dashboard/error.png" alt="Requester Dashboard Error" />
   <div class="screenshot-caption">Figure 8.6: Requester Dashboard error banner with retry option.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/regression/login.png" alt="Regression Login" />
+  <img src="../../artifacts/lab-04/screenshots/regression/login.png" alt="Regression Login" />
   <div class="screenshot-caption">Figure 8.7: Regression verification of Login screen with Zen Green branding.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/regression/change-password.png" alt="Regression Change Password" />
+  <img src="../../artifacts/lab-04/screenshots/regression/change-password.png" alt="Regression Change Password" />
   <div class="screenshot-caption">Figure 8.8: Regression verification of Mandatory Change Password screen.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/regression/my-tickets.png" alt="Regression My Tickets" />
+  <img src="../../artifacts/lab-04/screenshots/regression/my-tickets.png" alt="Regression My Tickets" />
   <div class="screenshot-caption">Figure 8.9: Regression verification of My Tickets with query parameter persistence.</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/regression/1280.png" alt="Regression Staff Queue Desktop" />
+  <img src="../../artifacts/lab-04/screenshots/regression/1280.png" alt="Regression Staff Queue Desktop" />
   <div class="screenshot-caption">Figure 8.10: Regression verification of Staff Queue on Desktop (1280px).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/regression/768.png" alt="Regression Ticket Detail Tablet" />
+  <img src="../../artifacts/lab-04/screenshots/regression/768.png" alt="Regression Ticket Detail Tablet" />
   <div class="screenshot-caption">Figure 8.11: Regression verification of Staff Ticket Detail on Tablet (768px).</div>
 </div>
 
 <div class="screenshot-container">
-  <img src="screenshots/regression/375.png" alt="Regression User Management Mobile" />
+  <img src="../../artifacts/lab-04/screenshots/regression/375.png" alt="Regression User Management Mobile" />
   <div class="screenshot-caption">Figure 8.12: Regression verification of Administrator User Management on Mobile (375px).</div>
 </div>
 
