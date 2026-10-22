@@ -552,7 +552,7 @@ b30c57d fix(lab4-3): use Zen Green badge tokens, validate edit result length, an
 - **Initial Implementation Commit**: `f3f2c1e`
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Changes Requested → Addressed
+- **Status**: Merged (`10176e2`)
 - **Reviewer comment received (@Snnn3 - Changes Requested)**:
   > ### Missing Specifications & Implementation Defects (PR #68)
   >
@@ -593,16 +593,34 @@ b30c57d fix(lab4-3): use Zen Green badge tokens, validate edit result length, an
   > - **Round 3 (Live E2E Environment Fallback)**: Added transparent fallback in `ticket-resolution.live.spec.ts` to read `SEED_INITIAL_PASSWORD` from local `server/.env` if not exported in shell environment, ensuring local runs succeed while retaining strict CI environment variable overrides.
   > - **Round 4 (Server Port Isolation)**: Guarded `app.listen` in `server/src/index.ts` behind `if (process.env.NODE_ENV !== 'test')` to prevent concurrent supertest processes from colliding on port 3000 during parallel Vitest runs.
   > - **Round 5 (Test Verification)**: Expanded `TicketWorkflow.test.tsx` with automated coverage for reconcile failure retention and error preservation upon cancelled confirmation prompts (139/139 client tests green). Full regression suites pass cleanly with 0 violations.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > ### PR #68 Review: Specification Audit & Verification
+  >
+  > **Verdict: Approved (LGTM)** — All specification requirements for Issue #59 are fully satisfied with **0 missing requirements**.
+  >
+  > #### Key Verification Points:
+  > 1. **In-DOM Modal Confirmation (`ui-spec.md:129-132`)**: Replaced `window.confirm()` with an accessible `ConfirmationModal` featuring focus trapping and explicit warnings for `CANCELLED`, `RESOLVED`, `CLOSED`, and `REOPENED`.
+  > 2. **409 Conflict & Reconcile (`ui-spec.md:133`)**: Retains user drafts without unmounting views and provides explicit `Reload & Reconcile` controls.
+  > 3. **Resolution Gate & Banner (`ui-spec.md §7`, BR-14)**: Prioritizes active action blockers and displays both the top-level error banner and inline field errors.
+  > 4. **Validation (VALIDATION-01)**: Returns `VALIDATION_ERROR` (HTTP 400) for malformed versions and unknown fields.
+  > 5. **Atomic Child Cancellation & Timestamps (BR-15, BR-16)**: Cancelling a ticket cancels active child actions; timestamp lifecycle (`resolvedAt`, `problemAppearsResolvedAt`) is correctly handled.
+  > 6. **E2E & Concurrency Coverage (LIVE-01, PG-01)**: Full browser-to-DB journey and race condition tests pass.
+  >
+  > #### Test Results:
+  > - **Client**: 17/17 files, 143/143 tests passed.
+  > - **Server**: 25/25 files, 397/397 tests passed.
+- **How I responded (@YummieGG)**:
+  > Thank you @Snnn3 for the thorough review and approval! Merged into `lab4-staging` at commit `10176e2`.
 
 ---
 
 ### PR #69: Lab 4-5: Requester and Staff operational dashboards
 - **Target PR**: [#69](https://github.com/YummieGG/toktickit/pull/69) (`lab4-5-role-dashboards` → `lab4-staging`)
-- **Base Commit**: `b09b5ca` (Merged PR #68)
+- **Base Commit**: `10176e2` (Merged PR #68)
 - **Initial Implementation Commit**: `365c023`
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Changes Requested → Addressed
+- **Status**: Merged (`d494e6b`)
 - **Reviewer comment received (@Snnn3 - Changes Requested)**:
   > ### PR #69 Review: Missing Specifications & Implementation Defects
   >
@@ -625,6 +643,24 @@ b30c57d fix(lab4-3): use Zen Green badge tokens, validate edit result length, an
   > 7. **Bangkok Timezone Formatting (`ui-spec.md:93`):** Implemented `formatBangkokDateTime` and `formatBangkokDate` in `client/src/utils/date.ts` to ensure timestamps and filter badge chips render in `Asia/Bangkok` timezone without UTC day rollback.
   >
   > Full test suite verification: 430/430 server tests, 159/159 client tests, and 27/27 Playwright E2E scenarios pass green with zero regressions.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > ### PR #69 Review: Approved (LGTM) 🚀
+  >
+  > I have reviewed the operational dashboards and drill-down implementations in PR #69 against **Issue #60**, `docs/lab-04/specification.md`, `docs/lab-04/api-spec.md`, and `docs/lab-04/ui-spec.md`. All core requirements and previous review feedback have been cleanly addressed.
+  >
+  > #### Key Verifications:
+  > - **Requester Dashboard (`/dashboard`)**: Accurately computes owned metrics within the 7-day Bangkok calendar window, handles zero states safely, and provides bounded preview lists with parity drill-down links.
+  > - **Staff & Admin Dashboard (`/staff/dashboard`)**: Full operational visibility with 7 metric cards, zero-count groups across all 8 statuses and 4 IT priorities, urgent ticket sorting, and "My Actions" previews.
+  > - **Actions Taken Drill-down (`/staff/actions-taken`)**: Fully responsive with structured desktop table and mobile stacked card layouts ($\ge 44\text{ px}$ touch targets), URL search parameter synchronization, and action-in-context row navigation (`#action-:id`).
+  > - **Query Filter Extensions**: `GET /api/tickets` and `GET /api/staff/tickets` successfully support comma-separated status/priority sets, ISO-8601 date ranges, and stable sorting.
+  > - **Test Suites**:
+  >   - **Client**: 20/20 test files passed (159/159 tests green).
+  >   - **Server**: 27/27 test files passed (430/430 tests green).
+  >   - **Regressions**: 0 regressions across inherited Lab 1–3 suites.
+  >
+  > Ready to merge into `lab4-staging`.
+- **How I responded (@YummieGG)**:
+  > Thank you @Snnn3 for the review and approval! All dashboard features and filter parity verified. Merged into `lab4-staging` at commit `d494e6b`.
 
 ---
 
