@@ -1634,9 +1634,9 @@ Status vocabulary:
 
 ## My Reflection
 
-Using **Gemini 3.8 Flash (High)** helped speed up development in Lab 4. Writing clear specifications (`specification.md` and `tests.md`) before coding made it easy for the AI to generate boilerplate code, state transition logic, and test suites that matched the requirements.
+Using **Gemini 3.8 Flash (High)** helped write code and tests much faster. Having clear specs beforehand made it easy for the AI to follow requirements.
 
-However, human testing and peer review with `@Snnn3` were still necessary. The AI missed details like in-DOM modal accessibility, keyboard focus traps, subtle timezone formatting for Bangkok dates, and test isolation. Reviewing the code and running tests locally allowed me to catch and fix these issues quickly. In short, AI is very helpful for writing code fast, but the developer must always check and verify that everything works correctly.
+However, peer review with `@Snnn3` and manual testing were still needed to fix issues in UI accessibility and test isolation. AI is great for speed, but the developer must always verify the results.
 
 
 ---
