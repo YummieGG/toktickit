@@ -168,7 +168,6 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
       await page.screenshot({
         path: path.join(ARTIFACTS_DIR, `requester-dashboard/${vp.label}.png`),
-        fullPage: true,
       });
     }
 
@@ -333,7 +332,6 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
       await page.screenshot({
         path: path.join(ARTIFACTS_DIR, `staff-dashboard/${vp.label}.png`),
-        fullPage: true,
       });
     }
 
@@ -535,9 +533,9 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
       await expectReadableTextIndicators(page);
 
+      await page.locator('[data-testid="actions-taken-section"]').scrollIntoViewIfNeeded();
       await page.screenshot({
         path: path.join(ARTIFACTS_DIR, `actions-taken/${vp.label}.png`),
-        fullPage: true,
       });
     }
 
@@ -554,7 +552,6 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
       await page.screenshot({
         path: path.join(ARTIFACTS_DIR, `actions-taken/drilldown-${vp.label}.png`),
-        fullPage: true,
       });
     }
 
@@ -568,9 +565,9 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
     await page.getByRole('button', { name: /Save Action/i }).click();
 
     await expect(page.locator('#action-create-desc-error')).toBeVisible();
+    await page.locator('[data-testid="actions-taken-section"]').scrollIntoViewIfNeeded();
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, 'actions-taken/create-validation.png'),
-      fullPage: true,
     });
 
     // 4. Concurrency Conflict / Reconcile Banner
@@ -580,9 +577,9 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
     await page.getByRole('button', { name: /Save Action/i }).click();
 
     await expect(page.locator('.alert.alert-warning')).toBeVisible();
+    await page.locator('[data-testid="actions-taken-section"]').scrollIntoViewIfNeeded();
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, 'actions-taken/conflict-reconcile.png'),
-      fullPage: true,
     });
   });
 
@@ -691,9 +688,9 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
       await expectReadableTextIndicators(page);
 
+      await page.locator('#ticket-status').scrollIntoViewIfNeeded();
       await page.screenshot({
         path: path.join(ARTIFACTS_DIR, `ticket-workflow/${vp.label}.png`),
-        fullPage: true,
       });
     }
 
@@ -707,7 +704,6 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
 
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, 'ticket-workflow/cancel-modal.png'),
-      fullPage: true,
     });
     // Dismiss modal
     await modal.getByRole('button', { name: 'Cancel' }).click();
@@ -722,7 +718,6 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
     await expect(page.locator('#ticket-status-error')).toBeVisible();
     await page.screenshot({
       path: path.join(ARTIFACTS_DIR, 'ticket-workflow/resolution-blocked.png'),
-      fullPage: true,
     });
   });
 
@@ -910,7 +905,7 @@ test.describe('Lab 4 Visual QA, Screenshots & Responsive Assertions (AC-12, UI-0
           if (screen.checkTextIndicators) {
             await expectReadableTextIndicators(page);
           }
-          await page.screenshot({ path: path.join(ARTIFACTS_DIR, screen.screenshotFile), fullPage: true });
+          await page.screenshot({ path: path.join(ARTIFACTS_DIR, screen.screenshotFile) });
         }
       }
     }

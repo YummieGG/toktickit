@@ -22,9 +22,7 @@
 | [#68](https://github.com/YummieGG/toktickit/pull/68) | Lab 4-4: Enforce Ticket Workflow and Resolution Gate | `lab4-4-ticket-workflow` | `f3f2c1e` (Initial) | Merged | [@Snnn3](https://github.com/Snnn3) |
 | [#69](https://github.com/YummieGG/toktickit/pull/69) | Lab 4-5: Requester and Staff operational dashboards | `lab4-5-role-dashboards` | `365c023` | Merged | [@Snnn3](https://github.com/Snnn3) |
 | [#70](https://github.com/YummieGG/toktickit/pull/70) | Lab 4-6: Complete regression, security, accessibility, and visual QA | `lab4-6-verification-qa` | `245e7e7` | Merged | [@Snnn3](https://github.com/Snnn3) |
-| [#71](https://github.com/YummieGG/toktickit/pull/71) | Lab 4-7: Staged integration and clean verification | `lab4-7-staged-integration` | `012e307` | Open | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-8: Final documentation, reviewer logs, AI log, and submission packaging | `lab4-8-documentation` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
-| Pending | Lab 4-9: Release verification against final main, evidence check, and tag | `lab4-9-release-verification` | Planned | Planned | [@Snnn3](https://github.com/Snnn3) |
+| [#71](https://github.com/YummieGG/toktickit/pull/71) | Lab 4-7: Staged integration and clean verification | `lab4-7-staged-integration` | `dd41704` | Merged | [@Snnn3](https://github.com/Snnn3) |
 
 ---
 
@@ -38,6 +36,9 @@
 | [#64](https://github.com/Snnn3/TokTickIT/pull/64) | feat(lab4-2): add Actions Taken data foundation | [@Snnn3](https://github.com/Snnn3) | Merged | Verified Prisma schema, PostgreSQL CHECK constraints, ON DELETE RESTRICT FKs, legacy data preservation via capture.ts, and 8 idempotent seed fixtures across all 4 action statuses. Approved. |
 | [#65](https://github.com/Snnn3/TokTickIT/pull/65) | feat(lab4-3): add Actions Taken API and authorization | [@Snnn3](https://github.com/Snnn3) | Merged | Caught unit test isolation regression in `users-admin.api.test.ts` where unstubbed `prisma.actionTaken.findMany` threw 500 without database. Requested changes; approved on Round 2 after test stubbing. |
 | [#66](https://github.com/Snnn3/TokTickIT/pull/66) | feat(lab4): enforce ticket workflow resolution gate | [@Snnn3](https://github.com/Snnn3) | Merged | Verified 8-state ticket transitions (16 valid, 48 forbidden), completed-action and resolution-summary resolution gate, advisory signal status neutrality, and 409 STALE_WRITE conflict recovery. Approved. |
+| [#67](https://github.com/Snnn3/TokTickIT/pull/67) | feat(lab4): add Actions Taken ticket detail UI (#58) | [@Snnn3](https://github.com/Snnn3) | Merged | Verified AC-1–AC-12, ActionsTakenPanel cardinality (0/1/many), optimistic locking via 409 STALE_WRITE with draft preservation, idempotency UUIDs, and full test suite (17/17 panel, 158/158 client). Approved. |
+| [#68](https://github.com/Snnn3/TokTickIT/pull/68) | feat(lab4): add IT Staff Dashboard (#59) | [@Snnn3](https://github.com/Snnn3) | Merged | Verified AC-1–AC-10, authoritative metrics, 7-day rolling window with Bangkok formatting, stale-response protection via useRequestGeneration, and test suite (17/17 client, 15/15 server). Recommended waitFor on ExpiredSession.test.tsx. Approved. |
+| [#69](https://github.com/Snnn3/TokTickIT/pull/69) | feat(lab4): requester dashboard (#60) | [@Snnn3](https://github.com/Snnn3) | Merged | Verified AC-1–AC-9, session-based ownership enforcement, 7-day UTC rolling window with Bangkok display, filter persistence in My Tickets, stale-response discarding, and test suite (7/7 component, 196/196 client, 23/23 server). Noted C4-02 test count update. Approved. |
 
 ---
 
@@ -142,19 +143,169 @@
 
 ---
 
+### PR #67: feat(lab4): add Actions Taken ticket detail UI (#58)
+- **Target PR**: [Snnn3/TokTickIT#67](https://github.com/Snnn3/TokTickIT/pull/67)
+- **Author**: @Snnn3
+- **Verdict**: Approved
+- **My review comment (@YummieGG - Approved)**:
+  > Thank you for implementing the Actions Taken ticket detail UI! The implementation is very well structured and handles edge cases thoroughly.
+  >
+  > ### Summary of Findings
+  > - **Criteria Verified (AC-1 – AC-12):** All acceptance criteria are thoroughly satisfied. The `ActionsTakenPanel` properly handles cardinality (0, 1, many), action state transitions, immutable performer audit tags, follow-up note validation, and requester read-only isolation.
+  > - **Concurrency & Robustness:** Optimistic locking and conflict recovery (`409 STALE_WRITE`) work cleanly with draft preservation and server reconciliation. Idempotency keys (`UUID`) are properly sent on action creation.
+  > - **Verification & Test Suite:** Verified locally:
+  >   - `ActionsTaken.test.tsx`: Passed (17/17 tests)
+  >   - Full client test suite: Passed (158/158 tests across 19 files)
+  >   - Typecheck, Vite build, and `ultracite check` linter: Passed with 0 errors.
+  >
+  > *(Minor Note)*: Please remember to update row `C4-01` in `docs/lab-04/tests.md` from `Planned` to `Passed (17/17)` during the final documentation sync.
+  >
+  > Overall solid implementation and excellent test coverage. LGTM!
+- **Partner's response (@Snnn3)**:
+  > Thanks @YummieGG for the thorough review and for helping get PR #67 merged. I really appreciate your careful checks of the acceptance criteria, conflict recovery, and test coverage, as well as the reminder about C4-01.
+
+---
+
+### PR #68: feat(lab4): add IT Staff Dashboard (#59)
+- **Target PR**: [Snnn3/TokTickIT#68](https://github.com/Snnn3/TokTickIT/pull/68)
+- **Author**: @Snnn3
+- **Verdict**: Approved
+- **My review comment (@YummieGG - Approved)**:
+  > Thank you for implementing the IT Staff Dashboard! The implementation is very thorough, clean, and handles tricky race conditions and mobile edge cases gracefully.
+  >
+  > ### Summary of Findings
+  > - **Criteria Verified (AC-1 – AC-10):** All acceptance criteria are fully met. The dashboard provides authoritative metrics, status groupings, bounded latest-5 lists (7-day window), Asia/Bangkok time formatting, strict session-based identity, and accurate drill-down links.
+  > - **Race Condition & Robustness:** Stale-response protection via `useRequestGeneration` and body parsing guardrails effectively prevent out-of-order UI overwrites during fast navigation and browser Back/Forward.
+  > - **Verification & Test Suite:**
+  >   - Client component tests (`StaffDashboard.test.tsx`, `StaffActionsList.test.tsx`, `ExpiredSession.test.tsx`): Passed (17/17 tests).
+  >   - Server dashboard API tests: Passed (15/15 tests).
+  >   - Client Vite build, Server TypeScript build, and `ultracite check` (50 modified files): Passed with 0 errors.
+  >
+  > *(Minor Note / Recommendation)*:
+  > In `client/src/__tests__/lab-04/ExpiredSession.test.tsx` (lines 129–130), when `result` is empty, consider wrapping `expect(attempts).toBeGreaterThanOrEqual(2)` inside `await waitFor(...)` to prevent potential intermittent flakes under high CI CPU load.
+  >
+  > Outstanding work! LGTM
+- **Partner's response (@Snnn3)**:
+  > Thank you, @YummieGG, for the thoughtful review and for merging PR #68. I really appreciate you checking the acceptance criteria, race-condition handling, mobile edge cases, and verification results. Thanks for your support!
+
+---
+
+### PR #69: feat(lab4): requester dashboard (#60)
+- **Target PR**: [Snnn3/TokTickIT#69](https://github.com/Snnn3/TokTickIT/pull/69)
+- **Author**: @Snnn3
+- **Verdict**: Approved
+- **My review comment (@YummieGG - Approved)**:
+  > Thank you for implementing the Requester Dashboard! The ownership protection is rock-solid and the state synchronization in My Tickets works seamlessly.
+  >
+  > ### Summary of Findings
+  > - **Criteria Verified (AC-1 – AC-9):** All acceptance criteria are thoroughly satisfied. The dashboard strictly enforces requester ownership via authenticated session, rejects unauthorized query/body overrides (`400 INVALID_QUERY / VALIDATION_ERROR`), applies the 7-day rolling window in UTC with Asia/Bangkok display, and renders bounded latest-5 lists with stable sorting.
+  > - **State Persistence & Lifecycle:** Deep links, drill-downs, and My Tickets filter states are preserved cleanly across browser refresh and Back navigation. Request generation guards properly discard stale responses during rapid refreshes and StrictMode mounts.
+  > - **Verification & Test Suite:** Verified locally:
+  >   - Client component tests (`RequesterDashboard.test.tsx`): Passed (7/7 tests).
+  >   - Full client test suite: Passed (196/196 tests across 23 files).
+  >   - Server dashboard & tickets API tests: Passed (23/23 tests).
+  >   - Production builds (Vite & TypeScript) and `ultracite check` (21 modified files): Passed with 0 errors.
+  >
+  > *(Minor Note)*: In `docs/lab-04/tests.md` row `C4-02`, consider updating the test count from 6 to 7 to reflect the new StrictMode regression test during the final documentation cleanup.
+  >
+  > Excellent work and clean design! LGTM
+- **Partner's response (@Snnn3)**:
+  > Thank you, @YummieGG, for the thorough review and for approving and merging PR #69. I really appreciate you verifying the ownership safeguards, date-window behavior, filter/navigation persistence, stale-response handling, and test coverage. Thanks also for catching the C4-02 test-count discrepancy!
+
+---
+
 ## Review Comments Received & Responses
 
 ### PR #65: Lab 4-1: Define Sprint 4 Engineering Contract and Traceability
 - **Target PR**: [#65](https://github.com/YummieGG/toktickit/pull/65) (`lab4-1-engineering-contract` → `lab4-staging`)
 - **Base Commit**: `a295882` (Lab 3 main baseline)
-- **Initial Contract Commit**: `da2426b`
+- **Initial Contract Commit**: `da2426b` (Merged: `40025a2`)
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Open
-- **Reviewer comment received (@Snnn3)**:
-  > Awaiting peer review on the Lab 4 engineering contract package.
+- **Status**: Merged (`40025a2`)
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > Reviewed the Lab 4 engineering contract in PR #65 against Issue #56 and the `SE+Lab+4.pdf` handout. All four core contract documents (`specification.md`, `ui-spec.md`, `api-spec.md`, `tests.md`) and supporting logs (`reviewer.md`, `ai-use.md`, `visual-checklist.md`) are complete and mutually consistent:
+  > - **Specification & Workflow**: Covers all 11 sections, Lab 3 deltas, the 1:N `ActionTaken` / append-only `ActionTakenEvent` models, 4-state action lifecycle, 8-state ticket transitions, resolution gate, and atomic child cancellation.
+  > - **Authorization & Concurrency**: Role matrices, Prisma Serializable transactions, `expectedTicketVersion`/`expectedActionVersion` (`409 CONFLICT`), and `Idempotency-Key` guards are clearly defined across all write APIs.
+  > - **Dashboards & Traceability**: Requester and Staff/Admin dashboard metrics, 7-day `Asia/Bangkok` window, drill-down parity, and `AC-01`–`AC-13` planned test mappings are aligned and ready for implementation.
+  >
+  > Ready to merge into `lab4-staging`.
 - **How I responded (@YummieGG)**:
-  > Ready for review.
+  > Thank you @Snnn3 for the review and approval! All contract documents verified. Merged into `lab4-staging`.
+
+---
+
+### PR #66: Lab 4-2: Actions Taken data model, migration, seed, and API foundation
+- **Target PR**: [#66](https://github.com/YummieGG/toktickit/pull/66) (`lab4-2-actions-foundation` → `lab4-staging`)
+- **Base Commit**: `40025a2` (Merged PR #65)
+- **Initial Implementation Commit**: `87acf65` (Merged: `c2c8efc`)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`c2c8efc`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > **Verdict: Changes Requested**
+  >
+  > Thank you for the implementation of the Actions Taken data model, migration, seed, and API foundation for Issue #57. The database schema, additive migration SQL, idempotent seed fixtures, role guards, and audit event tracking align very well with the Lab 4 engineering contract, and all existing unit and API test suites pass cleanly.
+  >
+  > However, please address the following boundary and concurrency issues before this PR can be approved:
+  >
+  > 1. **[Blocker] Uncaught `P2002` Unique Constraint on Concurrent Creation Race (BR-18, API-Spec §1)**: In `server/src/routes/actions-taken.ts` (`handleActionError`), only Prisma `P2034` (serialization conflict) is caught and mapped to `409`. If two identical `POST /api/tickets/:ticketId/actions-taken` requests with the same `Idempotency-Key` race past `tx.actionTaken.findFirst`, the second write triggers the database unique index `(ticketId, performedById, creationKey)` (`P2002`). This currently falls through to an unhandled `500 Internal Server Error`. In `handleActionError`, catch `P2002` on the creation key constraint and either fetch/replay the already-created action or return `409 CONFLICT` / `409 IDEMPOTENCY_CONFLICT`.
+  > 2. **[Blocker] Boundary Validation for `assigneeId` on `POST` Creation (API-Spec §2)**: In `POST /api/tickets/:ticketId/actions-taken`, passing a non-numeric `assigneeId` (e.g. `"invalid"`) coerces to `NaN`. Calling `tx.user.findUnique({ where: { id: NaN } })` causes Prisma to throw a runtime argument error, resulting in an unexpected `500` instead of a client error. Validate that `assigneeId` is a positive safe integer before querying Prisma, returning `400 ASSIGNEE_INELIGIBLE`.
+  > 3. **Missing Health/Root and 500 Test Coverage (Issue #57 Scope)**: Issue #57 scope requires covering health/root endpoints and safe error envelopes for `401/403/404/409/500`. Add test coverage in `server/tests/lab-04/` verifying `GET /health` and asserting that unexpected server errors emit the `{ error: { code: "INTERNAL_ERROR", ... } }` payload.
+- **How I responded (@YummieGG)**:
+  > Updated in commit `b7ef1c7`:
+  > - **Idempotency Conflict Code:** Handled `P2002` race condition to return `409 IDEMPOTENCY_CONFLICT` on payload mismatch per `api-spec.md:112` and BR-18.
+  > - **Assignee Validation Code:** Enforced safe integer validation on `assigneeId` upfront, returning `400 ASSIGNEE_INELIGIBLE` for invalid/ineligible assignees per `api-spec.md:106, 144`.
+  > - **Test Coverage:** Added health check (`GET /api/health`) and unexpected 500 error envelope regression tests. All 24 test suites (326 unit + 14 integration) pass cleanly.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > I have re-reviewed the Actions Taken data, migration, seed, and API foundation slice in PR #66 following commits `ec62eb7` and `b7ef1c7`. All feedback items from Round 1 have been cleanly resolved and verified:
+  > 1. **Idempotency Race Handling (BR-18, API-Spec §1)**: Caught Prisma `P2002` unique constraint races on `(ticketId, performedById, creationKey)`. Identical payload replays return `200 OK` with the existing action projection, while differing fingerprints safely return `409 IDEMPOTENCY_CONFLICT`. Both race scenarios are covered by automated unit/API assertions.
+  > 2. **Assignee Boundary Validation (API-Spec §2)**: `POST /api/tickets/:ticketId/actions-taken` now validates `assigneeId` format before query execution, returning `400 ASSIGNEE_INELIGIBLE` on non-integer or malformed values.
+  > 3. **Health & 500 Error Envelopes (Issue #57 Scope)**: Added `API-00` suite verifying `GET /api/health` and asserting that unexpected server breakdowns emit the standard `{ error: { code: "INTERNAL_ERROR", ... } }` payload.
+  > 4. **Full Test Suite Integrity**: All 326 server tests (24 files) and all 99 client tests (13 files) pass green with zero regressions.
+  >
+  > Zero blocking issues remain. Ready to merge into `lab4-staging`!
+
+---
+
+### PR #67: Lab 4-3: Actions Taken UI section and role access controls
+- **Target PR**: [#67](https://github.com/YummieGG/toktickit/pull/67) (`lab4-3-actions-ui` → `lab4-staging`)
+- **Base Commit**: `c2c8efc` (Merged PR #66)
+- **Initial Implementation Commit**: `07a215d` (Merged: `774490a`)
+- **Author**: @YummieGG
+- **Reviewer**: @Snnn3
+- **Status**: Merged (`774490a`)
+- **Reviewer comment received (@Snnn3 - Changes Requested)**:
+  > **Verdict: Changes Requested**
+  >
+  > Thank you for implementing the Actions Taken UI and role access slice for Issue #58. The component architecture, role separation (Staff/Admin interactive vs. Requester read-only), 4-state action lifecycle modals, optimistic concurrency reconciliation, and test coverage (128 client tests passing) are well put together.
+  >
+  > Please address the following spec and accessibility items before merging into `lab4-staging`:
+  > 1. **[Missing Spec] Focus Invalid Control on Server Validation Errors (`ui-spec.md` §3 / line 59)**: In `ActionsTakenSection.tsx`, when the API rejects a creation payload with field errors (e.g., `ASSIGNEE_INELIGIBLE`), `setCreateValidationErrors` renders the message below the input, but focus is not shifted to the invalid control. Mirror client-side validation by calling `.focus()` on the invalid element when setting server validation error state.
+  > 2. **[Missing Spec] Role Formatting in Edit Modal Header (`ui-spec.md` §6.1 / line 95)**: In the edit modal header, `editingAction.performedBy.role` displays raw enum text (`IT_STAFF`, `ADMINISTRATOR`) rather than human-readable text. Wrap with `ROLE_LABELS[editingAction.performedBy.role]` so it matches the table and card views.
+  > 3. **[Accessibility] Missing `aria-label` on Mobile Action Buttons (`ui-spec.md` §1 & §9)**: Desktop table buttons define distinct accessible names, but mobile card buttons omit `aria-label`, causing screen readers to announce identical "Edit" or "Complete" buttons without context. Add the corresponding `aria-label={`Edit action ${act.id}`}` to mobile card buttons.
+  > 4. **[Implementation Bug] Action Creation Appending Violates Pagination Boundaries (BR-10, `api-spec.md` §1)**: When a new action is created, it is appended directly to local state. If the user is on page 2 or has 20 items loaded, this appends a 21st item to the current page. Trigger a refetch of the action list or navigate to the final page on creation to preserve strict pagination and sort boundaries.
+- **How I responded (@YummieGG)**:
+  > Thanks @Snnn3 for the review and constructive feedback! All 4 items have been addressed in commit `747413e`:
+  > 1. **Auto-focus on Server Validation Errors (`ui-spec.md §3`):** Shifted focus to the first invalid control when the API rejects form submission with field validation errors. Added unit test assertion verifying `document.activeElement` after error response.
+  > 2. **Role Formatting in Edit Modal Header (`ui-spec.md §6.1`):** Wrapped `editingAction.performedBy.role` with `ROLE_LABELS` to display human-readable labels (`IT Staff`, `Administrator`) instead of raw enums.
+  > 3. **Accessible Labels on Mobile Action Buttons (`ui-spec.md §1 & §9`):** Added context-aware `aria-label` attributes across all mobile card action buttons.
+  > 4. **Pagination Boundary Adherence on Action Creation (`BR-10`):** Updated `handleCreateSubmit` to calculate `targetPage` and invoke `fetchActions(targetPage)`, ensuring newly created items move to the correct page without exceeding `pageSize` boundaries.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > **Verdict: Approved (LGTM)**
+  >
+  > I have re-reviewed the Actions Taken UI and role access control implementation in PR #67 following commit `747413e`. All spec, accessibility, and pagination boundary findings from Round 1 have been completely resolved and verified:
+  > 1. **Server Validation Error Focus (`ui-spec.md:59`)**: Server-returned validation errors (`body.error.fields`) now correctly move keyboard focus to the invalid control, matching the behavior of client-side validation.
+  > 2. **Role Formatting in Edit Header (`ui-spec.md:95`)**: The edit modal header now renders user-friendly role labels (`(IT Staff)`, `(Administrator)`) via `ROLE_LABELS` instead of raw enum strings.
+  > 3. **Mobile Accessibility (`ui-spec.md §1 & §9`)**: Mobile card buttons now provide explicit, accessible names, eliminating ambiguous repeated button names on screen readers.
+  > 4. **Pagination & Boundary Integrity (BR-10, `api-spec.md §1`)**: New action creation now navigates to the target page and enforces `pageSize` bounds rather than appending items past the boundary.
+  > 5. **Full Test Suite & Build Verification**: All 128 client tests (15 files) and 326 server regression tests (24 files) pass cleanly; Oxlint reported 0 errors/warnings; client TypeScript and production build succeed with zero errors.
+  >
+  > Zero blocking issues remain. Ready to merge into `lab4-staging`!
 
 ---
 
@@ -164,7 +315,7 @@
 - **Initial Implementation Commit**: `f3f2c1e`
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Changes Requested → Addressed
+- **Status**: Merged (`10176e2`)
 - **Reviewer comment received (@Snnn3 - Changes Requested)**:
   > ### Missing Specifications & Implementation Defects (PR #68)
   >
@@ -205,16 +356,34 @@
   > - **Round 3 (Live E2E Environment Fallback)**: Added transparent fallback in `ticket-resolution.live.spec.ts` to read `SEED_INITIAL_PASSWORD` from local `server/.env` if not exported in shell environment, ensuring local runs succeed while retaining strict CI environment variable overrides.
   > - **Round 4 (Server Port Isolation)**: Guarded `app.listen` in `server/src/index.ts` behind `if (process.env.NODE_ENV !== 'test')` to prevent concurrent supertest processes from colliding on port 3000 during parallel Vitest runs.
   > - **Round 5 (Test Verification)**: Expanded `TicketWorkflow.test.tsx` with automated coverage for reconcile failure retention and error preservation upon cancelled confirmation prompts (139/139 client tests green). Full regression suites pass cleanly with 0 violations.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > ### PR #68 Review: Specification Audit & Verification
+  >
+  > **Verdict: Approved (LGTM)** — All specification requirements for Issue #59 are fully satisfied with **0 missing requirements**.
+  >
+  > #### Key Verification Points:
+  > 1. **In-DOM Modal Confirmation (`ui-spec.md:129-132`)**: Replaced `window.confirm()` with an accessible `ConfirmationModal` featuring focus trapping and explicit warnings for `CANCELLED`, `RESOLVED`, `CLOSED`, and `REOPENED`.
+  > 2. **409 Conflict & Reconcile (`ui-spec.md:133`)**: Retains user drafts without unmounting views and provides explicit `Reload & Reconcile` controls.
+  > 3. **Resolution Gate & Banner (`ui-spec.md §7`, BR-14)**: Prioritizes active action blockers and displays both the top-level error banner and inline field errors.
+  > 4. **Validation (VALIDATION-01)**: Returns `VALIDATION_ERROR` (HTTP 400) for malformed versions and unknown fields.
+  > 5. **Atomic Child Cancellation & Timestamps (BR-15, BR-16)**: Cancelling a ticket cancels active child actions; timestamp lifecycle (`resolvedAt`, `problemAppearsResolvedAt`) is correctly handled.
+  > 6. **E2E & Concurrency Coverage (LIVE-01, PG-01)**: Full browser-to-DB journey and race condition tests pass.
+  >
+  > #### Test Results:
+  > - **Client**: 17/17 files, 143/143 tests passed.
+  > - **Server**: 25/25 files, 397/397 tests passed.
+- **How I responded (@YummieGG)**:
+  > Thank you @Snnn3 for the thorough review and approval! Merged into `lab4-staging` at commit `10176e2`.
 
 ---
 
 ### PR #69: Lab 4-5: Requester and Staff operational dashboards
 - **Target PR**: [#69](https://github.com/YummieGG/toktickit/pull/69) (`lab4-5-role-dashboards` → `lab4-staging`)
-- **Base Commit**: `b09b5ca` (Merged PR #68)
+- **Base Commit**: `10176e2` (Merged PR #68)
 - **Initial Implementation Commit**: `365c023`
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Changes Requested → Addressed
+- **Status**: Merged (`d494e6b`)
 - **Reviewer comment received (@Snnn3 - Changes Requested)**:
   > ### PR #69 Review: Missing Specifications & Implementation Defects
   >
@@ -237,6 +406,24 @@
   > 7. **Bangkok Timezone Formatting (`ui-spec.md:93`):** Implemented `formatBangkokDateTime` and `formatBangkokDate` in `client/src/utils/date.ts` to ensure timestamps and filter badge chips render in `Asia/Bangkok` timezone without UTC day rollback.
   >
   > Full test suite verification: 430/430 server tests, 159/159 client tests, and 27/27 Playwright E2E scenarios pass green with zero regressions.
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > ### PR #69 Review: Approved (LGTM) 🚀
+  >
+  > I have reviewed the operational dashboards and drill-down implementations in PR #69 against **Issue #60**, `docs/lab-04/specification.md`, `docs/lab-04/api-spec.md`, and `docs/lab-04/ui-spec.md`. All core requirements and previous review feedback have been cleanly addressed.
+  >
+  > #### Key Verifications:
+  > - **Requester Dashboard (`/dashboard`)**: Accurately computes owned metrics within the 7-day Bangkok calendar window, handles zero states safely, and provides bounded preview lists with parity drill-down links.
+  > - **Staff & Admin Dashboard (`/staff/dashboard`)**: Full operational visibility with 7 metric cards, zero-count groups across all 8 statuses and 4 IT priorities, urgent ticket sorting, and "My Actions" previews.
+  > - **Actions Taken Drill-down (`/staff/actions-taken`)**: Fully responsive with structured desktop table and mobile stacked card layouts ($\ge 44\text{ px}$ touch targets), URL search parameter synchronization, and action-in-context row navigation (`#action-:id`).
+  > - **Query Filter Extensions**: `GET /api/tickets` and `GET /api/staff/tickets` successfully support comma-separated status/priority sets, ISO-8601 date ranges, and stable sorting.
+  > - **Test Suites**:
+  >   - **Client**: 20/20 test files passed (159/159 tests green).
+  >   - **Server**: 27/27 test files passed (430/430 tests green).
+  >   - **Regressions**: 0 regressions across inherited Lab 1–3 suites.
+  >
+  > Ready to merge into `lab4-staging`.
+- **How I responded (@YummieGG)**:
+  > Thank you @Snnn3 for the review and approval! All dashboard features and filter parity verified. Merged into `lab4-staging` at commit `d494e6b`.
 
 ---
 
@@ -280,9 +467,29 @@
 ### PR #71: Lab 4-7: Staged integration and clean verification
 - **Target PR**: [#71](https://github.com/YummieGG/toktickit/pull/71) (`lab4-7-staged-integration` → `lab4-staging`)
 - **Base Commit**: `2ede4ce` (Merged PR #70)
+- **Commit SHA**: `dd41704` (Merged: `61ea687`)
 - **Author**: @YummieGG
 - **Reviewer**: @Snnn3
-- **Status**: Open
+- **Status**: Merged (`61ea687`)
+- **Reviewer comment received (@Snnn3 - Approved)**:
+  > ### PR #71 Review: Approved (LGTM) 🚀
+  >
+  > I have reviewed the staged integration and clean verification deliverables in PR #71 against **Lab 4-7**, `docs/lab-04/specification.md`, `docs/lab-04/reviewer.md`, and `docs/lab-04/tests.md`. All previous feature increments (PR #65 through PR #70) are cleanly integrated with zero regressions.
+  >
+  > #### Key Verifications:
+  > - **Clean Staged Integration**: Merge order from Lab 4-1 through Lab 4-6 is verified on `lab4-staging`. Client build (`npm run build`) and linting (`npm run lint`) pass with 0 errors and 0 warnings.
+  > - **Full Test Suite Verification**:
+  >   - **Client**: 20/20 test files passed (159/159 tests green).
+  >   - **Server**: 27/27 test files passed (430/430 tests green).
+  >   - **Test Isolation**: Added Prisma transaction mock isolation in `actions-taken.api.test.ts` to prevent mock state bleed.
+  > - **Documentation & Traceability**:
+  >   - `docs/lab-04/reviewer.md` is updated with complete peer-review logs, statuses, and commit SHAs for PRs #65–#71.
+  >   - `docs/lab-04/tests.md` §6 accurately reflects the verified staged integration run.
+  >   - Visual QA responsive layout verifications and 31 screenshot artifacts are confirmed.
+  >
+  > Ready to merge into `lab4-staging`.
+- **How I responded (@YummieGG)**:
+  > Thank you, @Snnn3, for the review and approval! All staged integration requirements are complete and verified. Merged into `lab4-staging`.
 - **Verification & Staged Deliverables**:
   - Full dependency merge order verified: PRs #65, #66, #67, #68, #69, #70 integrated cleanly on `lab4-staging`.
   - Client Build: `npm run build` (0 errors), `npm run lint` (0 warnings, 0 errors).
