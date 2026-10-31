@@ -46,6 +46,7 @@ async function installMockApi(page: Page, role: Role = 'IT_STAFF', queueStatus: 
     if (request.method() === 'PATCH' && url.pathname === '/api/tickets/8/it-priority') return json(route, { data: { ...ticket, itPriority: 'CRITICAL' } });
     if (request.method() === 'PATCH' && url.pathname === '/api/tickets/8/status') return json(route, { data: { ...ticket, currentStatus: 'CANCELLED' } });
     if (request.method() === 'POST' && url.pathname === '/api/tickets/8/comments') return json(route, { data: { id: 3, ticketId: 8, content: 'Staff reply', createdAt: '2026-09-12T04:00:00.000Z', author: user } }, 201);
+    if (request.method() === 'GET' && url.pathname.includes('/actions-taken')) return json(route, { data: [], ticketVersion: 1, pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1 } });
     if (request.method() === 'POST' && url.pathname === '/api/tickets/8/internal-notes') return json(route, { data: { id: 4, ticketId: 8, content: 'Staff note', createdAt: '2026-09-12T04:00:00.000Z', author: user } }, 201);
     return json(route, { error: { code: 'UNHANDLED', message: `${request.method()} ${url.pathname}` } }, 500);
   });
@@ -99,8 +100,8 @@ test('Staff can search the queue, open detail, and complete the Issue #41 workfl
   await expect(page.getByText('Owner updated.')).toBeVisible();
   await page.getByLabel('IT Priority').selectOption('CRITICAL');
   await expect(page.getByText('IT Priority updated.')).toBeVisible();
-  page.once('dialog', dialog => dialog.accept());
   await page.getByLabel('Status').selectOption('CANCELLED');
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('Ticket status updated.')).toBeVisible();
   await page.getByLabel('Add a public comment').fill('Staff reply');
   await page.getByRole('button', { name: 'Add public comment' }).click();

@@ -1,21 +1,27 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../contexts/auth';
 import type { TicketPriority, TicketStatus, TicketSummary } from '../types/ticket';
-import { formatTicketDateTime } from '../utils/date';
+import { formatBangkokDate, formatTicketDateTime } from '../utils/date';
 
 type SortField = 'ticketDate' | 'updatedAt' | 'ticketNumber' | 'currentStatus' | 'requestedPriority' | 'itPriority' | 'owner';
 type SortOrder = 'asc' | 'desc';
 type QueueFilters = {
   search: string;
   status: TicketStatus | '';
+  statuses?: string;
   requestedPriority: TicketPriority | '';
   itPriority: TicketPriority | '';
+  itPriorities?: string;
   category: string;
   ownerId: string;
+  updatedFrom?: string;
+  updatedTo?: string;
+  resolvedFrom?: string;
+  resolvedTo?: string;
 };
 type Pagination = {
   page: number;
@@ -38,9 +44,22 @@ const SORT_FIELDS: Array<{ value: SortField; label: string }> = [
   { value: 'owner', label: 'Owner' },
 ];
 
-const initialFilters: QueueFilters = {
-  search: '', status: '', requestedPriority: '', itPriority: '', category: '', ownerId: '',
-};
+function parseStaffFilters(params: URLSearchParams): QueueFilters {
+  return {
+    search: params.get('search') ?? '',
+    status: (params.get('status') as TicketStatus | null) ?? '',
+    statuses: params.get('statuses') ?? '',
+    requestedPriority: (params.get('requestedPriority') as TicketPriority | null) ?? '',
+    itPriority: (params.get('itPriority') as TicketPriority | null) ?? '',
+    itPriorities: params.get('itPriorities') ?? '',
+    category: params.get('category') ?? '',
+    ownerId: params.get('ownerId') ?? '',
+    updatedFrom: params.get('updatedFrom') ?? '',
+    updatedTo: params.get('updatedTo') ?? '',
+    resolvedFrom: params.get('resolvedFrom') ?? '',
+    resolvedTo: params.get('resolvedTo') ?? '',
+  };
+}
 
 class QueueRequestError extends Error {
   readonly status: number;
@@ -75,18 +94,39 @@ function QueueCell({ label, children }: { label: string; children: ReactNode }) 
 export function StaffTicketQueue() {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
-  const [filters, setFilters] = useState<QueueFilters>(initialFilters);
-  const [searchInput, setSearchInput] = useState('');
-  const [sortBy, setSortBy] = useState<SortField>('updatedAt');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<5 | 10 | 20>(10);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<QueueFilters>(() => parseStaffFilters(searchParams));
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search') ?? '');
+  const [sortBy, setSortBy] = useState<SortField>(() => (searchParams.get('sortBy') as SortField | null) ?? 'updatedAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>(() => (searchParams.get('sortOrder') as SortOrder | null) ?? 'desc');
+  const [page, setPage] = useState(() => {
+    const p = parseInt(searchParams.get('page') ?? '1', 10);
+    return p > 0 ? p : 1;
+  });
+  const [pageSize, setPageSize] = useState<5 | 10 | 20>(() => {
+    const ps = parseInt(searchParams.get('pageSize') ?? '10', 10);
+    return ps === 5 || ps === 10 || ps === 20 ? ps : 10;
+  });
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<QueueRequestError | null>(null);
   const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const nextFilters = parseStaffFilters(searchParams);
+    setFilters(nextFilters);
+    setSearchInput(nextFilters.search);
+    const s = searchParams.get('sortBy') as SortField | null;
+    if (s && SORT_FIELDS.some(f => f.value === s)) setSortBy(s);
+    const o = searchParams.get('sortOrder') as SortOrder | null;
+    if (o === 'asc' || o === 'desc') setSortOrder(o);
+    const p = parseInt(searchParams.get('page') ?? '1', 10);
+    if (p > 0) setPage(p);
+    const ps = parseInt(searchParams.get('pageSize') ?? '10', 10);
+    if (ps === 5 || ps === 10 || ps === 20) setPageSize(ps);
+  }, [searchParams]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ sortBy, sortOrder, page: String(page), pageSize: String(pageSize) });
@@ -96,6 +136,12 @@ export function StaffTicketQueue() {
     if (filters.itPriority) params.set('itPriority', filters.itPriority);
     if (filters.category) params.set('category', filters.category);
     if (filters.ownerId) params.set('ownerId', filters.ownerId);
+    if (filters.statuses) params.set('statuses', filters.statuses);
+    if (filters.itPriorities) params.set('itPriorities', filters.itPriorities);
+    if (filters.updatedFrom) params.set('updatedFrom', filters.updatedFrom);
+    if (filters.updatedTo) params.set('updatedTo', filters.updatedTo);
+    if (filters.resolvedFrom) params.set('resolvedFrom', filters.resolvedFrom);
+    if (filters.resolvedTo) params.set('resolvedTo', filters.resolvedTo);
     return params.toString();
   }, [filters, page, pageSize, sortBy, sortOrder]);
 
@@ -138,8 +184,20 @@ export function StaffTicketQueue() {
   }, [retry, user?.id]);
 
   const updateFilter = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) => {
-    setFilters(previous => ({ ...previous, [key]: value }));
-    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    if (key === 'status') {
+      next.delete('statuses');
+    }
+    if (key === 'itPriority') {
+      next.delete('itPriorities');
+    }
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const submitSearch = (event: FormEvent) => {
@@ -148,15 +206,60 @@ export function StaffTicketQueue() {
   };
 
   const changeSort = (field: SortField) => {
-    if (sortBy === field) setSortOrder(previous => previous === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(field); setSortOrder('asc'); }
-    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    const newOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
+    next.set('sortBy', field);
+    next.set('sortOrder', newOrder);
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const changePage = (newPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(newPage));
+    setSearchParams(next);
+  };
+
+  const changePageSize = (newPageSize: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('pageSize', String(newPageSize));
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const clearFilters = () => {
-    setFilters(initialFilters);
     setSearchInput('');
-    setPage(1);
+    setSearchParams(new URLSearchParams());
+  };
+
+  const clearStatuses = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('statuses');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearItPriorities = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('itPriorities');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearUpdatedRange = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('updatedFrom');
+    next.delete('updatedTo');
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const clearResolvedRange = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('resolvedFrom');
+    next.delete('resolvedTo');
+    next.set('page', '1');
+    setSearchParams(next);
   };
 
   const isForbidden = error?.status === 403;
@@ -192,7 +295,11 @@ export function StaffTicketQueue() {
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-owner">Owner filter</label>
               <input id="staff-owner" className="form-control" list="staff-owner-options" value={filters.ownerId} onChange={event => updateFilter('ownerId', event.target.value)} placeholder="Any, ID, or unassigned" />
-              <datalist id="staff-owner-options"><option value="unassigned">Unassigned</option>{user && <option value={String(user.id)}>Assigned to me</option>}</datalist>
+              <datalist id="staff-owner-options">
+                <option value="unassigned">Unassigned</option>
+                <option value="me">Assigned to me</option>
+                {user && <option value={String(user.id)}>Assigned to me (ID {user.id})</option>}
+              </datalist>
             </div>
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-requested-priority">Requested Priority</label>
@@ -217,17 +324,92 @@ export function StaffTicketQueue() {
             </div>
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-sort">Sort by</label>
-              <select id="staff-sort" className="form-select" value={sortBy} onChange={event => { setSortBy(event.target.value as SortField); setPage(1); }}>
+              <select
+                id="staff-sort"
+                className="form-select"
+                value={sortBy}
+                onChange={event => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('sortBy', event.target.value);
+                  next.set('page', '1');
+                  setSearchParams(next);
+                }}
+              >
                 {SORT_FIELDS.map(field => <option key={field.value} value={field.value}>{field.label}</option>)}
               </select>
             </div>
             <div className="col-12 col-sm-6 col-lg-3">
               <label className="form-label" htmlFor="staff-sort-order">Direction</label>
-              <select id="staff-sort-order" className="form-select" value={sortOrder} onChange={event => { setSortOrder(event.target.value as SortOrder); setPage(1); }}>
+              <select
+                id="staff-sort-order"
+                className="form-select"
+                value={sortOrder}
+                onChange={event => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('sortOrder', event.target.value);
+                  next.set('page', '1');
+                  setSearchParams(next);
+                }}
+              >
                 <option value="desc">Newest first</option><option value="asc">Oldest first</option>
               </select>
             </div>
           </div>
+
+          {(filters.statuses || filters.itPriorities || filters.updatedFrom || filters.resolvedFrom) && (
+            <div className="d-flex flex-wrap gap-2 align-items-center mt-3 pt-3 border-top" aria-label="Active drill-down filters">
+              <span className="small text-muted fw-bold">Active Drill-down Filters:</span>
+              {filters.statuses && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Statuses: {filters.statuses}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear statuses filter"
+                    onClick={clearStatuses}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.itPriorities && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>IT Priorities: {filters.itPriorities}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear IT priorities filter"
+                    onClick={clearItPriorities}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.updatedFrom && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Updated: {formatBangkokDate(filters.updatedFrom)} to {filters.updatedTo ? formatBangkokDate(filters.updatedTo) : 'now'}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear updated date filter"
+                    onClick={clearUpdatedRange}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+              {filters.resolvedFrom && (
+                <span className="badge rounded-pill bg-light text-dark border p-2 d-inline-flex align-items-center gap-1">
+                  <span>Resolved: {formatBangkokDate(filters.resolvedFrom)} to {filters.resolvedTo ? formatBangkokDate(filters.resolvedTo) : 'now'}</span>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-sm"
+                    aria-label="Clear resolved date filter"
+                    onClick={clearResolvedRange}
+                    style={{ fontSize: '0.65rem' }}
+                  />
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="d-flex flex-column flex-sm-row gap-2 mt-3">
             <Button type="button" variant="secondary" onClick={clearFilters} disabled={!hasFilters && !searchInput}>Clear filters</Button>
             <span className="small align-self-center" style={{ color: 'var(--text-secondary)' }}>Search includes ticket number, text, and requester name/email.</span>
@@ -278,7 +460,7 @@ export function StaffTicketQueue() {
           </article>)}</div>
           <div className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3 mt-3" aria-label="Queue pagination">
             <span className="small" style={{ color: 'var(--text-secondary)' }}>Page {pagination.page} of {pagination.totalPages} · {pagination.totalItems} ticket{pagination.totalItems === 1 ? '' : 's'}</span>
-            <div className="d-flex gap-2"><label className="visually-hidden" htmlFor="staff-page-size">Page size</label><select id="staff-page-size" className="form-select form-select-sm" value={pageSize} onChange={event => { setPageSize(Number(event.target.value) as 5 | 10 | 20); setPage(1); }}><option value="5">5 / page</option><option value="10">10 / page</option><option value="20">20 / page</option></select><Button type="button" variant="secondary" disabled={!pagination.hasPreviousPage} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</Button><Button type="button" variant="secondary" disabled={!pagination.hasNextPage} onClick={() => setPage(value => value + 1)}>Next</Button></div>
+            <div className="d-flex gap-2"><label className="visually-hidden" htmlFor="staff-page-size">Page size</label><select id="staff-page-size" className="form-select form-select-sm" value={pageSize} onChange={event => changePageSize(Number(event.target.value) as 5 | 10 | 20)}><option value="5">5 / page</option><option value="10">10 / page</option><option value="20">20 / page</option></select><Button type="button" variant="secondary" disabled={!pagination.hasPreviousPage} onClick={() => changePage(Math.max(1, page - 1))}>Previous</Button><Button type="button" variant="secondary" disabled={!pagination.hasNextPage} onClick={() => changePage(page + 1)}>Next</Button></div>
           </div>
         </>
       )}

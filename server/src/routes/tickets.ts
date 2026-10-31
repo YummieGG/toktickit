@@ -5,16 +5,17 @@ import { prisma } from '../lib/prisma';
 import { requesterTicketDetailSelect, staffTicketDetailSelect, ticketSummarySelect } from '../lib/ticket-selects';
 import { STAFF_PRIORITIES, STAFF_STATUSES } from '../lib/staff-queue';
 import {
+  ALL_STATUSES,
   isAllowedTransition,
   requiresConfirmation,
 } from '../lib/status-transition';
+import { evaluateResolutionGate } from '../lib/action-rules';
 import { generateTicketNumber } from '../lib/ticket-number';
 import {
   ensureTicketAccessible,
   findTicketForUser,
   getAuthenticatedUser,
   sendNotFound,
-  type AuthenticatedUser,
 } from '../lib/authorization';
 import {
   getUploadsDirectory,
@@ -51,6 +52,8 @@ const TICKET_SORT_FIELDS = [
   'summary',
   'requestedPriority',
   'currentStatus',
+  'updatedAt',
+  'resolvedAt',
 ] as const;
 const SORT_ORDERS = ['asc', 'desc'] as const;
 const PAGE_SIZES = [5, 10, 20] as const;
@@ -127,7 +130,12 @@ interface ValidatedTicketsQuery {
   search?: string;
   categoryId?: number;
   status?: (typeof TICKET_STATUSES)[number];
+  statuses?: (typeof ALL_STATUSES)[number][];
   priority?: (typeof REQUESTED_PRIORITIES)[number];
+  updatedFrom?: Date;
+  updatedTo?: Date;
+  resolvedFrom?: Date;
+  resolvedTo?: Date;
   sortBy: (typeof TICKET_SORT_FIELDS)[number];
   sortOrder: (typeof SORT_ORDERS)[number];
   page: number;
@@ -155,6 +163,65 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
   if (query.status !== undefined && (!status || !TICKET_STATUSES.includes(status as (typeof TICKET_STATUSES)[number]))) {
     details.push({ field: 'status', message: `status must be one of ${TICKET_STATUSES.join(', ')}` });
   }
+
+  let statuses: (typeof ALL_STATUSES)[number][] | undefined;
+  if (query.status !== undefined && query.statuses !== undefined) {
+    details.push({ field: 'statuses', message: 'status and statuses cannot be combined' });
+  } else if (query.statuses !== undefined) {
+    const rawStatuses = getSingleStringParam(query.statuses);
+    if (!rawStatuses) {
+      details.push({ field: 'statuses', message: 'statuses must be a non-empty string' });
+    } else {
+      const parts = rawStatuses.split(',').map((s) => s.trim());
+      const invalid = parts.filter((s) => !ALL_STATUSES.includes(s as (typeof ALL_STATUSES)[number]) || s.length === 0);
+      if (invalid.length > 0 || parts.length === 0) {
+        details.push({ field: 'statuses', message: `statuses must be comma-separated list of: ${ALL_STATUSES.join(', ')}` });
+      } else {
+        statuses = parts as (typeof ALL_STATUSES)[number][];
+      }
+    }
+  }
+
+  let updatedFrom: Date | undefined;
+  if (query.updatedFrom !== undefined) {
+    const raw = getSingleStringParam(query.updatedFrom);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'updatedFrom', message: 'updatedFrom must be a valid ISO 8601 timestamp' });
+    } else {
+      updatedFrom = new Date(raw);
+    }
+  }
+
+  let updatedTo: Date | undefined;
+  if (query.updatedTo !== undefined) {
+    const raw = getSingleStringParam(query.updatedTo);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'updatedTo', message: 'updatedTo must be a valid ISO 8601 timestamp' });
+    } else {
+      updatedTo = new Date(raw);
+    }
+  }
+
+  let resolvedFrom: Date | undefined;
+  if (query.resolvedFrom !== undefined) {
+    const raw = getSingleStringParam(query.resolvedFrom);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'resolvedFrom', message: 'resolvedFrom must be a valid ISO 8601 timestamp' });
+    } else {
+      resolvedFrom = new Date(raw);
+    }
+  }
+
+  let resolvedTo: Date | undefined;
+  if (query.resolvedTo !== undefined) {
+    const raw = getSingleStringParam(query.resolvedTo);
+    if (!raw || Number.isNaN(Date.parse(raw))) {
+      details.push({ field: 'resolvedTo', message: 'resolvedTo must be a valid ISO 8601 timestamp' });
+    } else {
+      resolvedTo = new Date(raw);
+    }
+  }
+
   if (query.priority !== undefined && (!priority || !REQUESTED_PRIORITIES.includes(priority as (typeof REQUESTED_PRIORITIES)[number]))) {
     details.push({ field: 'priority', message: `priority must be one of ${REQUESTED_PRIORITIES.join(', ')}` });
   }
@@ -190,7 +257,12 @@ function parseTicketsQuery(query: Request['query']): TicketsQueryParseResult {
     data: {
       ...(categoryId !== null && categoryId !== undefined ? { categoryId } : {}),
       ...(status ? { status: status as (typeof TICKET_STATUSES)[number] } : {}),
+      ...(statuses ? { statuses } : {}),
       ...(priority ? { priority: priority as (typeof REQUESTED_PRIORITIES)[number] } : {}),
+      ...(updatedFrom ? { updatedFrom } : {}),
+      ...(updatedTo ? { updatedTo } : {}),
+      ...(resolvedFrom ? { resolvedFrom } : {}),
+      ...(resolvedTo ? { resolvedTo } : {}),
       ...(search?.trim() ? { search: search.trim() } : {}),
       sortBy: sortBy as (typeof TICKET_SORT_FIELDS)[number],
       sortOrder: sortOrder as (typeof SORT_ORDERS)[number],
@@ -205,13 +277,29 @@ ticketsRouter.get('/', requireRole('REQUESTER'), async (request: Request, respon
   const parsed = parseTicketsQuery(request.query);
   if (!parsed.success) return validationError(response, parsed.details, 'INVALID_QUERY');
 
-  const { categoryId, status, priority, sortBy, sortOrder, page, pageSize, search } = parsed.data;
+  const { categoryId, status, statuses, priority, updatedFrom, updatedTo, resolvedFrom, resolvedTo, sortBy, sortOrder, page, pageSize, search } = parsed.data;
   const user = getAuthenticatedUser(request);
   const where: Prisma.TicketWhereInput = {
     requesterId: user.id,
     ...(categoryId !== undefined ? { categoryId } : {}),
-    ...(status ? { currentStatus: status } : {}),
+    ...(statuses ? { currentStatus: { in: statuses } } : status ? { currentStatus: status } : {}),
     ...(priority ? { requestedPriority: priority } : {}),
+    ...(updatedFrom || updatedTo
+      ? {
+          updatedAt: {
+            ...(updatedFrom ? { gte: updatedFrom } : {}),
+            ...(updatedTo ? { lte: updatedTo } : {}),
+          },
+        }
+      : {}),
+    ...(resolvedFrom || resolvedTo
+      ? {
+          resolvedAt: {
+            ...(resolvedFrom ? { gte: resolvedFrom } : {}),
+            ...(resolvedTo ? { lte: resolvedTo } : {}),
+          },
+        }
+      : {}),
     ...(search
       ? {
           OR: [
@@ -225,11 +313,15 @@ ticketsRouter.get('/', requireRole('REQUESTER'), async (request: Request, respon
 
   try {
     const prismaSortOrder = sortOrder as Prisma.SortOrder;
-    const orderBy: Prisma.TicketOrderByWithRelationInput = { [sortBy]: prismaSortOrder };
+    const primaryOrder: Prisma.TicketOrderByWithRelationInput =
+      sortBy === 'resolvedAt'
+        ? { resolvedAt: { sort: prismaSortOrder, nulls: 'last' } }
+        : { [sortBy]: prismaSortOrder };
+    const orderBy: Prisma.TicketOrderByWithRelationInput[] = [primaryOrder, { id: 'desc' }];
     const [tickets, totalItems] = await Promise.all([
       prisma.ticket.findMany({
         where,
-        orderBy: [orderBy, { id: 'desc' }],
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         select: ticketSummarySelect,
@@ -416,14 +508,6 @@ function parseStaffTicketId(request: Request, response: Response): number | unde
   return ticketId;
 }
 
-async function findStaffTicketOr404(request: Request, response: Response, ticketId: number) {
-  const ticket = await findTicketForUser(getAuthenticatedUser(request), ticketId, { id: true });
-  if (!ticket) {
-    sendNotFound(response);
-    return null;
-  }
-  return ticket;
-}
 
 // Public comments are part of the shared ticket surface in Issue #40.
 ticketsRouter.get(
@@ -555,6 +639,19 @@ ticketsRouter.post(
   },
 );
 
+async function runSerializableTx<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  if (typeof prisma.$transaction === 'function') {
+    return prisma.$transaction(callback, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+  return callback(prisma as unknown as Prisma.TransactionClient);
+}
+
+const OWNER_MUTATION_KEYS = ['ownerId', 'expectedTicketVersion'] as const;
+const IT_PRIORITY_MUTATION_KEYS = ['itPriority', 'expectedTicketVersion'] as const;
+const STATUS_MUTATION_KEYS = ['status', 'confirmed', 'expectedTicketVersion'] as const;
+
 // Staff workflow mutations. The owner is a routing field, not an
 // authorization boundary: any active IT Staff member can operate the queue.
 ticketsRouter.patch(
@@ -566,6 +663,13 @@ ticketsRouter.patch(
     if (ticketId === undefined) return;
     const body = getBodyObject(request.body);
     const details: ValidationErrorDetail[] = [];
+
+    for (const key of Object.keys(body)) {
+      if (!OWNER_MUTATION_KEYS.includes(key as (typeof OWNER_MUTATION_KEYS)[number])) {
+        details.push({ field: key, message: `Unknown field '${key}' is not allowed` });
+      }
+    }
+
     if (!Object.prototype.hasOwnProperty.call(body, 'ownerId')) {
       details.push({ field: 'ownerId', message: 'ownerId is required' });
     } else if (body.ownerId !== null && (
@@ -573,26 +677,65 @@ ticketsRouter.patch(
     )) {
       details.push({ field: 'ownerId', message: 'ownerId must be a positive integer or null' });
     }
+
+    if (
+      body.expectedTicketVersion === undefined ||
+      typeof body.expectedTicketVersion !== 'number' ||
+      !Number.isSafeInteger(body.expectedTicketVersion) ||
+      body.expectedTicketVersion < 1
+    ) {
+      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
+    }
+
     if (details.length > 0) return validationError(response, details);
 
     try {
-      if (!(await findStaffTicketOr404(request, response, ticketId))) return;
-      if (body.ownerId !== null) {
-        const owner = await prisma.user.findUnique({
-          where: { id: body.ownerId as number },
-          select: { id: true, isActive: true, role: true },
+      const result = await runSerializableTx(async (tx) => {
+        const existing = await tx.ticket.findUnique({
+          where: { id: ticketId },
+          select: { id: true, version: true },
         });
-        if (!owner || !owner.isActive || (owner.role !== 'IT_STAFF' && owner.role !== 'ADMINISTRATOR')) {
-          return validationError(response, [{ field: 'ownerId', message: 'Owner must be an active IT Staff or Administrator' }]);
+        if (!existing) {
+          return { kind: 'NOT_FOUND' as const };
         }
-      }
-      const ticket = await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { ownerId: body.ownerId as number | null },
-        select: staffTicketDetailSelect,
+        if (existing.version !== body.expectedTicketVersion) {
+          return { kind: 'CONFLICT' as const };
+        }
+        if (body.ownerId !== null) {
+          const owner = await tx.user.findUnique({
+            where: { id: body.ownerId as number },
+            select: { id: true, isActive: true, role: true },
+          });
+          if (!owner || !owner.isActive || (owner.role !== 'IT_STAFF' && owner.role !== 'ADMINISTRATOR')) {
+            return { kind: 'INVALID_OWNER' as const };
+          }
+        }
+        const ticket = await tx.ticket.update({
+          where: { id: ticketId },
+          data: {
+            ownerId: body.ownerId as number | null,
+            version: { increment: 1 },
+            updatedAt: new Date(),
+          },
+          select: staffTicketDetailSelect,
+        });
+        return { kind: 'OK' as const, ticket };
       });
-      return response.status(200).json({ data: ticket });
+
+      if (result.kind === 'NOT_FOUND') {
+        return sendNotFound(response);
+      }
+      if (result.kind === 'CONFLICT') {
+        return conflictError(response);
+      }
+      if (result.kind === 'INVALID_OWNER') {
+        return validationError(response, [{ field: 'ownerId', message: 'Owner must be an active IT Staff or Administrator' }]);
+      }
+      return response.status(200).json({ data: result.ticket });
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return conflictError(response);
+      }
       console.error('Error assigning ticket owner:', error);
       return internalError(response);
     }
@@ -606,27 +749,72 @@ ticketsRouter.patch(
   async (request: Request, response: Response) => {
     const ticketId = parseStaffTicketId(request, response);
     if (ticketId === undefined) return;
+    const body = getBodyObject(request.body);
     const details: ValidationErrorDetail[] = [];
-    const itPriority = getBodyObject(request.body).itPriority;
+
+    for (const key of Object.keys(body)) {
+      if (!IT_PRIORITY_MUTATION_KEYS.includes(key as (typeof IT_PRIORITY_MUTATION_KEYS)[number])) {
+        details.push({ field: key, message: `Unknown field '${key}' is not allowed` });
+      }
+    }
+
+    const itPriority = body.itPriority;
     if (typeof itPriority !== 'string' || !STAFF_PRIORITIES.includes(itPriority as (typeof STAFF_PRIORITIES)[number])) {
       details.push({ field: 'itPriority', message: `itPriority must be one of ${STAFF_PRIORITIES.join(', ')}` });
     }
+
+    if (
+      body.expectedTicketVersion === undefined ||
+      typeof body.expectedTicketVersion !== 'number' ||
+      !Number.isSafeInteger(body.expectedTicketVersion) ||
+      body.expectedTicketVersion < 1
+    ) {
+      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
+    }
+
     if (details.length > 0) return validationError(response, details);
 
     try {
-      if (!(await findStaffTicketOr404(request, response, ticketId))) return;
-      const ticket = await prisma.ticket.update({
-        where: { id: ticketId },
-        data: { itPriority: itPriority as (typeof STAFF_PRIORITIES)[number] },
-        select: staffTicketDetailSelect,
+      const result = await runSerializableTx(async (tx) => {
+        const existing = await tx.ticket.findUnique({
+          where: { id: ticketId },
+          select: { id: true, version: true },
+        });
+        if (!existing) {
+          return { kind: 'NOT_FOUND' as const };
+        }
+        if (existing.version !== body.expectedTicketVersion) {
+          return { kind: 'CONFLICT' as const };
+        }
+        const ticket = await tx.ticket.update({
+          where: { id: ticketId },
+          data: {
+            itPriority: itPriority as (typeof STAFF_PRIORITIES)[number],
+            version: { increment: 1 },
+            updatedAt: new Date(),
+          },
+          select: staffTicketDetailSelect,
+        });
+        return { kind: 'OK' as const, ticket };
       });
-      return response.status(200).json({ data: ticket });
+
+      if (result.kind === 'NOT_FOUND') {
+        return sendNotFound(response);
+      }
+      if (result.kind === 'CONFLICT') {
+        return conflictError(response);
+      }
+      return response.status(200).json({ data: result.ticket });
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return conflictError(response);
+      }
       console.error('Error updating IT priority:', error);
       return internalError(response);
     }
   },
 );
+
 
 ticketsRouter.patch(
   '/:id/status',
@@ -637,42 +825,170 @@ ticketsRouter.patch(
     if (ticketId === undefined) return;
     const body = getBodyObject(request.body);
     const details: ValidationErrorDetail[] = [];
+
+    for (const key of Object.keys(body)) {
+      if (!STATUS_MUTATION_KEYS.includes(key as (typeof STATUS_MUTATION_KEYS)[number])) {
+        details.push({ field: key, message: `Unknown field '${key}' is not allowed` });
+      }
+    }
+
     const nextStatus = body.status;
     if (typeof nextStatus !== 'string' || !STAFF_STATUSES.includes(nextStatus as (typeof STAFF_STATUSES)[number])) {
       details.push({ field: 'status', message: `status must be one of ${STAFF_STATUSES.join(', ')}` });
     }
-    if (typeof body.confirmed !== 'boolean') details.push({ field: 'confirmed', message: 'confirmed must be a boolean' });
-    if (details.length > 0) return validationError(response, details, 'INVALID_STATUS_TRANSITION');
+    if (typeof body.confirmed !== 'boolean') {
+      details.push({ field: 'confirmed', message: 'confirmed must be a boolean' });
+    }
+    if (
+      body.expectedTicketVersion === undefined ||
+      typeof body.expectedTicketVersion !== 'number' ||
+      !Number.isSafeInteger(body.expectedTicketVersion) ||
+      body.expectedTicketVersion < 1
+    ) {
+      details.push({ field: 'expectedTicketVersion', message: 'expectedTicketVersion must be a positive integer' });
+    }
+
+    if (details.length > 0) return validationError(response, details);
+
+    const user = getAuthenticatedUser(request);
+    const target = nextStatus as (typeof STAFF_STATUSES)[number];
 
     try {
-      const current = await prisma.ticket.findFirst({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
-      if (!current) {
-        sendNotFound(response);
-        return;
-      }
-      const target = nextStatus as (typeof STAFF_STATUSES)[number];
-      if (!isAllowedTransition(current.currentStatus, target)) {
-        return validationError(response, [{ field: 'status', message: `Cannot transition from ${current.currentStatus} to ${target}` }], 'INVALID_STATUS_TRANSITION');
-      }
-      if (requiresConfirmation(target) && body.confirmed !== true) {
-        return validationError(response, [{ field: 'confirmed', message: `${target} requires explicit confirmation` }], 'INVALID_STATUS_TRANSITION');
-      }
-      const updateResult = await prisma.ticket.updateMany({
-        where: { id: ticketId, currentStatus: current.currentStatus },
-        data: {
+      const result = await runSerializableTx(async (tx) => {
+        const existing = await tx.ticket.findUnique({
+          where: { id: ticketId },
+          select: { id: true, currentStatus: true, version: true, resolvedAt: true },
+        });
+
+        if (!existing) {
+          return { kind: 'NOT_FOUND' as const };
+        }
+
+        if (existing.version !== body.expectedTicketVersion) {
+          return { kind: 'CONFLICT' as const };
+        }
+
+        if (!isAllowedTransition(existing.currentStatus, target)) {
+          return {
+            kind: 'INVALID_TRANSITION' as const,
+            message: `Cannot transition from ${existing.currentStatus} to ${target}`,
+          };
+        }
+
+        if (requiresConfirmation(target) && body.confirmed !== true) {
+          return {
+            kind: 'CONFIRMATION_REQUIRED' as const,
+            message: `${target} requires explicit confirmation`,
+          };
+        }
+
+        // Resolution Gate: Transition to RESOLVED (BR-14)
+        if (target === 'RESOLVED') {
+          const actions = typeof tx.actionTaken?.findMany === 'function'
+            ? await tx.actionTaken.findMany({
+                where: { ticketId },
+                select: { id: true, status: true, result: true, followUpRequired: true },
+              })
+            : [];
+
+          const gateResult = evaluateResolutionGate(actions);
+          if (!gateResult.allowed) {
+            return {
+              kind: 'RESOLUTION_BLOCKED' as const,
+              reason: gateResult.reason,
+            };
+          }
+        }
+
+        // Ticket Cancellation: Atomically cancel active child actions (BR-16)
+        if (target === 'CANCELLED' && typeof tx.actionTaken?.findMany === 'function') {
+          const activeActions = await tx.actionTaken.findMany({
+            where: {
+              ticketId,
+              status: { in: ['PENDING', 'IN_PROGRESS'] },
+            },
+            select: { id: true, status: true, cancelReason: true, version: true },
+          });
+
+          const now = new Date();
+          for (const act of activeActions) {
+            await tx.actionTaken.update({
+              where: { id: act.id },
+              data: {
+                status: 'CANCELLED',
+                cancelReason: 'Ticket cancelled by IT Staff',
+                version: { increment: 1 },
+                updatedAt: now,
+              },
+            });
+
+            if (typeof tx.actionTakenEvent?.create === 'function') {
+              await tx.actionTakenEvent.create({
+                data: {
+                  actionId: act.id,
+                  actorId: user.id,
+                  type: 'CANCELLED',
+                  createdAt: now,
+                  before: {
+                    status: act.status,
+                    cancelReason: act.cancelReason,
+                    version: act.version,
+                  },
+                  after: {
+                    status: 'CANCELLED',
+                    cancelReason: 'Ticket cancelled by IT Staff',
+                    version: act.version + 1,
+                  },
+                },
+              });
+            }
+          }
+        }
+
+        const now = new Date();
+        const updateData: Prisma.TicketUpdateInput = {
           currentStatus: target,
-          ...(target === 'REOPENED' ? { problemAppearsResolvedAt: null } : {}),
-        },
+          version: { increment: 1 },
+          updatedAt: now,
+        };
+
+        if (target === 'RESOLVED') {
+          updateData.resolvedAt = now;
+        } else if (target === 'REOPENED') {
+          updateData.resolvedAt = null;
+          updateData.problemAppearsResolvedAt = null;
+        }
+
+        const ticket = await tx.ticket.update({
+          where: { id: ticketId },
+          data: updateData,
+          select: staffTicketDetailSelect,
+        });
+
+        return { kind: 'OK' as const, ticket };
       });
-      if (updateResult.count === 0) {
+
+      if (result.kind === 'NOT_FOUND') {
+        return sendNotFound(response);
+      }
+      if (result.kind === 'CONFLICT') {
         return conflictError(response);
       }
-      const ticket = await prisma.ticket.findUnique({
-        where: { id: ticketId },
-        select: staffTicketDetailSelect,
-      });
-      return response.status(200).json({ data: ticket });
+      if (result.kind === 'INVALID_TRANSITION') {
+        return validationError(response, [{ field: 'status', message: result.message }], 'INVALID_STATUS_TRANSITION');
+      }
+      if (result.kind === 'CONFIRMATION_REQUIRED') {
+        return validationError(response, [{ field: 'confirmed', message: result.message }], 'INVALID_STATUS_TRANSITION');
+      }
+      if (result.kind === 'RESOLUTION_BLOCKED') {
+        return validationError(response, [{ field: 'resolutionGate', message: result.reason }], 'TICKET_RESOLUTION_BLOCKED');
+      }
+
+      return response.status(200).json({ data: result.ticket });
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return conflictError(response);
+      }
       console.error('Error updating ticket status:', error);
       return internalError(response);
     }

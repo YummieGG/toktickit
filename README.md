@@ -17,24 +17,27 @@ TokTickIT is an IT service desk management system designed for logging, tracking
 toktickit/
 ├── client/                     # Frontend web application (React 19 + TypeScript + Vite)
 │   ├── src/                    # Components, pages, auth context, and Zen Green design tokens
-│   └── tests/                  # UI, component, and visual test suites (lab-02, lab-03)
+│   └── tests/                  # UI, component, and visual test suites (lab-02, lab-03, lab-04)
 ├── server/                     # Backend REST API service (Express 5 + TypeScript)
 │   ├── prisma/                 # Prisma schema, migrations, and idempotent seed script
-│   ├── src/                    # API routes (auth, tickets, staff, admin), middleware, lib
-│   ├── tests/                  # Vitest API and PostgreSQL integration tests (lab-01, lab-02, lab-03)
+│   ├── src/                    # API routes (auth, tickets, staff, actions, admin, dashboards), middleware, lib
+│   ├── tests/                  # Vitest API and PostgreSQL integration tests (lab-01, lab-02, lab-03, lab-04)
 │   └── uploads/                # Local directory for ticket file attachments
 ├── e2e/                        # End-to-end browser test suites (Playwright)
 │   ├── lab-02/                 # Requester ticket workflows and responsive checks
 │   ├── lab-03/                 # Auth, IT Staff queue/detail, Admin user management, live E2E
+│   ├── lab-04/                 # Actions Taken, resolution gate, dashboards, and visual QA
 │   ├── playwright.config.ts    # Mocked fixture-backed E2E configuration
 │   └── playwright.live.config.ts # Real server + PostgreSQL live integration configuration
 ├── docs/                       # Project specifications, contract documents, and review logs
 │   ├── lab-01/                 # Sprint 1 documentation, tests, reviewer logs, and AI use
 │   ├── lab-02/                 # Sprint 2 engineering contract, specs, and test reports
-│   └── lab-03/                 # Sprint 3 engineering contract, API/UI specs, tests, and reviewer log
+│   ├── lab-03/                 # Sprint 3 engineering contract, API/UI specs, tests, and reviewer log
+│   └── lab-04/                 # Sprint 4 engineering contract, Actions Taken, dashboards, and review logs
 ├── artifacts/                  # Visual QA evidence and test screenshots
 │   ├── lab-02/                 # Responsive screenshots for Lab 2
-│   └── lab-03/screenshots/     # Multi-role screenshots across desktop, tablet, and mobile
+│   ├── lab-03/screenshots/     # Multi-role screenshots across desktop, tablet, and mobile
+│   └── lab-04/screenshots/     # Multi-role screenshots across viewports for Lab 4
 └── docker-compose.yml          # PostgreSQL database service container definition
 ```
 
@@ -110,14 +113,35 @@ The backend server will run at `http://localhost:3000`.
 The local seed creates deterministic Requester, IT Staff, and Administrator
 accounts. Their initial password is the value you set in the uncommitted
 `server/.env` as `SEED_INITIAL_PASSWORD`; the repository intentionally does
-not publish a usable credential. The seeded sign-in emails are:
+not publish a usable credential. The seeded sign-in emails (12 total accounts) are:
 
 - Requesters: `somchai.p@toktickit.local`, `suda.s@toktickit.local`,
-  `anan.s@toktickit.local`, `kanda.m@toktickit.local`, and inactive
-  `wichai.r@toktickit.local`.
+  `anan.s@toktickit.local`, `kanda.m@toktickit.local`, `malee.j@toktickit.local`,
+  and inactive `wichai.r@toktickit.local`.
 - IT Staff: `narin.staff@toktickit.local`, `pimchanok.staff@toktickit.local`,
   `chaiwat.staff@toktickit.local`, and inactive `somsak.staff@toktickit.local`.
-- Administrator: `araya.admin@toktickit.local`.
+- Administrators: `araya.admin@toktickit.local`, `kittisak.admin@toktickit.local`.
+
+The seed also populates 8 deterministic Actions Taken records across tickets,
+covering all 4 action lifecycle statuses (`PENDING`, `IN_PROGRESS`, `COMPLETED`,
+`CANCELLED`), multiple assignees, follow-up notes, and 7-day rolling window dates.
+
+#### Database Migration, Reset & Recovery
+
+If the database needs to be migrated, cleanly reset, or recovered from a stale state:
+
+```bash
+cd server
+
+# Apply pending migrations to existing database
+npx prisma migrate deploy
+
+# Full reset and clean recovery: wipes database, reapplies all migrations, and runs idempotent seed
+npx prisma migrate reset --force
+
+# Verification of idempotent seeding
+npx prisma db seed
+```
 
 ---
 
@@ -139,7 +163,27 @@ The frontend will run at `http://localhost:5173` (or the port indicated in your 
 
 ---
 
-### 5. E2E Setup (Playwright)
+### 5. Role Workflows & Demonstration
+
+- **Requester Flow (`/dashboard` & `/tickets`)**:
+  - Sign in as `somchai.p@toktickit.local`.
+  - The Requester Dashboard displays 4 Bangkok 7-day rolling window metric cards (`Active Tickets`, `Waiting for You`, `Recently Updated`, `Recently Resolved`) and 3 preview lists with drill-down query links.
+  - Create tickets, view attachments, post public comments, and signal advisory `Problem Appears Resolved`.
+  - Actions Taken section on Ticket Detail is rendered in read-only mode for the ticket owner.
+- **IT Staff Flow (`/staff/dashboard`, `/staff/queue`, `/staff/actions-taken`)**:
+  - Sign in as `narin.staff@toktickit.local`.
+  - The Staff Dashboard displays 7 operational metrics (unassigned tickets, my tickets, my actions, status/priority breakdown), urgent ticket previews, and assigned actions preview.
+  - Inspect assigned actions on `/staff/actions-taken` with status filter chips, pagination, and deep-linking `#action-:actionId`.
+  - On Ticket Detail (`/staff/tickets/:id`), record, assign, edit, and transition Actions Taken.
+  - Enforce Ticket Resolution Gate: resolving a ticket requires at least one completed action with a recorded result, no pending/in-progress actions, and no unresolved follow-up requirements.
+- **Administrator Flow (`/admin/users`)**:
+  - Sign in as `araya.admin@toktickit.local`.
+  - Manage user accounts (deactivate, reactivate, initial password generation) with serializable safety guards preventing last-admin demotion or self-deactivation.
+  - Admins can inspect queues and record Actions Taken, but formal ticket status transitions are strictly restricted to IT Staff (HTTP 403 Forbidden).
+
+---
+
+### 6. E2E Setup (Playwright)
 
 From the repository root, install the E2E dependencies and Chromium once:
 
@@ -149,11 +193,17 @@ npm install
 npx playwright install chromium
 ```
 
-The E2E suite uses deterministic API fixtures and starts the Vite client automatically. It covers the complete requester flow and responsive evidence at 1280px, 768px, and 375px:
+The E2E suite uses deterministic API fixtures and starts the Vite client automatically. It covers requester flows, staff workflows, resolution gate, dashboards, and responsive checks across 1280px, 768px, and 375px:
 
 ```bash
 cd e2e
 npm test
+```
+
+To run the visual QA suite capturing responsive screenshots:
+```bash
+cd e2e
+npx playwright test e2e/lab-04/visual-qa.spec.ts
 ```
 
 To run the live integration E2E suite against a real server and PostgreSQL database:
@@ -172,48 +222,48 @@ npm run test:live
 ## Running Automated Tests
 
 ### Backend Tests (Server)
-Tests covering API endpoints, health check, master data, ticket generation, and concurrency safety:
+Tests covering API endpoints, health check, master data, ticket workflow, actions taken, and operational dashboards:
 
 ```bash
 cd server
 npm test
 ```
+*Current test metrics:* 27 test files passed, 430/430 tests green.
 
 To run a specific test file:
 ```bash
-npx vitest run tests/lab-02/tickets.api.test.ts
+npx vitest run tests/lab-04/actions-taken.api.test.ts
+npx vitest run tests/lab-04/ticket-workflow.api.test.ts
 ```
 
-To run the Administrator and clean migration/seed PostgreSQL integration checks, use an isolated
-PostgreSQL database and provide its connection string explicitly. A fresh target database must be
-migrated before running the suite:
+To run the PostgreSQL integration checks (concurrency, migration, seed, performance smoke):
 ```bash
 cd server
 export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/toktickit_admin_test?schema=public"
 DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
 TEST_DATABASE_URL="$TEST_DATABASE_URL" npm run test:integration
 ```
-The integration suite creates uniquely named records and removes them during
-cleanup. It verifies real transaction rollback, owner unassignment, session
-revocation, role/origin guards, and concurrent last-Administrator protection.
 
 ### Frontend Tests (Client)
-Tests covering UI components, loading states, forms, and validation:
+Tests covering UI components, loading states, dashboards, Actions Taken panel, and ticket workflow:
 
 ```bash
 cd client
 npm test
 ```
+*Current test metrics:* 20 test files passed, 159/159 tests green.
 
 To run a specific test file:
 ```bash
-npx vitest run tests/lab-02/CreateTicket.test.tsx
+npx vitest run tests/lab-04/ActionsTaken.test.tsx
+npx vitest run tests/lab-04/TicketWorkflow.test.tsx
+npx vitest run tests/lab-04/StaffDashboard.test.tsx
 ```
 
-To run the production build checks:
+To run the production build and lint checks:
 ```bash
 cd server && npm run build
-cd ../client && npm run build
+cd ../client && npm run lint && npm run build
 cd ../e2e && npm test
 ```
 

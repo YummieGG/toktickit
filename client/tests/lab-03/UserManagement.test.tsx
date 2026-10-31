@@ -229,6 +229,24 @@ describe('Issue #42 Administrator User Management screen', () => {
         return Promise.resolve(response({ data: currentUser }));
       }
       if (method === 'GET' && url === '/api/categories') return Promise.resolve(response({ data: [] }));
+      if (method === 'GET' && url === '/api/dashboards/staff') {
+        return Promise.resolve(response({
+          metrics: {
+            unassignedTickets: 0,
+            myTickets: 0,
+            myActionsTaken: 0,
+            ticketsByStatus: {},
+            activeTicketsByItPriority: {},
+          },
+          recentTickets: [],
+          urgentTickets: [],
+          myActions: [],
+          generatedAt: '2026-10-18T00:00:00.000Z',
+          timezone: 'Asia/Bangkok',
+          window: { from: '2026-10-12T00:00:00.000+07:00', to: '2026-10-18T00:00:00.000+07:00' },
+          listLimit: 5,
+        }));
+      }
       if (method === 'GET' && url.startsWith('/api/staff/tickets')) {
         return Promise.resolve(response({
           data: [],
@@ -246,7 +264,7 @@ describe('Issue #42 Administrator User Management screen', () => {
     fireEvent.change(screen.getByLabelText('Role *'), { target: { value: 'IT_STAFF' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes', exact: true }));
 
-    await waitFor(() => expect(window.location.pathname).toBe('/staff/tickets'));
+    await waitFor(() => expect(window.location.pathname).toBe('/staff/dashboard'));
     expect(currentUser.role).toBe('IT_STAFF');
     expect(fetchMock.mock.calls.filter(call => String(call[0]) === '/api/auth/me')).toHaveLength(2);
   });

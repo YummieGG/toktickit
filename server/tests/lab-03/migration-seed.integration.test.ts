@@ -20,6 +20,7 @@ const migrationFiles = [
   '20260910010000_canonical_user_email/migration.sql',
   '20260912000000_lab3_authorization_requester/migration.sql',
   '20260913000000_lab3_staff_ticket_workflow/migration.sql',
+  '20261013000000_lab4_actions_taken_foundation/migration.sql',
 ];
 
 let adminClient: Client | undefined;
@@ -85,6 +86,7 @@ async function readCounts(): Promise<Record<string, number>> {
     UNION ALL SELECT 'attachments', COUNT(*)::text FROM "Attachment"
     UNION ALL SELECT 'comments', COUNT(*)::text FROM "PublicComment"
     UNION ALL SELECT 'notes', COUNT(*)::text FROM "InternalNote"
+    UNION ALL SELECT 'actions', COUNT(*)::text FROM "ActionTaken"
   `);
   return Object.fromEntries(result.rows.map(row => [row.tableName, Number(row.count)]));
 }

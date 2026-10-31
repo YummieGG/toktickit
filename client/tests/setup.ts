@@ -29,13 +29,46 @@ function authBootstrapResponse() {
   });
 }
 
-export function authenticatedFetchMock<T extends (...args: any[]) => any>(implementation?: T) {
+function isActionsTakenBootstrapRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const url = String(input);
+  return url.includes('/actions-taken') && (!init || !init.method || init.method.toUpperCase() === 'GET');
+}
+
+function actionsTakenBootstrapResponse() {
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      data: [],
+      ticketVersion: 1,
+      pagination: {
+        page: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    }),
+  });
+}
+
+export function authenticatedFetchMock<T extends (...args: any[]) => any>(
+  implementation?: T,
+  options?: { autoMockActionsTaken?: boolean },
+) {
   type FetchImplementation = (input: RequestInfo | URL, ...args: any[]) => any;
   let defaultImplementation: FetchImplementation | undefined = implementation;
   const queuedImplementations: FetchImplementation[] = [];
+  const autoMockActionsTaken = options?.autoMockActionsTaken ?? true;
 
   const mock = vi.fn((input: RequestInfo | URL, ...args: any[]) => {
     if (isAuthBootstrapRequest(input)) return authBootstrapResponse();
+    if (autoMockActionsTaken && isActionsTakenBootstrapRequest(input, args[0])) {
+      mock.mock.calls.pop();
+      mock.mock.results.pop();
+      return actionsTakenBootstrapResponse();
+    }
     const nextImplementation = queuedImplementations.shift() ?? defaultImplementation;
     return nextImplementation?.(input, ...args);
   });

@@ -64,6 +64,11 @@ export const AppShell: React.FC = () => {
                 <ul className="navbar-nav me-auto gap-1 my-2 my-md-0">
                   {isRequester && <>
                     <li className="nav-item">
+                      <NavLink to="/dashboard" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Dashboard
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
                       <NavLink to="/tickets" end className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
                         My Tickets
                       </NavLink>
@@ -74,27 +79,49 @@ export const AppShell: React.FC = () => {
                       </NavLink>
                     </li>
                   </>}
-                  {isStaff && <li className="nav-item">
-                    <NavLink to="/staff/tickets" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
-                      Staff Queue
-                    </NavLink>
-                  </li>}
+                  {isStaff && <>
+                    <li className="nav-item">
+                      <NavLink to="/staff/dashboard" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Dashboard
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink to="/staff/tickets" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Staff Queue
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink to="/staff/actions-taken" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Actions Taken
+                      </NavLink>
+                    </li>
+                  </>}
                   {isAdministrator && <>
+                    <li className="nav-item">
+                      <NavLink to="/staff/dashboard" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Dashboard
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink to="/staff/tickets" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Staff Queue
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink to="/staff/actions-taken" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
+                        Actions Taken
+                      </NavLink>
+                    </li>
                     <li className="nav-item">
                       <NavLink to="/admin/users" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
                         User Management
                       </NavLink>
                     </li>
-                    <li className="nav-item">
-                      <NavLink to="/staff/tickets" className={navLinkClass} style={navLinkStyle} onClick={closeNavigation}>
-                        Ticket Queue
-                      </NavLink>
-                    </li>
                   </>}
                 </ul>
 
-                <div className="d-flex align-items-center ms-md-auto gap-2 my-2 my-md-0 text-nowrap">
-                  <span className="text-white text-nowrap" style={{ fontSize: '0.875rem' }} aria-label="Current user">
+                <div className="d-flex flex-wrap align-items-center ms-md-auto gap-2 my-2 my-md-0">
+                  <span className="text-white" style={{ fontSize: '0.875rem' }} aria-label="Current user">
                     {user.name} · {user.email} · {ROLE_LABELS[user.role]}
                   </span>
                   <Link

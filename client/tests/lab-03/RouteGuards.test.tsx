@@ -24,6 +24,22 @@ function authenticatedFetch(role: Role) {
     if (url === '/api/categories') {
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: [] }) });
     }
+    if (url === '/api/dashboards/requester') {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          metrics: { openTickets: 0, waitingForYou: 0, recentlyUpdated: 0, recentlyResolved: 0 },
+          recentTickets: [],
+          attentionTickets: [],
+          resolvedTickets: [],
+          generatedAt: '2026-10-18T00:00:00.000Z',
+          timezone: 'Asia/Bangkok',
+          window: { from: '2026-10-12T00:00:00.000+07:00', to: '2026-10-18T00:00:00.000+07:00' },
+          listLimit: 5,
+        }),
+      });
+    }
     if (url.startsWith('/api/tickets')) {
       return Promise.resolve({
         ok: true,
@@ -95,8 +111,8 @@ describe('Issue #40 route guards and authenticated shell', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'My Tickets' })).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/tickets');
+    expect(await screen.findByRole('heading', { name: 'Requester Dashboard' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/dashboard');
     expect(screen.getByLabelText('Current user')).toHaveTextContent('REQUESTER User');
     expect(screen.queryByRole('button', { name: 'Change Requester' })).not.toBeInTheDocument();
     const urls = vi.mocked(global.fetch).mock.calls.map(call => String(call[0]));

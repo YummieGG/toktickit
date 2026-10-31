@@ -17,7 +17,16 @@ vi.mock('../../src/lib/prisma', () => ({
       updateMany: vi.fn(),
     },
     ticket: {
+      findMany: vi.fn(),
       updateMany: vi.fn(),
+      update: vi.fn(),
+    },
+    actionTaken: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+    actionTakenEvent: {
+      create: vi.fn(),
     },
     $transaction: vi.fn(),
     $executeRaw: vi.fn(),
@@ -68,7 +77,12 @@ describe('Issue #42 Administrator user-management API', () => {
     vi.mocked(prisma.userSession.findUnique).mockResolvedValue(session() as never);
     vi.mocked(prisma.$transaction).mockImplementation(async (callback: any) => callback(prisma));
     vi.mocked(prisma.userSession.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.ticket.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.ticket.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.ticket.update).mockResolvedValue({ id: 1, version: 2 } as never);
+    vi.mocked(prisma.actionTaken.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.actionTaken.update).mockResolvedValue({ id: 1 } as never);
+    vi.mocked(prisma.actionTakenEvent.create).mockResolvedValue({ id: 1 } as never);
   });
 
   it('allows only an active Administrator session to access every admin endpoint', async () => {

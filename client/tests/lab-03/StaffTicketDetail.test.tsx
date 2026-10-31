@@ -53,6 +53,9 @@ function installFetch(
       if (url.endsWith('/internal-notes')) return Promise.resolve(response({ data: { id: 5, ticketId: 8, content: body.content as string, createdAt: '2026-09-12T04:00:00.000Z', author: { id: user.id, name: user.name, role: user.role } } }, 201));
       return Promise.resolve(response({ data: next }, url.endsWith('/comments') || url.endsWith('/internal-notes') ? 201 : 200));
     }
+    if (url.includes('/actions-taken') && (!init || !init.method || init.method === 'GET')) {
+      return Promise.resolve(response({ data: [], ticketVersion: 1, pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }));
+    }
     if (url.startsWith('/api/attachments/11/download')) return Promise.resolve(response({}, options.attachmentStatus ?? 200));
     throw new Error(`Unexpected request: ${url}`);
   });
@@ -86,22 +89,22 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
 
   it('requires confirmation for terminal workflow changes and clears resolution when reopened', async () => {
     const fetchMock = installFetch(staff, 'RESOLVED');
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<App />);
     await screen.findByRole('heading', { name: 'TK-0008' });
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'REOPENED' } });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/tickets/8/status', expect.objectContaining({ method: 'PATCH' })));
-    expect(window.confirm).toHaveBeenCalled();
   });
 
   it('resets status dropdown when confirmation is cancelled', async () => {
     const fetchMock = installFetch(staff, 'OPEN');
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     render(<App />);
     await screen.findByRole('heading', { name: 'TK-0008' });
     const statusSelect = screen.getByLabelText('Status') as HTMLSelectElement;
     fireEvent.change(statusSelect, { target: { value: 'CANCELLED' } });
-    expect(window.confirm).toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(fetchMock).not.toHaveBeenCalledWith('/api/tickets/8/status', expect.anything());
     expect(statusSelect.value).toBe('OPEN');
   });
@@ -113,7 +116,9 @@ describe('Issue #41 Staff Ticket Detail screen', () => {
 
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'IN_PROGRESS' } });
 
-    expect(await screen.findByText('The resource was modified by another user. Reload and try again.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('The resource was modified by another user. Reload and try again.')).toBeInTheDocument();
+    });
   });
 
   it('redirects to Login when the detail session expires', async () => {
